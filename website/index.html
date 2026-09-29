@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instrumenting your application with OpenTelemetry</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/index.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <header class="hero">
+            <h1>Instrumenting your application with OpenTelemetry</h1>
+            <p class="lead">Welcome to a hands-on workshop where you&#39;ll instrument a real multi-service application from scratch with OpenTelemetry, and ship metrics, logs and traces into the VictoriaMetrics stack. Roughly 25% talk, 75% keyboard.</p>
+            <p class="hero-note"><strong>Two parallel tracks: Node.js/Express and Python/Flask.</strong> Same system, same backend, same exercises — only the SDK surface differs.</p>
+        </header>
+
+        <section class="prerequisites">
+            <h2>Prerequisites</h2>
+            <ul>
+                <li>Comfortable with HTTP APIs and either JavaScript or Python</li>
+                <li>Docker and Docker Compose installed and working</li>
+                <li>Git installed on your system</li>
+                <li><strong>No prior OpenTelemetry, MetricsQL or LogsQL knowledge needed</strong></li>
+                <li>At least 8GB of free RAM and ~5GB of disk space</li>
+                
+            </ul>
+        </section>
+
+        <section class="overview">
+            <h2>Workshop Overview</h2>
+            <p>This workshop consists of 11 modules that take you from a service emitting nothing at all to one you can debug from telemetry alone. You'll instrument a multi-service system, run an OpenTelemetry Collector as the single ingress point, and query the results in VictoriaMetrics, VictoriaLogs, VictoriaTraces and Grafana:</p>
+            <p class="track-hint"><i class="fas fa-code" aria-hidden="true"></i> Every module is written once for both tracks. Use the <strong>track switcher</strong> in the navigation bar of any module page to flip the code examples between Node.js and Python — your choice is remembered as you move through the workshop.</p>
+
+            <div class="modules-grid">
+                
+                <a href="00-setup-and-sanity-check.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 0</div>
+                        <h3>Setup and Sanity Check</h3>
+                        <p>Download and start every piece of the stack yourself — four telemetry binaries and four containers — then run the doctor script and bookmark the UIs.</p>
+                    </div>
+                </a>
+                
+                <a href="01-the-application.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 1</div>
+                        <h3>The Application You&#39;ll Instrument</h3>
+                        <p>Tour the todo-api you&#39;ll be editing all day — its endpoints, its dependencies, and the handful of functions that matter.</p>
+                    </div>
+                </a>
+                
+                <a href="02-what-observability-is.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 2</div>
+                        <h3>What Observability Actually Is</h3>
+                        <p>Shared vocabulary — signals, resource, scope, attributes, context — and why correlation is the real product.</p>
+                    </div>
+                </a>
+                
+                <a href="03-auto-instrumentation.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 3</div>
+                        <h3>The Easy Path: Zero-Code Auto-Instrumentation</h3>
+                        <p>Get all three signals flowing without touching application code, then find the ceiling of what that buys you.</p>
+                    </div>
+                </a>
+                
+                <a href="04-the-collector.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 4</div>
+                        <h3>The Collector, and Where the Data Actually Goes</h3>
+                        <p>Read and edit the OpenTelemetry Collector config that fans a single OTLP endpoint out to three backends.</p>
+                    </div>
+                </a>
+                
+                <a href="05-manual-metrics.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 5</div>
+                        <h3>Manual Metrics</h3>
+                        <p>Pick the right instrument, emit business metrics, shape them with views, and meet cardinality before it bites.</p>
+                    </div>
+                </a>
+                
+                <a href="06-manual-logs.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 6</div>
+                        <h3>Manual Logs</h3>
+                        <p>Emit structured logs that carry trace context, and query them with LogsQL.</p>
+                    </div>
+                </a>
+                
+                <a href="07-manual-traces.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 7</div>
+                        <h3>Manual Traces</h3>
+                        <p>Create custom spans, record errors properly, and propagate context across services and languages.</p>
+                    </div>
+                </a>
+                
+                <a href="08-correlation.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 8</div>
+                        <h3>Correlation: Making the Three Signals One Thing</h3>
+                        <p>Derive metrics from spans and wire up the jumps between metrics, logs and traces in Grafana.</p>
+                    </div>
+                </a>
+                
+                <a href="09-capstone-debugging-challenge.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 9</div>
+                        <h3>Capstone: The Debugging Challenge</h3>
+                        <p>Diagnose an unfamiliar, production-ish failure using only the telemetry you built.</p>
+                    </div>
+                </a>
+                
+                <a href="10-production-realities.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Module 10</div>
+                        <h3>Production Realities and Wrap-Up</h3>
+                        <p>Cost, sampling, retention, PII and rollout strategy — what changes when this leaves your laptop.</p>
+                    </div>
+                </a>
+                
+            </div>
+        </section>
+
+        <section class="getting-started">
+            <h2>Getting Started</h2>
+            <ol>
+                <li>Start with <a href="00-setup-and-sanity-check.html">Module 0</a> to get your environment green</li>
+                <li>Work through the modules in order — each one builds on the last</li>
+                <li>Pick the track you want to type in, JavaScript or Python. Both end up looking at identical data.</li>
+                
+            </ol>
+        </section>
+
+        <section class="tips">
+            <h2>Tips for Success</h2>
+            <ul>
+                <li>Paste the exact queries from the handout — "just explore the data" comes later</li>
+                <li>When something looks wrong, read the Collector logs before anything else</li>
+                <li>Use <code>git</code> to track your changes, and the <code>solutions/</code> checkpoints to catch up if you fall behind</li>
+                <li>Compare notes with someone on the other track after each module — that's where the point lands</li>
+                
+            </ul>
+        </section>
+
+        <section class="resources">
+            <h2>Resources</h2>
+            <ul>
+                <li><a href="https://opentelemetry.io/docs/" target="_blank">OpenTelemetry Documentation</a></li>
+                <li><a href="https://opentelemetry.io/docs/specs/semconv/" target="_blank">OpenTelemetry Semantic Conventions</a></li>
+                <li><a href="https://opentelemetry.io/docs/collector/" target="_blank">OpenTelemetry Collector</a></li>
+                <li><a href="https://docs.victoriametrics.com/metricsql/" target="_blank">VictoriaMetrics MetricsQL</a></li>
+                <li><a href="https://docs.victoriametrics.com/victorialogs/logsql/" target="_blank">VictoriaLogs LogsQL</a></li>
+                <li><a href="https://docs.victoriametrics.com/victoriatraces/" target="_blank">VictoriaTraces</a></li>
+                
+            </ul>
+
+            
+        </section>
+
+        <section class="completion">
+            <h2>Workshop Completion</h2>
+            <p>Upon completing all modules, you&#39;ll have:</p>
+            <ul>
+                <li><strong>Instrumented a real service</strong> with metrics, logs and traces, starting from nothing</li>
+                <li><strong>Run an OpenTelemetry Collector</strong> as a single ingress point, fanning out to three backends</li>
+                <li><strong>Chosen the right instruments</strong> and reasoned about cardinality before it hurt</li>
+                <li><strong>Emitted structured logs</strong> that carry trace context, and queried them with LogsQL</li>
+                <li><strong>Written custom spans</strong> and propagated context across service and language boundaries</li>
+                <li><strong>Correlated all three signals</strong> in Grafana and in the Victoria UIs</li>
+                <li><strong>Debugged an unfamiliar failure</strong> using only telemetry</li>
+                
+            </ul>
+
+            <p><strong>Congratulations!</strong> You'll have gained the confidence to instrument your own services deliberately rather than by accident. This knowledge enables you to:</p>
+            <ul>
+                <li>Add telemetry that answers real questions to services you already own</li>
+                <li>Design dashboards and alerts around questions, not around whatever was easy to emit</li>
+                <li>Reason about the cost and cardinality of everything you collect</li>
+                
+            </ul>
+        </section>
+
+        <section class="contributing">
+            <h2>Contributing</h2>
+            <p>Found an issue, have an improvement idea or want to add more modules? Please <a href="https://github.com/jespino/observability-workshop/issues">open an issue</a> or submit a pull request!</p>
+        </section>
+
+        <div class="cta">
+            <a href="00-setup-and-sanity-check.html" class="cta-button">Start with Module 0 →</a>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

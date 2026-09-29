@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 4: The Collector, and Where the Data Actually Goes - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/04-the-collector.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Module 4: The Collector, and Where the Data Actually Goes</h1>
+
+<p><strong>Duration:</strong> ~45 min · <strong>Checkpoints: 42</strong> · <strong>Same for both tracks</strong></p>
+
+<p>The Collector is the box everybody nods at and nobody reads. By the end of this module you&rsquo;ll have read its config line by line, edited it, deliberately broken it, and found the breakage in its own telemetry. 📦</p>
+
+<h2>Learning Objectives</h2>
+
+<p>By the end of this module, you will:</p>
+
+<ul>
+<li>Be able to read an OpenTelemetry Collector config and say what each section does</li>
+<li>Be comfortable adding a processor to a pipeline — you&rsquo;ll need this again in Module 8</li>
+<li>Understand what VictoriaLogs stream fields are and why the wrong choice is expensive</li>
+<li>Know how to tell whether your telemetry pipeline is itself healthy</li>
+</ul>
+
+<h2>Prerequisites</h2>
+
+<ul>
+<li>Module 3 completed and checkpointed — telemetry is flowing</li>
+</ul>
+
+<h2>Exercise 4.1 — Read the config [~20 min]</h2>
+
+<p><strong>You should be able to answer this by the end:</strong> <em>if a span goes missing between your app and VictoriaTraces, which three places would you look?</em></p>
+
+<h3>Do</h3>
+
+<p>Open <code>collector/config.yaml</code> and follow along. The whole file:</p>
+
+<pre><code class="language-yaml">receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 127.0.0.1:4317 }
+      http: { endpoint: 127.0.0.1:4318 }
+
+  # The Collector scrapes its own metrics and ships them through its own
+  # metrics pipeline. Module 4.2 depends on this: it is how you find out that
+  # the pipeline itself has stopped delivering.
+  prometheus/self:
+    config:
+      scrape_configs:
+        - job_name: collector
+          scrape_interval: 10s
+          static_configs:
+            - targets: [127.0.0.1:8888]
+
+processors:
+  batch: {}
+  memory_limiter: { check_interval: 1s, limit_mib: 512 }
+  resource:
+    attributes:
+      - { key: deployment.environment, value: workshop, action: upsert }
+
+  # The JS and Python SDKs disagree on the case of severity_text (&quot;info&quot; vs
+  # &quot;INFO&quot;). Normalising it here, once, is cheaper than every query and every
+  # dashboard having to cope with both. This is what the Collector is for.
+  transform/severity:
+    log_statements:
+      - context: log
+        statements:
+          - set(severity_text, ConvertCase(severity_text, &quot;upper&quot;)) where severity_text != &quot;&quot;
+
+exporters:
+  otlphttp/victoriametrics:
+    metrics_endpoint: http://localhost:8428/opentelemetry/v1/metrics
+    encoding: proto
+    compression: gzip
+  otlphttp/victorialogs:
+    logs_endpoint: http://localhost:9428/insert/opentelemetry/v1/logs
+    headers:
+      VL-Stream-Fields: &quot;service.name,deployment.environment&quot;
+  otlphttp/victoriatraces:
+    traces_endpoint: http://localhost:10428/insert/opentelemetry/v1/traces
+
+extensions:
+  health_check:
+    endpoint: 127.0.0.1:13133
+
+service:
+  extensions: [health_check]
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 127.0.0.1
+                port: 8888
+  pipelines:
+    traces:  { receivers: [otlp], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriatraces] }
+    metrics: { receivers: [otlp, prometheus/self], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriametrics] }
+    logs:    { receivers: [otlp], processors: [memory_limiter, resource, transform/severity, batch], exporters: [otlphttp/victorialogs] }
+</code></pre>
+
+<p>Four sections, and the fourth is the one that matters:</p>
+
+<p><strong><code>receivers</code></strong> — how telemetry gets in. One OTLP receiver, two protocols. Your app talks to <code>:4318</code> because you set <code>OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf</code>.</p>
+
+<p><strong><code>processors</code></strong> — what happens in between. Ours do three things:
+- <code>memory_limiter</code> refuses work rather than being OOM-killed. Put it <strong>first</strong> in every pipeline; a Collector that dies takes your visibility with it exactly when you need it.
+- <code>resource</code> stamps <code>deployment.environment</code> on everything, so telemetry from a machine that forgot to set it is still attributable.
+- <code>transform/severity</code> uppercases <code>severity_text</code>. It is there because the JS SDK emits <code>info</code> and the Python SDK emits <code>INFO</code>, and normalising once in the middle is cheaper than making every query and dashboard cope with both. This is the Collector earning its keep.
+- <code>batch</code> groups records before export. Always last.</p>
+
+<p><strong><code>exporters</code></strong> — where it goes. Three of them, and look closely at <em>why</em>: three different hosts, three different URL paths, one of them needing a special header. <strong>This is the reason the Collector exists in this architecture.</strong> Your app knows one endpoint; the Collector knows these three.</p>
+
+<p><strong><code>service.pipelines</code></strong> — the wiring. Nothing declared above is active until it appears in a pipeline. This trips up everyone at least once: you add a processor, restart, and nothing changes, because you never added it to a pipeline.</p>
+
+<p>So, to answer the exercise question: a missing span could be (1) never exported by the app, (2) dropped or misrouted in the Collector pipeline, or (3) rejected by the exporter&rsquo;s endpoint. You&rsquo;ll learn to distinguish these in 4.2.</p>
+
+<h3>Three teaching points worth pausing on</h3>
+
+<p><strong><code>VL-Stream-Fields</code> is VictoriaLogs-specific and it matters a lot.</strong> It defines what a log <em>stream</em> is. VictoriaLogs stores logs grouped by stream, so this choice drives both storage layout and query performance. <code>service.name,deployment.environment</code> gives you a handful of streams — good. Putting something high-cardinality in there, like <code>trace_id</code>, would give you one stream per request and degrade VictoriaLogs badly. You&rsquo;ll get to feel this in Module 6.3.</p>
+
+<p><strong>VictoriaMetrics wants cumulative temporality.</strong> Both SDKs default to cumulative, so you&rsquo;re fine by default. If you ever find yourself with delta metrics (some vendors&rsquo; SDK configs default that way), the fix is the <code>deltatocumulative</code> processor in the Collector rather than a change in the app.</p>
+
+<p><strong>VictoriaMetrics is started with <code>-opentelemetry.usePrometheusNaming</code>.</strong> It is one of the flags you typed in Module 0.1. Without it, VM stores OTel&rsquo;s dotted names verbatim — <code>http.server.duration_count</code> — and your queries need quoting. With it, you get the Prometheus form everyone expects: <code>http_server_duration_milliseconds_count</code>, and <code>service.name</code> becomes the <code>service_name</code> label. Module 5.2 cashes this in.</p>
+
+<p><strong>Endpoint names are per-signal, not generic.</strong> <code>metrics_endpoint</code>, <code>logs_endpoint</code>, <code>traces_endpoint</code>. If you use the generic <code>endpoint</code> key, the exporter appends its own conventional path and you&rsquo;ll get 404s that look like connectivity problems.</p>
+
+<h3>Verify in the Victoria UI</h3>
+
+<p>Confirm the <code>resource</code> processor is really doing its job. VictoriaLogs vmui:</p>
+
+<pre><code>service.name:todo-api AND deployment.environment:workshop
+</code></pre>
+
+<p>You should see: the same records as <code>service.name:todo-api</code> alone. Nothing lost the environment attribute.</p>
+
+<h3>Verify in Grafana</h3>
+
+<p>Grafana → Explore → VictoriaMetrics:</p>
+
+<pre><code>otelcol_receiver_accepted_spans
+</code></pre>
+
+<p>The Collector reports on itself. Note the number climbing.</p>
+
+<h3>Think about</h3>
+
+<p><code>batch</code> is last in every pipeline and <code>memory_limiter</code> is first. Why is the order not arbitrary?</p>
+
+<h3>If you&rsquo;re stuck</h3>
+
+<ul>
+<li><strong>Editing the config does nothing.</strong> The Collector reads its config once, at startup. Go to its terminal: <strong>Ctrl-C, then ↑ Enter</strong>. You will do this a dozen times today, which is exactly why it got a terminal of its own in Module 0.1.</li>
+<li><strong>The Collector won&rsquo;t start after an edit.</strong> It&rsquo;s YAML, and it will be the indentation. It names the offending line as it dies — and because it is in the foreground, you cannot miss it.</li>
+</ul>
+
+<h2>Exercise 4.2 — Edit it [~25 min] [checkpoint: 42] <em>(cuttable in the one-day version)</em></h2>
+
+<p><strong>You should be able to answer this by the end:</strong> <em>how would you know, right now, if your Collector had stopped delivering spans?</em></p>
+
+<h3>Do</h3>
+
+<p>Three tasks, increasing in value.</p>
+
+<p><strong>Task 1 — Drop a noisy attribute.</strong></p>
+
+<p>Add an <code>attributes</code> processor and put it in the traces pipeline:</p>
+
+<pre><code class="language-yaml">processors:
+  attributes/clean:
+    actions:
+      - { key: net.peer.ip, action: delete }
+</code></pre>
+
+<pre><code class="language-yaml">service:
+  pipelines:
+    traces:
+      processors: [memory_limiter, resource, attributes/clean, batch]
+</code></pre>
+
+<p>Restart the Collector and confirm the attribute is gone from new spans.</p>
+
+<p><strong>Task 2 — Filter out health checks.</strong></p>
+
+<pre><code class="language-yaml">processors:
+  filter/healthz:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes[&quot;url.path&quot;] == &quot;/healthz&quot;'
+</code></pre>
+
+<p>Add <code>filter/healthz</code> to the traces pipeline, restart, confirm the <code>/healthz</code> spans stop arriving.</p>
+
+<p>Then have the argument: you just made your uptime probe invisible. If the health endpoint starts failing, will anyone find out from this system? Discuss with your neighbour whether that filter should ship.</p>
+
+<p><strong>Task 3 — Break it on purpose. This is the important one.</strong> 💥</p>
+
+<p>Point one exporter at a port that isn&rsquo;t listening:</p>
+
+<pre><code class="language-yaml">exporters:
+  otlphttp/victoriatraces:
+    traces_endpoint: http://victoriatraces:19999/insert/opentelemetry/v1/traces
+</code></pre>
+
+<p>Restart the Collector. Run the loadgen. Traces stop arriving in vmui — but notice that <strong>your application is completely happy</strong>. No errors, no slowdown, nothing in its logs. This is what a silently broken pipeline looks like from the outside, and it is exactly how real teams lose a week of data.</p>
+
+<p>Now find it. The Collector exposes its own metrics on <code>:8888</code>, and they&rsquo;re already being
+scraped into VictoriaMetrics. The clearest signal is <strong>data going in and not coming out</strong>
+— put these two on one graph in vmui:</p>
+
+<pre><code>rate(otelcol_receiver_accepted_spans_total[1m])
+</code></pre>
+
+<pre><code>rate(otelcol_exporter_sent_spans_total[1m])
+</code></pre>
+
+<p>The first keeps climbing. The second drops to zero. Then look at where the spans are
+piling up:</p>
+
+<pre><code>otelcol_exporter_queue_size
+</code></pre>
+
+<pre><code>otelcol_exporter_queue_capacity
+</code></pre>
+
+<p>Watch the traces exporter&rsquo;s queue grow while the other two sit at zero. Then fix the
+port, restart, and watch it drain.</p>
+
+<blockquote>
+<p>📌 You may expect <code>otelcol_exporter_send_failed_spans_total</code> here, and it is the metric people
+reach for first. It stays at zero for a while — the Collector <em>retries</em>, so nothing has
+been permanently lost yet. It only starts counting once the queue fills and data is
+actually dropped. That is a genuinely useful distinction: <strong>&ldquo;failing&rdquo; and &ldquo;losing&rdquo; are
+different alerts with different urgencies</strong>, and the queue is what buys you the time
+between them.</p>
+</blockquote>
+
+<h3>Verify in the Victoria UI</h3>
+
+<p>VictoriaMetrics vmui, both queries above. During the broken window you should see: <code>otelcol_exporter_send_failed_spans_total</code> increasing steadily, and <code>otelcol_exporter_queue_size</code> rising toward its limit. After the fix, the failure rate flattens.</p>
+
+<h3>Verify in Grafana</h3>
+
+<p>Build a small panel with both series on it and keep it. Seriously — a &ldquo;is my telemetry pipeline healthy&rdquo; panel is one of the highest-value dashboards you will ever build, and almost nobody has one.</p>
+
+<h3>Think about</h3>
+
+<blockquote>
+<p><strong>The observability pipeline is itself a production system, and it needs to be observable.</strong></p>
+</blockquote>
+
+<p>Most teams learn this the hard way, usually during an incident, usually by discovering that the reason they can&rsquo;t see anything is the thing that shows them things. What would you alert on, and what would you page a human for?</p>
+
+<h3>If you&rsquo;re stuck</h3>
+
+<ul>
+<li><strong><code>filter</code> processor rejected at startup.</strong> The OTTL syntax is picky: <code>attributes[&quot;url.path&quot;]</code> with double quotes inside square brackets, and the whole condition in single quotes.</li>
+<li><strong><code>otelcol_exporter_send_failed_spans_total</code> returns nothing at all.</strong> Expected — see the note above. Use the receiver-vs-exporter rate comparison instead.</li>
+<li><strong>Every metric is flat, including the Collector&rsquo;s own.</strong> You may have broken the config so badly that the Collector never started. Look at its terminal — a Collector that is dead exports nothing, including its own failure metrics. That&rsquo;s its own lesson, and it is the reason <code>curl -s localhost:13133/</code> is worth knowing by heart.</li>
+</ul>
+
+<pre><code class="language-bash">./checkpoint.sh 42
+</code></pre>
+
+<h2>What We Accomplished</h2>
+
+<ul>
+<li>You can read a Collector config and say what every section does</li>
+<li>You&rsquo;ve added processors to a pipeline and seen the effect</li>
+<li>You&rsquo;ve experienced a silently broken pipeline and diagnosed it from the Collector&rsquo;s own metrics</li>
+<li>You know why <code>VL-Stream-Fields</code> is a decision and not a formality</li>
+</ul>
+
+<h2>Next Steps</h2>
+
+<p>The plumbing is understood. Time to add meaning, starting with the numbers. Continue with <a href="05-manual-metrics.html">Module 5: Manual Metrics</a>.</p>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="03-auto-instrumentation.html" class="nav-button">← Previous</a>
+            
+            
+            <a href="05-manual-metrics.html" class="nav-button">Next: Module 5 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

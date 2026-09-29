@@ -1,0 +1,13 @@
+# Built binary
+website-generator
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,26 @@
+# Participant workspace
+doing-it
+
+# Generator binary
+website-generator/website-generator
+
+# Runtime data from the workshop stack
+infra/data/
+grafana-data/
+
+# Language toolchains
+node_modules/
+__pycache__/
+.venv/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

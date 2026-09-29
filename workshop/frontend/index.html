@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Todos — OpenTelemetry Workshop</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Todos</h1>
+    <label class="track-select">
+      Track
+      <select id="track">
+        <option value="http://localhost:8081">Node.js / Express — :8081</option>
+        <option value="http://localhost:8082">Python / Flask — :8082</option>
+      </select>
+    </label>
+  </header>
+
+  <main>
+    <nav id="lists" aria-label="Todo lists"></nav>
+
+    <section class="panel">
+      <form id="new-todo" autocomplete="off">
+        <input id="title" placeholder="What needs doing?" aria-label="Title">
+        <input id="tags" placeholder="tags, comma separated" aria-label="Tags">
+        <select id="priority" aria-label="Priority">
+          <option value="1">high</option>
+          <option value="2" selected>normal</option>
+          <option value="3">low</option>
+        </select>
+        <button type="submit">Add</button>
+      </form>
+      <p id="status" role="status"></p>
+      <ul id="todos"></ul>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

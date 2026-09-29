@@ -1,0 +1,76 @@
+# The workshop Collector.
+#
+# Module 4 reads this file line by line, then edits it. Module 8 adds the
+# spanmetrics connector. Keep it valid: a Collector that will not start
+# exports nothing at all, including its own failure metrics.
+#
+# The Collector itself runs natively on your laptop, so the addresses it dials
+# — the three Victoria backends — are localhost. The addresses it *listens* on
+# are 0.0.0.0, because the traffic arrives from containers.
+
+receivers:
+  otlp:
+    protocols:
+      # 0.0.0.0, not 127.0.0.1: your application runs in a container, and it
+      # reaches the Collector across the container/host boundary. A receiver
+      # bound to the loopback interface would refuse that connection.
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
+
+  # The Collector scrapes its own metrics and ships them through its own
+  # metrics pipeline. Module 4.2 depends on this: it is how you find out that
+  # the pipeline itself has stopped delivering.
+  prometheus/self:
+    config:
+      scrape_configs:
+        - job_name: collector
+          scrape_interval: 10s
+          static_configs:
+            - targets: [127.0.0.1:8888]
+
+processors:
+  batch: {}
+  memory_limiter: { check_interval: 1s, limit_mib: 512 }
+  resource:
+    attributes:
+      - { key: deployment.environment, value: workshop, action: upsert }
+
+  # The JS and Python SDKs disagree on the case of severity_text ("info" vs
+  # "INFO"). Normalising it here, once, is cheaper than every query and every
+  # dashboard having to cope with both. This is what the Collector is for.
+  transform/severity:
+    log_statements:
+      - context: log
+        statements:
+          - set(severity_text, ConvertCase(severity_text, "upper")) where severity_text != ""
+
+exporters:
+  otlphttp/victoriametrics:
+    metrics_endpoint: http://localhost:8428/opentelemetry/v1/metrics
+    encoding: proto
+    compression: gzip
+  otlphttp/victorialogs:
+    logs_endpoint: http://localhost:9428/insert/opentelemetry/v1/logs
+    headers:
+      VL-Stream-Fields: "service.name,deployment.environment"
+  otlphttp/victoriatraces:
+    traces_endpoint: http://localhost:10428/insert/opentelemetry/v1/traces
+
+extensions:
+  health_check:
+    endpoint: 127.0.0.1:13133
+
+service:
+  extensions: [health_check]
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 127.0.0.1
+                port: 8888
+  pipelines:
+    traces:  { receivers: [otlp], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriatraces] }
+    metrics: { receivers: [otlp, prometheus/self], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriametrics] }
+    logs:    { receivers: [otlp], processors: [memory_limiter, resource, transform/severity, batch], exporters: [otlphttp/victorialogs] }

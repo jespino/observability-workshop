@@ -1,0 +1,15 @@
+# Downloaded binaries and runtime state — Module 0.1 recreates them
+bin/
+data/
+logs/
+
+# Participant backups made by ./checkpoint.sh
+.checkpoint-backup/
+
+# Dependencies installed into the bind mount by the container
+node_modules/
+package-lock.json
+.pylibs/
+__pycache__/
+*.pyc
+.venv/

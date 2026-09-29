@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 2: What Observability Actually Is - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/02-what-observability-is.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Module 2: What Observability Actually Is</h1>
+
+<p><strong>Duration:</strong> ~30 min · <strong>Talk and demo — laptops mostly closed</strong></p>
+
+<p>This is the only module with no code to write. It exists so that everything after it lands in a shared vocabulary instead of a fog of buzzwords. 🧠</p>
+
+<h2>Learning Objectives</h2>
+
+<p>By the end of this module, you will:</p>
+
+<ul>
+<li>Be able to explain the OpenTelemetry data model — resource, scope, signal, attributes, context — without saying &ldquo;three pillars&rdquo;</li>
+<li>Know the difference between the API, the SDK, an instrumentation library, an exporter, and the Collector, and why that distinction resolves most confusion later</li>
+<li>Understand why there&rsquo;s a Collector in the middle of our architecture</li>
+<li>Know which parts of the OpenTelemetry ecosystem are stable and which are still moving</li>
+</ul>
+
+<h2>Prerequisites</h2>
+
+<ul>
+<li>Module 1 completed — you should be able to describe the app</li>
+</ul>
+
+<h2>2.1 — We start with a failure, not a definition</h2>
+
+<p>Your facilitator will show you two recordings of the same investigation:</p>
+
+<ol>
+<li><strong>With the finished stack.</strong> A user complains the app is slow. Ninety seconds later, someone is pointing at the exact line of code.</li>
+<li><strong>With <code>docker logs | grep</code>.</strong> The same investigation. It does not finish.</li>
+</ol>
+
+<p>Don&rsquo;t worry about <em>how</em> the first one works yet. Just note where we&rsquo;re going — you&rsquo;ll build every piece of it yourself.</p>
+
+<h2>2.2 — Why &ldquo;three pillars&rdquo; is a misleading framing</h2>
+
+<p>You&rsquo;ve probably seen observability described as three pillars: metrics, logs, traces. The picture is a bad one, because pillars stand apart, and separateness is precisely what you don&rsquo;t want.</p>
+
+<p>What actually makes observability work is that a log line, a metric point and a span all carry:</p>
+
+<ul>
+<li><strong>the same resource</strong> — they agree on who emitted them, and</li>
+<li><strong>the same trace context</strong> — they can be stitched into one story about one request.</li>
+</ul>
+
+<blockquote>
+<p><strong>Correlation is the product. The signals are the raw material.</strong> 🔗</p>
+</blockquote>
+
+<p>Everything in Modules 5 through 8 is in service of that sentence. When we get to Module 8 you&rsquo;ll click from a graph to a log line to a trace to a line of code, and that only works because of decisions made in the modules before it.</p>
+
+<h2>2.3 — The OpenTelemetry data model</h2>
+
+<p>Five concepts. That&rsquo;s the whole thing.</p>
+
+<p><strong>Resource</strong> — <em>who</em> is emitting. Set once at startup, attached to everything the process produces.</p>
+
+<pre><code>service.name          = todo-api
+service.version       = 1.0.0
+deployment.environment = workshop
+</code></pre>
+
+<p><code>service.name</code> is the single most important attribute in the entire system. Get it wrong and nothing correlates.</p>
+
+<p><strong>Instrumentation scope</strong> — <em>which library</em> produced this piece of telemetry. Lets you tell &ldquo;the HTTP instrumentation said this&rdquo; apart from &ldquo;the application said this&rdquo;.</p>
+
+<p><strong>The signal payload</strong> — a metric point, a log record, or a span. This is the only part that differs per signal.</p>
+
+<p><strong>Attributes</strong> — key/value pairs on the payload. The dimension you slice by. <code>http.route</code>, <code>todo.list</code>, <code>error.type</code>.</p>
+
+<blockquote>
+<p>⚠️ Attributes are also where costs hide. Every distinct combination of attribute values on a metric is a new time series. Remember this sentence; you&rsquo;ll pay for it in Module 5.4.</p>
+</blockquote>
+
+<p><strong>Context and propagation</strong> — the mechanism that carries the current trace and span id along with a request, including across process boundaries via the W3C <code>traceparent</code> header:</p>
+
+<pre><code>traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+             ^  ^                                ^                ^
+             |  trace id                         parent span id   flags
+             version
+</code></pre>
+
+<p>If you understand nothing else today, understand that when someone says &ldquo;the trace broke at this boundary&rdquo;, they nearly always mean <em>that header did not make it across</em>.</p>
+
+<h2>2.4 — API vs SDK vs instrumentation vs exporter vs Collector</h2>
+
+<p>This is the distinction that resolves half of the questions people ask later. Your facilitator will draw it; here it is in words:</p>
+
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>What it is</th>
+<th>Who ships it</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td><strong>API</strong></td>
+<td>The interface your code calls: <code>counter.add()</code>, <code>tracer.startSpan()</code>. Does nothing on its own — it&rsquo;s a no-op unless an SDK is registered.</td>
+<td>OpenTelemetry</td>
+</tr>
+
+<tr>
+<td><strong>SDK</strong></td>
+<td>The implementation. Batching, sampling, views, resource detection. Configured once at process start.</td>
+<td>OpenTelemetry</td>
+</tr>
+
+<tr>
+<td><strong>Instrumentation library</strong></td>
+<td>Code that calls the API <em>on your behalf</em> by hooking a framework — Express, Flask, <code>pg</code>, <code>psycopg</code>. This is what &ldquo;auto-instrumentation&rdquo; is made of.</td>
+<td>OpenTelemetry / community</td>
+</tr>
+
+<tr>
+<td><strong>Exporter</strong></td>
+<td>Turns SDK data into a wire format and ships it. We&rsquo;ll use OTLP over HTTP.</td>
+<td>OpenTelemetry</td>
+</tr>
+
+<tr>
+<td><strong>Collector</strong></td>
+<td>A separate process that receives, processes and re-exports telemetry. Optional, but see below.</td>
+<td>OpenTelemetry</td>
+</tr>
+</tbody>
+</table>
+<p>The practical consequence: <strong>a library that only uses the API adds no dependency on any backend.</strong> That&rsquo;s the design goal, and it&rsquo;s why instrumenting a library you maintain is a much smaller commitment than people assume.</p>
+
+<h2>2.5 — Why there&rsquo;s a Collector in our architecture</h2>
+
+<p>A reasonable question at this point is: our three backends all speak OTLP, so why not export straight to them?</p>
+
+<p>Because they don&rsquo;t all speak it <em>at the same address</em>:</p>
+
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Endpoint</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>Metrics</td>
+<td><code>http://victoriametrics:8428/opentelemetry/v1/metrics</code></td>
+</tr>
+
+<tr>
+<td>Logs</td>
+<td><code>http://victorialogs:9428/insert/opentelemetry/v1/logs</code></td>
+</tr>
+
+<tr>
+<td>Traces</td>
+<td><code>http://victoriatraces:10428/insert/opentelemetry/v1/traces</code></td>
+</tr>
+</tbody>
+</table>
+<p>Three hosts, three paths. The Collector gives your application <strong>one</strong> <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> and does the fan-out itself.</p>
+
+<p>That&rsquo;s the immediate reason. The lasting reasons show up later:</p>
+
+<ul>
+<li>It&rsquo;s where you put <strong>sampling</strong> without redeploying the app (Module 7.5)</li>
+<li>It&rsquo;s where you <strong>redact</strong> PII centrally instead of in twelve services (Module 10)</li>
+<li>It&rsquo;s where you generate <strong>metrics from spans</strong> for free (Module 8.1)</li>
+<li>It <strong>buffers and retries</strong> when a backend is down, so your app doesn&rsquo;t have to</li>
+</ul>
+
+<p>There&rsquo;s an optional appendix exercise later that has you export directly to the backends and then take stock of what you lost. Recommended if you&rsquo;re the kind of person who suspects the Collector is ceremony.</p>
+
+<h2>2.6 — The stack we&rsquo;re using, and one genuinely nice property</h2>
+
+<ul>
+<li><strong>VictoriaMetrics</strong> stores metrics and speaks <strong>MetricsQL</strong>, a superset of PromQL. If you know PromQL you already know it.</li>
+<li><strong>VictoriaLogs</strong> stores logs and speaks <strong>LogsQL</strong>.</li>
+<li><strong>VictoriaTraces</strong> stores traces and speaks&hellip; <strong>LogsQL</strong> as well.</li>
+</ul>
+
+<p>That last point is worth stopping on. <strong>Learning one query language gets you two of the three signals.</strong> In Module 7 you&rsquo;ll query spans with the same syntax you learned for logs in Module 6, and it will feel like cheating. Compared with learning PromQL <em>and</em> LogQL <em>and</em> TraceQL, that&rsquo;s a real saving.</p>
+
+<p>VictoriaTraces also implements the <strong>Jaeger query API</strong>, which means Grafana&rsquo;s built-in Jaeger datasource works against it with no plugin, and you get the familiar waterfall view for free.</p>
+
+<h2>2.7 — Signal maturity, honestly</h2>
+
+<p>Not everything here is equally finished, and you should hear that from us rather than discover it at 2am:</p>
+
+<ul>
+<li><strong>Traces and metrics</strong> are stable in both SDKs. Use them with confidence.</li>
+<li><strong>The logs signal</strong> is still moving. The SDK packages are marked experimental in both JavaScript and Python. We&rsquo;re going to use them anyway, because they&rsquo;re the cleanest way to teach the correlation story — but pin your versions, and in Module 6.4 we&rsquo;ll show you the rock-solid alternative (stdout JSON plus a Collector <code>filelog</code> receiver) that you might reasonably prefer in production.</li>
+<li><strong>Some semantic conventions</strong> are still experimental and can change between releases. That&rsquo;s a genuine cost; we&rsquo;ll name it again in Module 7.3.</li>
+<li><strong>VictoriaMetrics has no exemplar support.</strong> That removes one specific correlation flow that a Prometheus+Tempo stack would give you. We&rsquo;ll show you the workaround in Module 8.2 and be explicit about the trade-off.</li>
+</ul>
+
+<h2>Discussion (5 min, in pairs)</h2>
+
+<blockquote>
+<p>Think of the last production incident you were involved in. <strong>Which signal would have shortened it, and did you have it?</strong></p>
+</blockquote>
+
+<p>Two or three pairs share. Keep your answer somewhere — in Module 9 you&rsquo;ll find out whether you were right.</p>
+
+<h2>What We Accomplished</h2>
+
+<ul>
+<li>A shared vocabulary: resource, scope, signal, attributes, context</li>
+<li>A clear map of API vs SDK vs instrumentation vs exporter vs Collector</li>
+<li>A concrete reason for every box in the architecture diagram</li>
+<li>An honest picture of which bits of this ecosystem are still moving</li>
+</ul>
+
+<h2>Next Steps</h2>
+
+<p>Enough talking. Continue with <a href="03-auto-instrumentation.html">Module 3: The Easy Path — Zero-Code Auto-Instrumentation</a>, where the app starts emitting all three signals without you changing a single line of it.</p>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="01-the-application.html" class="nav-button">← Previous</a>
+            
+            
+            <a href="03-auto-instrumentation.html" class="nav-button">Next: Module 3 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

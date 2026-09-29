@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 0: Setup and Sanity Check - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/00-setup-and-sanity-check.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Module 0: Setup and Sanity Check</h1>
+
+<p><strong>Duration:</strong> ~45 min · <strong>Everything here is the same for both tracks</strong></p>
+
+<p>The goal of this module is boring on purpose: every laptop in the room is green before any teaching starts. 🟢</p>
+
+<p><strong>There is no setup script.</strong> You are going to download four binaries and start eight
+processes by hand, one at a time, checking each one before you start the next. That takes
+longer than running a setup script would, and it is the point: for the rest of the day, when
+something stops working, you will know exactly which process it was, what command started
+it, and where its log went. A setup script would have taken that away from you in the
+first ten minutes.</p>
+
+<h2>Learning Objectives</h2>
+
+<p>By the end of this module, you will:</p>
+
+<ul>
+<li>Have downloaded and started the whole stack yourself — four telemetry processes and four containers</li>
+<li>Know which port every piece listens on, and which log file to read when one of them stops</li>
+<li>Know which three UIs you&rsquo;ll be living in for the rest of the day, and have them bookmarked</li>
+<li>Have picked your track</li>
+<li>Have seen, with your own eyes, that the application currently emits <strong>nothing</strong></li>
+</ul>
+
+<h2>Prerequisites</h2>
+
+<ul>
+<li><strong>Docker</strong> installed and working (<code>docker ps</code>)</li>
+<li><code>curl</code>, <code>tar</code> and a Unix shell. On Windows, use WSL2.</li>
+<li>About 4GB of free RAM and 2GB of free disk</li>
+<li><strong>You do not need Node.js or Python installed.</strong> The application runs in a stock
+<code>node:22-slim</code> or <code>python:3.12-slim</code> container with your source code mounted into it.
+Nothing in this repository gets built into an image.</li>
+</ul>
+
+<blockquote>
+<p>📦 <strong>Pre-work, if you have the chance.</strong> The downloads in Exercise 0.1 are about 450 MB
+(most of it the Collector), and Exercise 0.2 pulls four images. Doing both before you
+arrive turns a 45-minute module into a 15-minute one, and venue wifi is not your friend:</p>
+
+<pre><code class="language-bash">&gt; docker pull postgres:16-alpine
+&gt; docker pull node:22-slim          # or python:3.12-slim, for the Python track
+&gt; docker pull python:3.12-slim      # ...you need this one either way, for notify-service
+&gt; docker pull nginx:alpine
+&gt; docker pull grafana/grafana:12.3.1
+&gt; ```
+
+## Exercise 0.1 — Bring up the telemetry stack, one process at a time [~20 min]
+
+**You should be able to answer this by the end:** *which processes are running on your laptop, which ports do they own, and where does each one write its log?*
+
+### Do
+
+1. Clone the repo and go into the workshop directory:
+
+   ```bash
+   git clone https://github.com/jespino/observability-workshop
+   cd observability-workshop/workshop
+</code></pre>
+
+<p>📁 Everything you run today lives in <code>workshop/</code>. The handouts you&rsquo;re reading live one
+level up in <code>modules/</code>. <strong>Stay in <code>workshop/</code> for the rest of the day</strong> — every command
+in every module assumes you are there, and several of them use <code>$PWD</code>.</p>
+</blockquote>
+
+<ol>
+<li>Make the three directories the stack will write into:</li>
+</ol>
+
+<pre><code class="language-bash">   mkdir -p bin data logs
+</code></pre>
+
+<p><code>bin/</code> for the binaries you&rsquo;re about to download, <code>data/</code> for each backend&rsquo;s storage,
+   <code>logs/</code> for their output. All three are gitignored.</p>
+
+<ol>
+<li>Work out what to download for your machine:</li>
+</ol>
+
+<pre><code class="language-bash">   OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+   ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+   echo &quot;$OS/$ARCH&quot;
+</code></pre>
+
+<p>You should see <code>linux/amd64</code>, <code>darwin/arm64</code> or similar. Keep this terminal — the next
+   four commands use those two variables.</p>
+
+<ol>
+<li>Download the four binaries. One command each, and each one lands a single executable in
+<code>bin/</code>:</li>
+</ol>
+
+<pre><code class="language-bash">   # VictoriaMetrics — metrics storage
+   curl -sSL &quot;https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/v1.151.0/victoria-metrics-${OS}-${ARCH}-v1.151.0.tar.gz&quot; \
+     | tar -xzf - -C bin &amp;&amp; mv bin/victoria-metrics-prod bin/victoria-metrics
+</code></pre>
+
+<pre><code class="language-bash">   # VictoriaLogs — log storage
+   curl -sSL &quot;https://github.com/VictoriaMetrics/VictoriaLogs/releases/download/v1.52.0/victoria-logs-${OS}-${ARCH}-v1.52.0.tar.gz&quot; \
+     | tar -xzf - -C bin &amp;&amp; mv bin/victoria-logs-prod bin/victoria-logs
+</code></pre>
+
+<pre><code class="language-bash">   # VictoriaTraces — trace storage
+   curl -sSL &quot;https://github.com/VictoriaMetrics/VictoriaTraces/releases/download/v0.11.0/victoria-traces-${OS}-${ARCH}-v0.11.0.tar.gz&quot; \
+     | tar -xzf - -C bin &amp;&amp; mv bin/victoria-traces-prod bin/victoria-traces
+</code></pre>
+
+<pre><code class="language-bash">   # The OpenTelemetry Collector (contrib distribution — the big one, ~390MB)
+   curl -sSL &quot;https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.159.0/otelcol-contrib_0.159.0_${OS}_${ARCH}.tar.gz&quot; \
+     | tar -xzf - -C bin otelcol-contrib
+</code></pre>
+
+<p>Check you have four:</p>
+
+<pre><code class="language-bash">   ls -l bin/
+   ./bin/victoria-metrics --version
+   ./bin/otelcol-contrib --version
+</code></pre>
+
+<ol>
+<li>Start <strong>VictoriaMetrics</strong>. Read the flags before you run it — three of them come back later today:</li>
+</ol>
+
+<pre><code class="language-bash">   nohup ./bin/victoria-metrics \
+     -storageDataPath=./data/victoria-metrics \
+     -httpListenAddr=:8428 \
+     -retentionPeriod=1 \
+     -selfScrapeInterval=10s \
+     -search.latencyOffset=1s \
+     -opentelemetry.usePrometheusNaming \
+     &gt; logs/victoria-metrics.log 2&gt;&amp;1 &amp;
+</code></pre>
+
+<p>| Flag | Why |
+   |&mdash;|&mdash;|
+   | <code>-retentionPeriod=1</code> | one month, plenty for one day |
+   | <code>-selfScrapeInterval=10s</code> | VM scrapes its own metrics. Modules 4.2 and 5.4 query them. |
+   | <code>-search.latencyOffset=1s</code> | by default VM hides the most recent 30 seconds so a half-written interval can&rsquo;t draw a misleading graph. Correct in production, maddening in a classroom. |
+   | <code>-opentelemetry.usePrometheusNaming</code> | store <code>todos.created</code> as <code>todos_created_total</code> and <code>service.name</code> as the label <code>service_name</code>. Without it your queries need quoting. Module 5.2 cashes this in. |</p>
+
+<p>Now prove it answered:</p>
+
+<pre><code class="language-bash">   curl -s localhost:8428/health
+</code></pre>
+
+<p><strong>Do not continue until that prints <code>OK</code>.</strong> If it doesn&rsquo;t, read <code>logs/victoria-metrics.log</code>.</p>
+
+<ol>
+<li>Start <strong>VictoriaLogs</strong>, and check it the same way:</li>
+</ol>
+
+<pre><code class="language-bash">   nohup ./bin/victoria-logs \
+     -storageDataPath=./data/victoria-logs \
+     -httpListenAddr=:9428 \
+     -retentionPeriod=7d \
+     &gt; logs/victoria-logs.log 2&gt;&amp;1 &amp;
+
+   curl -s localhost:9428/health
+</code></pre>
+
+<ol>
+<li>Start <strong>VictoriaTraces</strong>:</li>
+</ol>
+
+<pre><code class="language-bash">   nohup ./bin/victoria-traces \
+     -storageDataPath=./data/victoria-traces \
+     -httpListenAddr=:10428 \
+     -retentionPeriod=3d \
+     &gt; logs/victoria-traces.log 2&gt;&amp;1 &amp;
+
+   curl -s localhost:10428/health
+</code></pre>
+
+<p>Those three you start once and forget. <code>jobs -l</code> lists them; <code>kill %1</code> stops one.</p>
+
+<ol>
+<li>Start the <strong>OpenTelemetry Collector</strong> — and give it a <strong>terminal of its own</strong>, in the
+foreground:</li>
+</ol>
+
+<pre><code class="language-bash">   # in a second terminal
+   cd observability-workshop/workshop
+   ./bin/otelcol-contrib --config=collector/config.yaml
+</code></pre>
+
+<p>It gets its own terminal because it is the one process you will restart over and over
+   today: every edit to <code>collector/config.yaml</code> in Modules 4 and 8 needs a restart, and
+   the restart is <strong>Ctrl-C, then ↑ Enter</strong>. Watching its log scroll as telemetry arrives is
+   worth the terminal on its own.</p>
+
+<p>In a third terminal, check both of its endpoints:</p>
+
+<pre><code class="language-bash">   curl -s localhost:13133/          # health_check extension
+   curl -s localhost:8888/metrics | head -5   # the Collector's own metrics
+</code></pre>
+
+<ol>
+<li>That&rsquo;s the stack. Four processes, native, on your laptop:</li>
+</ol>
+
+<p>| Process | Port | Log | What it is |
+   |&mdash;|&mdash;|&mdash;|&mdash;|
+   | <code>victoria-metrics</code> | 8428 | <code>logs/victoria-metrics.log</code> | metrics storage |
+   | <code>victoria-logs</code> | 9428 | <code>logs/victoria-logs.log</code> | log storage |
+   | <code>victoria-traces</code> | 10428 | <code>logs/victoria-traces.log</code> | trace storage |
+   | <code>otelcol-contrib</code> | 4317 / 4318, 8888, 13133 | its own terminal | the OpenTelemetry Collector |</p>
+
+<blockquote>
+<p>⚠️ <code>nohup … &amp;</code> keeps the three storage processes alive if you close their terminal, but
+they are still ordinary processes with no supervisor. If one vanishes, nothing will
+restart it — you will. That is a fair model of production, minus the pager.</p>
+</blockquote>
+
+<h3>Verify in the Victoria UI</h3>
+
+<p>Open all three UIs now and <strong>bookmark them</strong> — you will use them constantly:</p>
+
+<table>
+<thead>
+<tr>
+<th>What</th>
+<th>URL</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>VictoriaMetrics (metrics)</td>
+<td><code>http://localhost:8428/vmui</code></td>
+</tr>
+
+<tr>
+<td>VictoriaLogs (logs)</td>
+<td><code>http://localhost:9428/select/vmui</code></td>
+</tr>
+
+<tr>
+<td>VictoriaTraces (traces)</td>
+<td><code>http://localhost:10428/select/vmui</code></td>
+</tr>
+</tbody>
+</table>
+<p>In the <strong>VictoriaMetrics vmui</strong>, paste this into the query box:</p>
+
+<pre><code>{__name__=~&quot;todo.*&quot;}
+</code></pre>
+
+<p>You should see: <strong>nothing. No series.</strong> That is not a broken setup — that is the point of
+the whole workshop. Sit with it for a second. 🫥</p>
+
+<p>Now paste this one:</p>
+
+<pre><code>{__name__=~&quot;otelcol.*&quot;}
+</code></pre>
+
+<p>That one <strong>does</strong> return series, which is a useful thing to know on a day when nothing
+else does. The Collector scrapes its own <code>:8888</code> metrics through a <code>prometheus/self</code>
+receiver and ships them down its own metrics pipeline. So the path
+Collector → VictoriaMetrics already works, and you have just proved it end to end without
+the application existing yet.</p>
+
+<h3>Verify in Grafana</h3>
+
+<p>Not yet. Grafana is one more container, and we start it in Module 3.2 when there is finally
+something to look at. One fewer moving part today.</p>
+
+<h3>Think about</h3>
+
+<p>The Collector sits between the app and the three storage processes. Before we explain why,
+guess: what would break if the app talked to the three of them directly?</p>
+
+<h3>If you&rsquo;re stuck</h3>
+
+<ul>
+<li><strong>A download fails.</strong> Check you can reach github.com. Behind a proxy, set <code>HTTPS_PROXY</code>
+before the <code>curl</code>. If <code>mv</code> complains that the source doesn&rsquo;t exist, the tarball layout
+changed — run <code>tar -tzf</code> on it and adjust the name.</li>
+<li><strong><code>curl localhost:8428/health</code> hangs or refuses.</strong> Read <code>logs/victoria-metrics.log</code>. The
+usual cause is another process already on the port: <code>ss -ltnp | grep 8428</code>.</li>
+<li><strong>The Collector exits immediately.</strong> It prints the offending line of
+<code>collector/config.yaml</code> before it dies, in the terminal you started it in. It&rsquo;s YAML, so
+it will be the indentation.</li>
+<li><strong>Ports already in use.</strong> Something else on your machine owns 5432, 8428 or 3000. Stop
+it, or change the port in the command above <em>and</em> everywhere the handouts mention it —
+which is a good reason to just stop the other thing.</li>
+</ul>
+
+<h2>Exercise 0.2 — Run the application, and pick your track [~25 min]</h2>
+
+<p><strong>You should be able to answer this by the end:</strong> <em>what does the app do, which port is your track&rsquo;s API on, and how does a process inside a container reach one outside it?</em></p>
+
+<h3>Do</h3>
+
+<ol>
+<li>Pick your track. Both build the same thing against the same backend:</li>
+</ol>
+
+<p>| Track | Port | Directory you&rsquo;ll edit | Runs in |
+   |&mdash;|&mdash;|&mdash;|&mdash;|
+   | Node.js / Express | 8081 | <code>track-js/todo-api/</code> | <code>node:22-slim</code> |
+   | Python / Flask | 8082 | <code>track-py/todo-api/</code> | <code>python:3.12-slim</code> |</p>
+
+<p>Pick the language you&rsquo;re <em>comfortable</em> in. The friction today should be OpenTelemetry,
+   not syntax. (Pick the other one only if you&rsquo;re feeling brave and want the extra
+   challenge.)</p>
+
+<p>You do <strong>not</strong> need either language installed. Your code is bind-mounted into a stock
+   image from Docker Hub, so the container brings the runtime and your editor edits real
+   files on your laptop.</p>
+
+<blockquote>
+<p>🔌 <strong>Read this once and the rest of the module makes sense.</strong> Every container below
+gets two flags that matter:</p>
+
+<ul>
+<li><code>-p 8081:8081</code> publishes the container&rsquo;s port on your laptop, so your browser and
+<code>curl</code> can reach it at <code>localhost</code>.</li>
+<li><code>--add-host=host.docker.internal:host-gateway</code> gives the container a name for <em>your
+laptop</em>, so it can reach things that are <strong>not</strong> in a container — Postgres, and the
+Collector&rsquo;s OTLP endpoint on 4318.</li>
+</ul>
+
+<p>Inside a container, <code>localhost</code> is the container. This is the single most common
+mistake of the day, and it looks exactly like &ldquo;telemetry silently doesn&rsquo;t arrive&rdquo;.
+That&rsquo;s also why <code>collector/config.yaml</code> binds its receivers to <code>0.0.0.0</code> and not to
+<code>127.0.0.1</code>: a loopback-only receiver refuses connections from containers.</p>
+</blockquote>
+
+<ol>
+<li>Start <strong>Postgres</strong> — the application&rsquo;s only dependency:</li>
+</ol>
+
+<pre><code class="language-bash">   docker run -d --name workshop-postgres \
+     -p 5432:5432 \
+     -e POSTGRES_USER=todo -e POSTGRES_PASSWORD=todo -e POSTGRES_DB=todo \
+     -v &quot;$PWD/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro&quot; \
+     postgres:16-alpine
+</code></pre>
+
+<p>The mounted <code>init.sql</code> creates the schema and seeds a few hundred todos. Wait for it:</p>
+
+<pre><code class="language-bash">   docker exec workshop-postgres pg_isready -U todo -d todo
+</code></pre>
+
+<ol>
+<li>Start <strong><code>notify-service</code></strong> — the downstream service your API calls. It is
+pre-instrumented already, because it is not the exercise; it exists so that a trace
+from your API has somewhere to go.</li>
+</ol>
+
+<p>It is written in <strong>the other language from your track</strong>, on purpose, so that Module 7.4&rsquo;s
+   cross-language context propagation works whichever track you&rsquo;re on.</p>
+
+<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
+
+<pre><code class="language-bash">   docker run -d --name workshop-notify \
+     -p 8083:8083 \
+     --add-host=host.docker.internal:host-gateway \
+     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
+     -v &quot;$PWD/services/notify-service-py:/app&quot; -w /app \
+     --env-file services/notify-service-py/otel.env \
+     python:3.12-slim \
+     sh -c 'pip install --user -q --no-warn-script-location -r requirements.txt \
+            &amp;&amp; opentelemetry-bootstrap -a install &gt; /dev/null \
+            &amp;&amp; exec opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8083 app:app'
+</code></pre>
+
+<p></div></p>
+
+<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
+
+<pre><code class="language-bash">   docker run -d --name workshop-notify \
+     -p 8084:8084 \
+     --add-host=host.docker.internal:host-gateway \
+     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
+     -v &quot;$PWD/services/notify-service-js:/app&quot; -w /app \
+     --env-file services/notify-service-js/otel.env \
+     node:22-slim \
+     sh -c 'npm install --silent --no-fund --no-audit \
+            &amp;&amp; exec node --require @opentelemetry/auto-instrumentations-node/register server.js'
+</code></pre>
+
+<p>That <code>--require</code> is the only OpenTelemetry-shaped thing in the command, and it is what
+   turns the SDK on. You&rsquo;ll write the equivalent for your own API in Module 3.1.</p>
+
+<p></div></p>
+
+<p>It installs its own dependencies on first boot, so give it a minute:</p>
+
+<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
+
+<pre><code class="language-bash">   curl -s localhost:8083/healthz     # {&quot;ok&quot;:true} once it's up
+   docker logs -f workshop-notify     # Ctrl-C when you see it listening
+</code></pre>
+
+<p></div></p>
+
+<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
+
+<pre><code class="language-bash">   curl -s localhost:8084/healthz     # {&quot;ok&quot;:true} once it's up
+   docker logs -f workshop-notify     # Ctrl-C when you see it listening
+</code></pre>
+
+<p></div></p>
+
+<blockquote>
+<p>📄 <strong>Open <code>services/notify-service-*/otel.env</code> and read it.</strong> That file is the whole of
+this service&rsquo;s instrumentation: ten environment variables and no code. In Module 3.1
+you write a file of exactly that shape for your own API. Note the endpoint —
+<code>http://host.docker.internal:4318</code>, because the Collector is not in a container.</p>
+</blockquote>
+
+<ol>
+<li>Install <strong>your</strong> application&rsquo;s dependencies. Same idea, except the packages land in
+your source directory rather than inside an image, so they survive the container:</li>
+</ol>
+
+<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
+
+<pre><code class="language-bash">   docker run --rm \
+     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
+     -v &quot;$PWD/track-js/todo-api:/app&quot; -w /app \
+     node:22-slim npm install
+</code></pre>
+
+<p>You now have <code>track-js/todo-api/node_modules/</code>, owned by you, on your laptop.
+   <code>-u &quot;$(id -u):$(id -g)&quot;</code> is what keeps it yours rather than root&rsquo;s; <code>-e HOME=/tmp</code> gives
+   npm somewhere writable for its cache.</p>
+
+<p></div></p>
+
+<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
+
+<pre><code class="language-bash">   docker run --rm \
+     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
+     -v &quot;$PWD/track-py/todo-api:/app&quot; -w /app \
+     -e PYTHONUSERBASE=/app/.pylibs \
+     python:3.12-slim \
+     pip install --user --no-warn-script-location -r requirements.txt
+</code></pre>
+
+<p>You now have <code>track-py/todo-api/.pylibs/</code>, owned by you, on your laptop —
+   <code>PYTHONUSERBASE</code> is what redirected <code>pip install --user</code> there instead of into the
+   image. <code>-u &quot;$(id -u):$(id -g)&quot;</code> keeps the files yours rather than root&rsquo;s; <code>-e HOME=/tmp</code>
+   gives pip somewhere writable.</p>
+
+<p></div></p>
+
+<ol>
+<li>In a <strong>fourth terminal</strong>, start your API. <strong>Foreground, and leave it there</strong> — you will
+be restarting it constantly from Module 3 onwards, and watching it start is half the
+feedback:</li>
+</ol>
+
+<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
+
+<pre><code class="language-bash">   cd observability-workshop/workshop
+
+   docker run --rm -it --name workshop-todo-api \
+     -p 8081:8081 \
+     --add-host=host.docker.internal:host-gateway \
+     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
+     -v &quot;$PWD/track-js/todo-api:/app&quot; -w /app \
+     -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
+     -e NOTIFY_URL=http://host.docker.internal:8083 \
+     -e PORT=8081 \
+     node:22-slim node src/server.js
+</code></pre>
+
+<p></div></p>
+
+<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
+
+<pre><code class="language-bash">   cd observability-workshop/workshop
+
+   docker run --rm -it --name workshop-todo-api \
+     -p 8082:8082 \
+     --add-host=host.docker.internal:host-gateway \
+     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
+     -v &quot;$PWD/track-py/todo-api:/app&quot; -w /app \
+     -e PYTHONUSERBASE=/app/.pylibs \
+     -e PATH=/app/.pylibs/bin:/usr/local/bin:/usr/bin:/bin \
+     -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
+     -e NOTIFY_URL=http://host.docker.internal:8084 \
+     python:3.12-slim gunicorn -w 2 -b 0.0.0.0:8082 app:app
+</code></pre>
+
+<p><code>PYTHONUSERBASE</code> and <code>PATH</code> are there for the same reason as in step 4: the packages
+   live in <code>.pylibs/</code> inside the bind mount, so Python needs telling where to import from
+   and where to find the <code>gunicorn</code> command.</p>
+
+<p></div></p>
+
+<blockquote>
+<p>⌨️ <strong>This is the command you will retype most often today.</strong> You don&rsquo;t have to retype
+it: Ctrl-C to stop the container, then <strong>↑ Enter</strong> to start it again. It re-reads your
+source files and (from Module 3.1) your <code>.env</code> every single time. It is also written
+out in <a href="https://github.com/jespino/observability-workshop/blob/main/workshop/README.md"><code>workshop/README.md</code></a>
+if you lose your shell history.</p>
+</blockquote>
+
+<ol>
+<li>In a <strong>fifth terminal</strong>, serve the frontend — a static SPA, so a stock nginx will do:</li>
+</ol>
+
+<pre><code class="language-bash">   docker run -d --name workshop-frontend \
+     -p 8080:80 \
+     -v &quot;$PWD/frontend:/usr/share/nginx/html:ro&quot; \
+     nginx:alpine
+</code></pre>
+
+<ol>
+<li>Now check everything at once:</li>
+</ol>
+
+<pre><code class="language-bash">   ./doctor.sh
+</code></pre>
+
+<p>Every row must be ✅ before you move on. <code>doctor.sh</code> starts nothing — it only looks, and
+   tells you which step of this module to go back to. It is one of only four scripts left
+   in the repository, and none of them set anything up.</p>
+
+<ol>
+<li>Open the frontend at <code>http://localhost:8080</code> and create a few todos by hand. Make at
+least one of them:
+
+<ul>
+<li>tagged <code>urgent</code></li>
+<li>in the list <code>work</code></li>
+<li>with an empty title (yes, on purpose — see what happens)</li>
+</ul></li>
+</ol>
+
+<blockquote>
+<p>💡 <strong>Use the track switcher in the navigation bar at the top of this page.</strong> Every
+module is written once for both tracks; the switcher flips the code examples to your
+language and remembers the choice as you move through the workshop.</p>
+</blockquote>
+
+<ol>
+<li>Confirm your API answers directly:</li>
+</ol>
+
+<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
+
+<pre><code class="language-bash">   curl -s localhost:8081/healthz
+   curl -s &quot;localhost:8081/todos?list=work&quot; | head -c 400
+</code></pre>
+
+<p></div></p>
+
+<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
+
+<pre><code class="language-bash">   curl -s localhost:8082/healthz
+   curl -s &quot;localhost:8082/todos?list=work&quot; | head -c 400
+</code></pre>
+
+<p></div></p>
+
+<ol>
+<li><p>Start the load generator so there&rsquo;s always traffic to look at:</p>
+
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+
+<pre><code class="language-bash">./loadgen.sh 2m
+</code></pre>
+</div>
+
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+
+<pre><code class="language-bash">TRACK=py ./loadgen.sh 2m
+</code></pre>
+</div>
+</li>
+</ol>
+
+<p>That&rsquo;s eight things running. Here they all are:</p>
+
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Runs as</th>
+<th>Port</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td><code>victoria-metrics</code></td>
+<td>native binary, backgrounded</td>
+<td>8428</td>
+</tr>
+
+<tr>
+<td><code>victoria-logs</code></td>
+<td>native binary, backgrounded</td>
+<td>9428</td>
+</tr>
+
+<tr>
+<td><code>victoria-traces</code></td>
+<td>native binary, backgrounded</td>
+<td>10428</td>
+</tr>
+
+<tr>
+<td><code>otelcol-contrib</code></td>
+<td>native binary, its own terminal</td>
+<td>4317 / 4318</td>
+</tr>
+
+<tr>
+<td><code>workshop-postgres</code></td>
+<td>container</td>
+<td>5432</td>
+</tr>
+
+<tr>
+<td><code>workshop-notify</code></td>
+<td>container</td>
+<td>8083 (py) / 8084 (js)</td>
+</tr>
+
+<tr>
+<td><code>workshop-todo-api</code></td>
+<td>container, your terminal</td>
+<td>8081 (js) / 8082 (py)</td>
+</tr>
+
+<tr>
+<td><code>workshop-frontend</code></td>
+<td>container</td>
+<td>8080</td>
+</tr>
+</tbody>
+</table>
+
+<h3>Verify in the Victoria UI</h3>
+
+<p>VictoriaLogs vmui (<code>http://localhost:9428/select/vmui</code>), paste:</p>
+
+<pre><code>service.name:todo-api
+</code></pre>
+
+<p>You should see: <strong>no results from <code>todo-api</code>.</strong> Its output is going to the terminal you
+started it in, and nowhere else. Right now the only way to debug this app is to squint at
+that terminal.</p>
+
+<p>Then paste this:</p>
+
+<pre><code>service.name:notify-service
+</code></pre>
+
+<p>That one <strong>does</strong> return log lines — the pre-instrumented downstream service is already
+shipping everything to VictoriaLogs, through the Collector, from inside a container. So
+the pipeline works. The only thing missing is your service.</p>
+
+<h3>Verify in Grafana</h3>
+
+<p>Still not yet.</p>
+
+<h3>Think about</h3>
+
+<ul>
+<li>You just created a todo with an empty title. What happened in the UI? Could you tell,
+from anything you have access to right now, <em>why</em>?</li>
+<li><code>notify-service</code>&rsquo;s telemetry arrives and yours doesn&rsquo;t, and the difference is nine
+environment variables in a file. What does that tell you about where instrumentation
+configuration belongs?</li>
+</ul>
+
+<h3>If you&rsquo;re stuck</h3>
+
+<ul>
+<li><strong><code>docker run</code> fails with &ldquo;address already in use&rdquo;.</strong> Something already owns that port —
+often a container from a previous run. <code>docker rm -f workshop-todo-api</code> and try again.</li>
+<li><strong>The API can&rsquo;t reach the database</strong> (<code>ECONNREFUSED</code> / <code>could not connect to server</code>).
+You almost certainly have <code>localhost</code> where you need <code>host.docker.internal</code> in
+<code>DATABASE_URL</code>. Inside the container, <code>localhost</code> is the container.</li>
+<li><strong>(Python) <code>gunicorn: executable file not found</code>.</strong> The <code>-e PATH=…</code> flag is missing or
+mistyped. <code>gunicorn</code> was installed into <code>/app/.pylibs/bin</code>, which is not on the stock
+image&rsquo;s PATH.</li>
+<li><strong>(JS) <code>Cannot find module 'express'</code>.</strong> Step 4 didn&rsquo;t run, or ran against the other
+track&rsquo;s directory. Check <code>ls track-js/todo-api/node_modules | head</code>.</li>
+<li><strong><code>node_modules</code> or <code>.pylibs</code> is owned by root</strong> and you can&rsquo;t delete it. The
+<code>-u &quot;$(id -u):$(id -g)&quot;</code> flag was missing. <code>sudo rm -rf</code> it and redo step 4.</li>
+<li><strong>The frontend loads but can&rsquo;t create todos.</strong> Check the track selector in the frontend&rsquo;s
+header — it may be pointed at the track you didn&rsquo;t start.</li>
+<li><strong><code>loadgen.sh</code> exits instantly.</strong> It needs the API healthy first. Re-run <code>./doctor.sh</code>.</li>
+</ul>
+
+<p>There&rsquo;s no checkpoint for this module — nothing has been edited yet. From here on, every
+exercise ends with one:</p>
+
+<pre><code class="language-bash">./checkpoint.sh NM   # copies the reference solution over your working directory
+</code></pre>
+
+<p><strong>Say it out loud now:</strong> if you&rsquo;re stuck for more than ten minutes, run the checkpoint and
+keep moving. Nobody is judging. 🤝</p>
+
+<h2>What We Accomplished</h2>
+
+<ul>
+<li>You downloaded and started four telemetry processes yourself, and know what each flag does</li>
+<li>Four containers are running, and you know which of them can see what</li>
+<li><code>./doctor.sh</code> is all green</li>
+<li>The three Victoria UIs are bookmarked</li>
+<li>You have a track, and the page is showing you code in your language</li>
+<li>You have proven, empirically, that the application is currently invisible — while the
+service next to it is not</li>
+</ul>
+
+<h2>Next Steps</h2>
+
+<p>Before we instrument the application, you should know what it <em>does</em>. Continue with <a href="01-the-application.html">Module 1: The Application You&rsquo;ll Instrument</a>.</p>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="index.html" class="nav-button">← Home</a>
+            
+            
+            <a href="01-the-application.html" class="nav-button">Next: Module 1 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
