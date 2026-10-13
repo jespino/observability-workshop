@@ -335,7 +335,7 @@ paragraph.</p>
 <h3>Verify in Grafana</h3>
 <p>Explore → VictoriaTraces (Tempo) → open <strong>Traces Drilldown</strong>. Its RED panels are built by matching standard attribute names. The more conventions you follow, the more of this you get without configuring anything.</p>
 <h3>Think about</h3>
-<p>Standard names mean vendor dashboards, Grafana Drilldown and the spanmetrics connector (which you&rsquo;ll add in Module 8) all work on your data with zero configuration. That&rsquo;s the payoff.</p>
+<p>Standard names mean vendor dashboards, Grafana Drilldown and the Collector&rsquo;s spanmetrics connector all work on your data with zero configuration. That&rsquo;s the payoff.</p>
 <p>The cost is real too: <strong>some conventions are still marked experimental and do change between releases.</strong> <code>http.method</code> became <code>http.request.method</code>; <code>db.system</code> became <code>db.system.name</code>. If you pin to a convention that moves, your dashboards break. Name that cost rather than pretending it doesn&rsquo;t exist — and pin your SDK versions.</p>
 <h3>If you&rsquo;re stuck</h3>
 <ul>
@@ -510,7 +510,7 @@ inject(headers)                                      # adds traceparent
 <li>Three trace UIs compared side by side</li>
 </ul>
 <h2>Next Steps</h2>
-<p>You have three signals. Now make them one thing. Continue with <a href="08-correlation.html">Module 8: Correlation</a>.</p>
+<p>Continue with <a href="08-correlation.html">Module 8: Correlation</a>.</p>
 
         </article>
 

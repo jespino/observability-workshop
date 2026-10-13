@@ -45,7 +45,7 @@ La correlación con el contexto de traza es automática y limpia. Coste: el SDK 
 **B. JSON por stdout → receiver `filelog` del Collector**
 Sólido como una roca, sirve para cualquier lenguaje y cualquier contenedor de terceros, sin dependencia experimental. Coste: el contexto de traza lo inyectas tú en el JSON, y la configuración de parseo es cosa tuya.
 
-Construiremos la A y demostraremos la B en 6.4.
+Construiremos la A.
 
 ## Ejercicio 6.2 — Logging estructurado con contexto de traza [~25 min]
 
@@ -170,7 +170,7 @@ except Exception:
 
 <!-- /track -->
 
-Fíjate en lo que hay ahí: severidad, la excepción, y **los atributos que otra persona necesitaría para reproducirlo**. `title_length` en lugar de `title`, porque el título podría contener algo que no deberías estar guardando — un hábito que conviene adquirir ya, y al que volveremos en el Módulo 10.
+Fíjate en lo que hay ahí: severidad, la excepción, y **los atributos que otra persona necesitaría para reproducirlo**. `title_length` en lugar de `title`, porque el título podría contener algo que no deberías estar guardando — un hábito que conviene adquirir.
 
 4. Guarda el fichero y crea un todo fallido para generar uno de estos:
 
@@ -191,7 +191,7 @@ Fíjate en lo que hay ahí: severidad, la excepción, y **los atributos que otra
 
    ```bash
    curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{"title":"","list":"work"}'
-   TRACK=py ./loadgen.sh 2m
+   ./loadgen.sh 2m
    ```
 
    <!-- /track -->
@@ -226,7 +226,7 @@ Por último, copia un `trace_id` de cualquier línea de log y pégalo en la vmui
 trace_id:=<pega aquí el valor>
 ```
 
-Deberías aterrizar en la petición exacta que produjo esa línea de log. Ese es el premio, y es el mecanismo que hay detrás de todo el Módulo 8.
+Deberías aterrizar en la petición exacta que produjo esa línea de log.
 
 ### Comprueba en Grafana
 
@@ -318,7 +318,7 @@ Explore → VictoriaLogs. Prueba las mismas consultas con el **constructor visua
 
 ### Para pensar
 
-Acabas de aprender un lenguaje de consulta. En el Módulo 7 vas a consultar **spans** con el mismo. ¿Qué te ahorra eso, comparado con un stack donde métricas, logs y trazas tienen cada uno su sintaxis?
+Acabas de aprender un lenguaje de consulta, y VictoriaTraces usa el mismo para los spans. ¿Qué te ahorra eso, comparado con un stack donde métricas, logs y trazas tienen cada uno su sintaxis?
 
 ### Si te atascas
 
@@ -383,4 +383,4 @@ La arquitectura B desacopla tu aplicación de OpenTelemetry casi por completo �
 
 ## Siguientes Pasos
 
-Las métricas te dicen *que*. Los logs te dicen *qué*. Continúa con el [Módulo 7: Trazas Manuales](./07-manual-traces.es.md) para averiguar *dónde* y *por qué*.
+Continúa con el [Módulo 7: Trazas Manuales](./07-manual-traces.es.md).

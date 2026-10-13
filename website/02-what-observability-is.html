@@ -137,8 +137,7 @@ vocabulary. 🧠</p>
 <h2>2.1 — Metrics</h2>
 <p>A <strong>metric</strong> is a number measured over time. Instead of recording every event, the
 application keeps aggregated values — a count, a sum, a distribution — and exports them
-periodically, by default every 60 seconds (every 10 in this workshop). Each combination of
-a metric name and a set of attributes is a separate <strong>time series</strong>.</p>
+periodically, by default every 60 seconds (every 10 in this workshop).</p>
 <p>OpenTelemetry has a few metric types. The three you&rsquo;ll use most are:</p>
 <table>
 <thead>
@@ -167,21 +166,22 @@ a metric name and a set of attributes is a separate <strong>time series</strong>
 </tbody>
 </table>
 <h3>Example</h3>
-<p>This is a counter you&rsquo;ll create in Module 5, as VictoriaMetrics stores it:</p>
+<p>A counter of the todos created, as VictoriaMetrics stores it:</p>
 <pre><code>todos_created_total{service_name=&quot;todo-api&quot;, list=&quot;work&quot;}   1287
 todos_created_total{service_name=&quot;todo-api&quot;, list=&quot;home&quot;}    342
 </code></pre>
 <ul>
-<li><code>todos_created_total</code> is the metric name. In the code it is called <code>todos.created</code>; the
-storage adds <code>_total</code> because it is a counter, and replaces the dots with underscores.</li>
-<li><code>service_name=&quot;todo-api&quot;</code> says which service emitted it. It comes from the service&rsquo;s
-configuration, not from the code that increments the counter.</li>
-<li><code>list=&quot;work&quot;</code> is an <strong>attribute</strong> added when the counter is incremented. Each value of
-<code>list</code> produces its own time series, which is why there are two lines.</li>
+<li><code>todos_created_total</code> is the metric name.</li>
+<li><code>service_name=&quot;todo-api&quot;</code> is a <strong>label</strong>; in this case it tells us which service emitted
+it.</li>
+<li><code>list=&quot;work&quot;</code> is another <strong>label</strong>, in this case the todo list the todo belongs to.</li>
 <li><code>1287</code> is the value: the number of todos created in the <code>work</code> list since the service
-started. On its own it says little; what you query is how fast it grows, for example
-&ldquo;todos created per second, per list&rdquo;.</li>
+started.</li>
 </ul>
+<p>As you can see, each combination of metric name and label values produces a separate
+line. That means the metrics database creates one <strong>time series</strong> for each of those
+combinations. The number of distinct time series is what we call <strong>cardinality</strong>, and for
+now it&rsquo;s enough to know that it&rsquo;s important to keep it low.</p>
 <h2>2.2 — Logs</h2>
 <p>A <strong>log record</strong> describes one event that happened at a specific moment: a request failed,
 a todo was created, a connection was retried. Unlike a metric, every event produces its
@@ -189,7 +189,7 @@ own record. In OpenTelemetry a log record has a body (the message), a severity, 
 and attributes, and if it was emitted while handling a request, the identifiers of that
 request&rsquo;s trace.</p>
 <h3>Example</h3>
-<p>A log record you&rsquo;ll produce in Module 6, when a todo is created:</p>
+<p>A log record emitted when a todo is created:</p>
 <pre><code>timestamp:      2026-10-13T09:15:02.123Z
 severity_text:  INFO
 body:           todo created
@@ -210,8 +210,7 @@ group these records.</li>
 todo.</li>
 <li><code>resource</code> describes who emitted the record: the same <code>service.name</code> the metric carries.</li>
 <li><code>trace_id</code> and <code>span_id</code> identify the request that was being handled when the record was
-written. They are what will let you jump from this log line to the full trace of that
-request in Module 8.</li>
+written. They connect this log line with the full trace of that request.</li>
 </ul>
 <h2>2.3 — Traces</h2>
 <p>A <strong>trace</strong> follows one request through the system. It is made of <strong>spans</strong>: each span is
@@ -286,8 +285,7 @@ each one to its own storage:</p>
 </tr>
 </tbody>
 </table>
-<p>Logs and traces share a query language: what you learn to query logs in Module 6 also
-works for traces in Module 7.</p>
+<p>Logs and traces share the same query language.</p>
 <h2>What We Accomplished</h2>
 <ul>
 <li>You know what a metric, a log record and a trace are</li>
@@ -296,7 +294,7 @@ works for traces in Module 7.</p>
 on logs and spans — and where each one is stored</li>
 </ul>
 <h2>Next Steps</h2>
-<p>Continue with <a href="03-auto-instrumentation.html">Module 3: The Easy Path — Zero-Code Auto-Instrumentation</a>, where the app starts emitting all three signals without you changing a single line of it.</p>
+<p>Continue with <a href="03-auto-instrumentation.html">Module 3: The Easy Path — Zero-Code Auto-Instrumentation</a>.</p>
 
         </article>
 

@@ -214,6 +214,8 @@ service.name:todo-api
 
 You should see: your app's existing `console.log` / `logging.info` output, now stored and searchable — but arriving as unstructured text in the message body.
 
+The app only logs when a todo is **created** or **completed**, so you'll see lines like `todo created …` — create one from the frontend if nothing shows up. And note this is not the traces query: in VictoriaLogs the field is plain `service.name`, without the `resource_attr:` prefix.
+
 ### Verify in Grafana
 
 Grafana → **Explore** → **VictoriaMetrics** datasource → run:
@@ -268,8 +270,7 @@ POST /todos                          ← HTTP server span, named by route
 Nobody wrote any of that. Note in particular the last two lines: the trace already
 crosses a service boundary **and** a language boundary, because the HTTP client
 instrumentation injected a `traceparent` header on the way out and the other service's
-HTTP server instrumentation read it on the way in. You'll break and repair exactly this
-in Module 7.4.
+HTTP server instrumentation read it on the way in.
 
 > 🔑 **VictoriaTraces field names.** Resource attributes are stored under a
 > `resource_attr:` prefix and span attributes under `span_attr:`, so the field name
@@ -310,9 +311,7 @@ rate(http_server_duration_milliseconds_count[1m])
 >
 > Sit with what that means. "We auto-instrumented everything, so we have metrics" is a
 > sentence that can be false in one language and true in another, in the same fleet, with
-> nobody noticing until a dashboard is empty during an incident. You will fix this for
-> the JS track in Module 8.1, by generating the metrics from the spans instead — which is
-> the general answer to this whole class of problem.
+> nobody noticing until a dashboard is empty during an incident.
 
 **VictoriaLogs** (`http://localhost:9428/select/vmui`):
 
@@ -321,8 +320,7 @@ service.name:todo-api
 ```
 
 Look at the shape of what arrived. The message is a blob of text in `_msg`. There is no
-`list` field, no `todo_id` field, nothing you can filter or aggregate on. Fixing that is
-Module 6.
+`list` field, no `todo_id` field, nothing you can filter or aggregate on.
 
 > 🔑 **VictoriaLogs field names**, for contrast with the traces box above: the message is
 > `_msg`, the level is `severity_text`, and resource attributes are plain fields —
@@ -425,12 +423,6 @@ You're supposed to be stuck. That's the exercise. 🙂
 
 It knows about HTTP, Express or Flask, and Postgres, because those are standard, popular, and someone wrote an instrumentation library for them. It knows nothing about todos, lists, urgency or users — and nothing at all about that in-process cache, because no library was involved in it. Nobody has ever seen your domain.
 
-Everything from here on is about adding the meaning:
-
-- Module 5 adds **business metrics** — the numbers your product owner asks for
-- Module 6 adds **structured logs** — the fields you filter incidents by
-- Module 7 adds **domain spans** — the "which application decision" that question 3 needed
-
 ## What We Accomplished
 
 - All three signals flowing, with zero application code changed
@@ -440,4 +432,4 @@ Everything from here on is about adding the meaning:
 
 ## Next Steps
 
-Before adding meaning, let's demystify the box in the middle. Continue with [Module 4: The Collector, and Where the Data Actually Goes](./04-the-collector.md).
+Continue with [Module 4: The Collector, and Where the Data Actually Goes](./04-the-collector.md).

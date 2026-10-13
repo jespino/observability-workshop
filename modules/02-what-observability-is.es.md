@@ -23,9 +23,7 @@ Al terminar este módulo, serás capaz de:
 
 Una **métrica** es un número medido a lo largo del tiempo. En vez de registrar cada evento,
 la aplicación mantiene valores agregados — una cuenta, una suma, una distribución — y los
-exporta periódicamente, por defecto cada 60 segundos (cada 10 en este taller). Cada
-combinación de un nombre de métrica y un conjunto de atributos es una **serie temporal**
-distinta.
+exporta periódicamente, por defecto cada 60 segundos (cada 10 en este taller).
 
 OpenTelemetry tiene varios tipos de métrica. Los tres que más vas a usar son:
 
@@ -37,23 +35,25 @@ OpenTelemetry tiene varios tipos de métrica. Los tres que más vas a usar son:
 
 ### Ejemplo
 
-Este es un counter que crearás en el Módulo 5, tal como lo guarda VictoriaMetrics:
+Un counter de los todos creados, tal como lo guarda VictoriaMetrics:
 
 ```
 todos_created_total{service_name="todo-api", list="work"}   1287
 todos_created_total{service_name="todo-api", list="home"}    342
 ```
 
-- `todos_created_total` es el nombre de la métrica. En el código se llama `todos.created`;
-  el almacenamiento añade `_total` porque es un counter, y cambia los puntos por guiones
-  bajos.
-- `service_name="todo-api"` dice qué servicio la emitió. Sale de la configuración del
-  servicio, no del código que incrementa el counter.
-- `list="work"` es un **atributo** que se añade al incrementar el counter. Cada valor de
-  `list` produce su propia serie temporal, y por eso hay dos líneas.
+- `todos_created_total` es el nombre de la métrica.
+- `service_name="todo-api"` es un **label**; en este caso nos dice qué servicio la emitió.
+- `list="work"` es otro **label**, en este caso define la lista de tareas a la que pertenece
+  el todo.
 - `1287` es el valor: el número de todos creados en la lista `work` desde que arrancó el
-  servicio. Por sí solo dice poco; lo que consultas es lo rápido que crece, por ejemplo
-  "todos creados por segundo, por lista".
+  servicio.
+
+Como ves, cada combinación de nombre de métrica y valores de sus labels genera una línea
+distinta. Eso quiere decir que en la base de datos de métricas se crea una **serie
+temporal** para cada una de esas combinaciones. El número de series temporales distintas
+es lo que llamamos **cardinalidad**, y por ahora basta con saber que es importante
+mantenerla baja.
 
 ## 2.2 — Logs
 
@@ -65,7 +65,7 @@ atendía una petición, los identificadores de la traza de esa petición.
 
 ### Ejemplo
 
-Un registro de log que producirás en el Módulo 6, cuando se crea un todo:
+Un registro de log emitido cuando se crea un todo:
 
 ```
 timestamp:      2026-10-13T09:15:02.123Z
@@ -88,8 +88,8 @@ span_id:        00f067aa0ba902b7
 - `resource` describe quién emitió el registro: el mismo `service.name` que lleva la
   métrica.
 - `trace_id` y `span_id` identifican la petición que se estaba atendiendo cuando se
-  escribió el registro. Son lo que te permitirá saltar de esta línea de log a la traza
-  completa de esa petición en el Módulo 8.
+  escribió el registro. Conectan esta línea de log con la traza completa de esa
+  petición.
 
 ## 2.3 — Trazas
 
@@ -156,8 +156,7 @@ propio almacenamiento:
 | Logs | VictoriaLogs | LogsQL |
 | Trazas | VictoriaTraces | LogsQL |
 
-Los logs y las trazas comparten lenguaje de consulta: lo que aprendas para consultar logs
-en el Módulo 6 te sirve también para las trazas en el Módulo 7.
+Los logs y las trazas comparten el mismo lenguaje de consulta.
 
 ## Lo Que Hemos Conseguido
 
@@ -168,4 +167,4 @@ en el Módulo 6 te sirve también para las trazas en el Módulo 7.
 
 ## Siguientes Pasos
 
-Continúa con el [Módulo 3: El Camino Fácil — Auto-instrumentación Sin Código](./03-auto-instrumentation.es.md), donde la app empieza a emitir las tres señales sin que cambies ni una línea de ella.
+Continúa con el [Módulo 3: El Camino Fácil — Auto-instrumentación Sin Código](./03-auto-instrumentation.es.md).

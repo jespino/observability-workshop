@@ -2,7 +2,7 @@
 
 **Duration:** ~15 min · **Both tracks, same application**
 
-You cannot instrument a system you don't understand. This module is a guided tour of the todo app: what the pieces are, what the API does, and — most importantly — the handful of functions you'll come back to in every remaining module. 🗺️
+You cannot instrument a system you don't understand. This module is a guided tour of the todo app: what the pieces are, what the API does, and where its code lives. 🗺️
 
 ## Learning Objectives
 
@@ -28,15 +28,12 @@ Four things worth noticing:
    and the server in watch mode — so your editor edits real files, and saving one is the
    whole build-and-deploy cycle. Everything else is fixed scenery.
 2. **Postgres is its only external dependency.** The cache in front of the read path is
-   an in-process map, not Redis. Remember that: nothing on the network can observe it,
-   which turns out to matter a great deal later.
+   an in-process map, not Redis: nothing on the network can observe it.
 3. **`notify-service` is written in the other language from your track.** That's
    deliberate. It ships in both languages, and your track calls the one written in the
    *opposite* language — the JS track calls the Python implementation on `:8083`, the
    Python track calls the JavaScript one on `:8084`. Both report a `service.name` of
-   `notify-service`, so every query in these handouts works either way. In Module 7 you'll
-   make a single trace span both services and both languages, which is the moment the
-   "OTel is a protocol, not a library" point stops being abstract.
+   `notify-service`, so every query in these handouts works either way.
 4. **`./loadgen.sh` keeps traffic flowing**, so there's always something to look at. Run
    `./loadgen.sh 2m` whenever the graphs go quiet.
 
@@ -106,7 +103,7 @@ app.use(todosRouter);
 app.listen(8081, () => log.info('todo-api listening on 8081'));
 ```
 
-**`src/routes/todos.js`** — the handlers. These two are the ones you'll return to in Modules 5, 6 and 7:
+**`src/routes/todos.js`** — the handlers:
 
 ```js
 todosRouter.post('/todos', async (req, res) => {
@@ -165,7 +162,7 @@ def create_app():
 app = create_app()
 ```
 
-**`todo_api/routes.py`** — the handlers. These two are the ones you'll return to in Modules 5, 6 and 7:
+**`todo_api/routes.py`** — the handlers:
 
 ```python
 @bp.post("/todos")
@@ -188,29 +185,11 @@ def patch_complete(todo_id):
 
 <!-- /track -->
 
-### The functions we care about
-
-Across the whole workshop, these are the ones that come up again and again. Learn the names now and the later modules will read much faster:
-
-| Function | Lives in | Why it matters |
-|---|---|---|
-| `createTodo` / `create_todo` | repo | The business event. Module 5's counter, Module 6's structured log |
-| `completeTodo` / `complete_todo` | repo | Gives you a genuinely business-level duration in Module 5 |
-| `listTodos` / `list_todos` | repo | The read path. Interesting for reasons you'll discover |
-| `readSummary` / `read_summary` | cache | The only cache read path in the app |
-| `notifyUrgent` / `notify_urgent` | notify | The service boundary. Module 7's propagation exercise |
-| `enrich` | enrich | Pure business logic with no library instrumentation of its own — the best candidate for your first custom span |
-| `overdueCount` / `overdue_count` | repo | Backs the observable gauge in Module 5 |
-
-### What we're deliberately not showing you
-
-The *insides* of the repo and cache modules — how the queries are built, how the cache key is derived — are left for you to find out. Not because they're secret, but because by Module 9 you should be able to describe what they do without opening them, purely from telemetry. That's the whole claim of this workshop, and it's more fun if you get to test it. 🔍
-
 ## What We Accomplished
 
 - You can draw the system, name its dependencies, and list its endpoints
-- You know the four files and seven functions that the rest of the workshop revolves around
+- You know the four files that the rest of the workshop revolves around
 
 ## Next Steps
 
-Now that you know what we're instrumenting, let's look at the data instrumenting it produces. Continue with [Module 2: The Three Signals — Metrics, Logs and Traces](./02-what-observability-is.md).
+Continue with [Module 2: The Three Signals — Metrics, Logs and Traces](./02-what-observability-is.md).

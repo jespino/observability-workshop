@@ -213,7 +213,7 @@ Explore → VictoriaTraces (Tempo) → abre **Traces Drilldown**. Sus paneles RE
 
 ### Para pensar
 
-Los nombres estándar hacen que los dashboards de proveedores, el Drilldown de Grafana y el connector spanmetrics (que añadirás en el Módulo 8) funcionen sobre tus datos con cero configuración. Ese es el premio.
+Los nombres estándar hacen que los dashboards de proveedores, el Drilldown de Grafana y el connector spanmetrics del Collector funcionen sobre tus datos con cero configuración. Ese es el premio.
 
 El coste también es real: **algunas convenciones siguen marcadas como experimentales y sí cambian entre versiones.** `http.method` pasó a ser `http.request.method`; `db.system` pasó a ser `db.system.name`. Si te atas a una convención que se mueve, tus dashboards se rompen. Nombra ese coste en vez de fingir que no existe — y fija las versiones de tu SDK.
 
@@ -480,4 +480,4 @@ Abre la misma traza en la vista de Jaeger y en Drilldown. Fíjate en qué facili
 
 ## Siguientes Pasos
 
-Ya tienes tres señales. Ahora conviértelas en una sola cosa. Continúa con el [Módulo 8: Correlación](./08-correlation.es.md).
+Continúa con el [Módulo 8: Correlación](./08-correlation.es.md).

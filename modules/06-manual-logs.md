@@ -45,7 +45,7 @@ Trace context correlation is automatic and clean. Cost: the logs SDK is still ma
 **B. stdout JSON → Collector `filelog` receiver**
 Rock solid, works for any language and any third-party container, no experimental dependency. Cost: you inject the trace context into the JSON yourself, and you own the parsing config.
 
-We'll build A and demo B in 6.4.
+We'll build A.
 
 ## Exercise 6.2 — Structured logging with trace context [~25 min]
 
@@ -169,7 +169,7 @@ except Exception:
 
 <!-- /track -->
 
-Note what's in there: severity, the exception, and **the attributes a colleague would need to reproduce it**. `title_length` rather than `title`, because the title might contain something you shouldn't be storing — a habit worth forming now, and one we'll come back to in Module 10.
+Note what's in there: severity, the exception, and **the attributes a colleague would need to reproduce it**. `title_length` rather than `title`, because the title might contain something you shouldn't be storing — a habit worth forming.
 
 4. Save the file, then create a failing todo to generate one of these:
 
@@ -190,7 +190,7 @@ Note what's in there: severity, the exception, and **the attributes a colleague 
 
    ```bash
    curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{"title":"","list":"work"}'
-   TRACK=py ./loadgen.sh 2m
+   ./loadgen.sh 2m
    ```
 
    <!-- /track -->
@@ -225,7 +225,7 @@ Finally, copy a `trace_id` from any log line and paste it into VictoriaTraces vm
 trace_id:=<paste it here>
 ```
 
-You should land on the exact request that produced that log line. That is the payoff, and it's the mechanism behind everything in Module 8.
+You should land on the exact request that produced that log line.
 
 ### Verify in Grafana
 
@@ -317,7 +317,7 @@ Explore → VictoriaLogs. Try the same queries through the **visual query builde
 
 ### Think about
 
-You just learned a query language. In Module 7 you'll query **spans** with the same one. What does that save you, compared with a stack where metrics, logs and traces each have their own syntax?
+You just learned a query language, and VictoriaTraces uses the same one for spans. What does that save you, compared with a stack where metrics, logs and traces each have their own syntax?
 
 ### If you're stuck
 
@@ -382,4 +382,4 @@ Architecture B decouples your application from OpenTelemetry almost entirely —
 
 ## Next Steps
 
-Metrics tell you *that*. Logs tell you *what*. Continue with [Module 7: Manual Traces](./07-manual-traces.md) to find out *where* and *why*.
+Continue with [Module 7: Manual Traces](./07-manual-traces.md).

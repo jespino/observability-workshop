@@ -65,7 +65,7 @@ docker compose --profile js --profile py --profile grafana pull
    metrics, logs and traces. Their data lives in **Docker volumes**, outside the repository:
    it survives restarts and `docker compose down`, and `docker compose down -v` deletes it.
 
-   ![Everything docker compose starts: your browser reaches the frontend on localhost; the frontend calls todo-api, which uses Postgres and calls notify-service; both send OTLP to the OpenTelemetry Collector, which routes metrics, logs and traces to VictoriaMetrics, VictoriaLogs and VictoriaTraces, each with its own volume; Grafana, from Module 3, reads from all three.](images/docker-compose-stack.png)
+   ![Everything docker compose starts: your browser reaches the frontend on localhost; the frontend calls todo-api, which uses Postgres and calls notify-service; both send OTLP to the OpenTelemetry Collector, which routes metrics, logs and traces to VictoriaMetrics, VictoriaLogs and VictoriaTraces, each with its own volume; Grafana reads from all three.](images/docker-compose-stack.png)
 
    Your API's source code is mounted into its container, so **saving a file restarts it** —
    that's the whole deploy cycle for today.
@@ -92,4 +92,4 @@ docker compose --profile js --profile py --profile grafana pull
 
 ## Next Steps
 
-Before we instrument the application, you should know what it *does*. Continue with [Module 1: The Application You'll Instrument](./01-the-application.md).
+Continue with [Module 1: The Application You'll Instrument](./01-the-application.md).

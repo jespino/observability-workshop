@@ -137,9 +137,7 @@ vocabulario compartido. 🧠</p>
 <h2>2.1 — Métricas</h2>
 <p>Una <strong>métrica</strong> es un número medido a lo largo del tiempo. En vez de registrar cada evento,
 la aplicación mantiene valores agregados — una cuenta, una suma, una distribución — y los
-exporta periódicamente, por defecto cada 60 segundos (cada 10 en este taller). Cada
-combinación de un nombre de métrica y un conjunto de atributos es una <strong>serie temporal</strong>
-distinta.</p>
+exporta periódicamente, por defecto cada 60 segundos (cada 10 en este taller).</p>
 <p>OpenTelemetry tiene varios tipos de métrica. Los tres que más vas a usar son:</p>
 <table>
 <thead>
@@ -168,22 +166,23 @@ distinta.</p>
 </tbody>
 </table>
 <h3>Ejemplo</h3>
-<p>Este es un counter que crearás en el Módulo 5, tal como lo guarda VictoriaMetrics:</p>
+<p>Un counter de los todos creados, tal como lo guarda VictoriaMetrics:</p>
 <pre><code>todos_created_total{service_name=&quot;todo-api&quot;, list=&quot;work&quot;}   1287
 todos_created_total{service_name=&quot;todo-api&quot;, list=&quot;home&quot;}    342
 </code></pre>
 <ul>
-<li><code>todos_created_total</code> es el nombre de la métrica. En el código se llama <code>todos.created</code>;
-el almacenamiento añade <code>_total</code> porque es un counter, y cambia los puntos por guiones
-bajos.</li>
-<li><code>service_name=&quot;todo-api&quot;</code> dice qué servicio la emitió. Sale de la configuración del
-servicio, no del código que incrementa el counter.</li>
-<li><code>list=&quot;work&quot;</code> es un <strong>atributo</strong> que se añade al incrementar el counter. Cada valor de
-<code>list</code> produce su propia serie temporal, y por eso hay dos líneas.</li>
+<li><code>todos_created_total</code> es el nombre de la métrica.</li>
+<li><code>service_name=&quot;todo-api&quot;</code> es un <strong>label</strong>; en este caso nos dice qué servicio la emitió.</li>
+<li><code>list=&quot;work&quot;</code> es otro <strong>label</strong>, en este caso define la lista de tareas a la que pertenece
+el todo.</li>
 <li><code>1287</code> es el valor: el número de todos creados en la lista <code>work</code> desde que arrancó el
-servicio. Por sí solo dice poco; lo que consultas es lo rápido que crece, por ejemplo
-&ldquo;todos creados por segundo, por lista&rdquo;.</li>
+servicio.</li>
 </ul>
+<p>Como ves, cada combinación de nombre de métrica y valores de sus labels genera una línea
+distinta. Eso quiere decir que en la base de datos de métricas se crea una <strong>serie
+temporal</strong> para cada una de esas combinaciones. El número de series temporales distintas
+es lo que llamamos <strong>cardinalidad</strong>, y por ahora basta con saber que es importante
+mantenerla baja.</p>
 <h2>2.2 — Logs</h2>
 <p>Un <strong>registro de log</strong> describe un evento que ocurrió en un momento concreto: una petición
 falló, se creó un todo, se reintentó una conexión. A diferencia de una métrica, cada evento
@@ -191,7 +190,7 @@ produce su propio registro. En OpenTelemetry un registro de log tiene un cuerpo 
 mensaje), una severidad, una marca de tiempo y atributos, y si se emitió mientras se
 atendía una petición, los identificadores de la traza de esa petición.</p>
 <h3>Ejemplo</h3>
-<p>Un registro de log que producirás en el Módulo 6, cuando se crea un todo:</p>
+<p>Un registro de log emitido cuando se crea un todo:</p>
 <pre><code>timestamp:      2026-10-13T09:15:02.123Z
 severity_text:  INFO
 body:           todo created
@@ -212,8 +211,8 @@ agrupar estos registros.</li>
 <li><code>resource</code> describe quién emitió el registro: el mismo <code>service.name</code> que lleva la
 métrica.</li>
 <li><code>trace_id</code> y <code>span_id</code> identifican la petición que se estaba atendiendo cuando se
-escribió el registro. Son lo que te permitirá saltar de esta línea de log a la traza
-completa de esa petición en el Módulo 8.</li>
+escribió el registro. Conectan esta línea de log con la traza completa de esa
+petición.</li>
 </ul>
 <h2>2.3 — Trazas</h2>
 <p>Una <strong>traza</strong> sigue una petición a través del sistema. Está formada por <strong>spans</strong>: cada
@@ -290,8 +289,7 @@ propio almacenamiento:</p>
 </tr>
 </tbody>
 </table>
-<p>Los logs y las trazas comparten lenguaje de consulta: lo que aprendas para consultar logs
-en el Módulo 6 te sirve también para las trazas en el Módulo 7.</p>
+<p>Los logs y las trazas comparten el mismo lenguaje de consulta.</p>
 <h2>Lo Que Hemos Conseguido</h2>
 <ul>
 <li>Sabes qué es una métrica, un registro de log y una traza</li>
@@ -300,7 +298,7 @@ en el Módulo 6 te sirve también para las trazas en el Módulo 7.</p>
 y spans — y dónde se guarda cada una</li>
 </ul>
 <h2>Siguientes Pasos</h2>
-<p>Continúa con el <a href="03-auto-instrumentation.html">Módulo 3: El Camino Fácil — Auto-instrumentación Sin Código</a>, donde la app empieza a emitir las tres señales sin que cambies ni una línea de ella.</p>
+<p>Continúa con el <a href="03-auto-instrumentation.html">Módulo 3: El Camino Fácil — Auto-instrumentación Sin Código</a>.</p>
 
         </article>
 

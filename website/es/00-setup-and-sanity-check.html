@@ -190,7 +190,7 @@ OpenTelemetry Collector, y VictoriaMetrics, VictoriaLogs y VictoriaTraces para g
 métricas, logs y trazas. Sus datos viven en <strong>volúmenes de Docker</strong>, fuera del
 repositorio: sobreviven a los reinicios y a <code>docker compose down</code>, y
 <code>docker compose down -v</code> los borra.</p>
-<p><img src="../images/docker-compose-stack.png" alt="Todo lo que arranca docker compose: tu navegador llega al frontend en localhost; el frontend llama a todo-api, que usa Postgres y llama a notify-service; los dos envían OTLP al OpenTelemetry Collector, que reparte métricas, logs y trazas entre VictoriaMetrics, VictoriaLogs y VictoriaTraces, cada uno con su volumen; Grafana, a partir del Módulo 3, lee de los tres."></p>
+<p><img src="../images/docker-compose-stack.png" alt="Todo lo que arranca docker compose: tu navegador llega al frontend en localhost; el frontend llama a todo-api, que usa Postgres y llama a notify-service; los dos envían OTLP al OpenTelemetry Collector, que reparte métricas, logs y trazas entre VictoriaMetrics, VictoriaLogs y VictoriaTraces, cada uno con su volumen; Grafana lee de los tres."></p>
 <p>El código de tu API está montado dentro de su contenedor, así que <strong>guardar un fichero
 la reinicia</strong> — ese es todo el ciclo de despliegue de hoy.</p>
 </li>
@@ -214,7 +214,7 @@ vuelve a lanzar el <code>up</code>.</li>
 mirar; normalmente es <code>docker compose logs SERVICIO</code> del servicio que ha fallado.</li>
 </ul>
 <h2>Siguientes Pasos</h2>
-<p>Antes de instrumentar la aplicación, deberías saber qué <em>hace</em>. Continúa con el <a href="01-the-application.html">Módulo 1: La Aplicación que Vas a Instrumentar</a>.</p>
+<p>Continúa con el <a href="01-the-application.html">Módulo 1: La Aplicación que Vas a Instrumentar</a>.</p>
 
         </article>
 

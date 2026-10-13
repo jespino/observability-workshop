@@ -290,6 +290,7 @@ in front of the command.</p>
 <pre><code>service.name:todo-api
 </code></pre>
 <p>You should see: your app&rsquo;s existing <code>console.log</code> / <code>logging.info</code> output, now stored and searchable — but arriving as unstructured text in the message body.</p>
+<p>The app only logs when a todo is <strong>created</strong> or <strong>completed</strong>, so you&rsquo;ll see lines like <code>todo created …</code> — create one from the frontend if nothing shows up. And note this is not the traces query: in VictoriaLogs the field is plain <code>service.name</code>, without the <code>resource_attr:</code> prefix.</p>
 <h3>Verify in Grafana</h3>
 <p>Grafana → <strong>Explore</strong> → <strong>VictoriaMetrics</strong> datasource → run:</p>
 <pre><code>rate(http_server_duration_milliseconds_count[1m])
@@ -328,8 +329,7 @@ in front of the command.</p>
 <p>Nobody wrote any of that. Note in particular the last two lines: the trace already
 crosses a service boundary <strong>and</strong> a language boundary, because the HTTP client
 instrumentation injected a <code>traceparent</code> header on the way out and the other service&rsquo;s
-HTTP server instrumentation read it on the way in. You&rsquo;ll break and repair exactly this
-in Module 7.4.</p>
+HTTP server instrumentation read it on the way in.</p>
 <blockquote>
 <p>🔑 <strong>VictoriaTraces field names.</strong> Resource attributes are stored under a
 <code>resource_attr:</code> prefix and span attributes under <code>span_attr:</code>, so the field name
@@ -363,16 +363,13 @@ tracks get identical <em>traces</em> and identical <em>logs</em>; the metrics si
 diverge.</p>
 <p>Sit with what that means. &ldquo;We auto-instrumented everything, so we have metrics&rdquo; is a
 sentence that can be false in one language and true in another, in the same fleet, with
-nobody noticing until a dashboard is empty during an incident. You will fix this for
-the JS track in Module 8.1, by generating the metrics from the spans instead — which is
-the general answer to this whole class of problem.</p>
+nobody noticing until a dashboard is empty during an incident.</p>
 </blockquote>
 <p><strong>VictoriaLogs</strong> (<code>http://localhost:9428/select/vmui</code>):</p>
 <pre><code>service.name:todo-api
 </code></pre>
 <p>Look at the shape of what arrived. The message is a blob of text in <code>_msg</code>. There is no
-<code>list</code> field, no <code>todo_id</code> field, nothing you can filter or aggregate on. Fixing that is
-Module 6.</p>
+<code>list</code> field, no <code>todo_id</code> field, nothing you can filter or aggregate on.</p>
 <blockquote>
 <p>🔑 <strong>VictoriaLogs field names</strong>, for contrast with the traces box above: the message is
 <code>_msg</code>, the level is <code>severity_text</code>, and resource attributes are plain fields —
@@ -478,12 +475,6 @@ cleverness will make it one. On the JavaScript track you cannot even get this fa
 <p><strong>Auto-instrumentation gives you the plumbing, not the meaning.</strong></p>
 </blockquote>
 <p>It knows about HTTP, Express or Flask, and Postgres, because those are standard, popular, and someone wrote an instrumentation library for them. It knows nothing about todos, lists, urgency or users — and nothing at all about that in-process cache, because no library was involved in it. Nobody has ever seen your domain.</p>
-<p>Everything from here on is about adding the meaning:</p>
-<ul>
-<li>Module 5 adds <strong>business metrics</strong> — the numbers your product owner asks for</li>
-<li>Module 6 adds <strong>structured logs</strong> — the fields you filter incidents by</li>
-<li>Module 7 adds <strong>domain spans</strong> — the &ldquo;which application decision&rdquo; that question 3 needed</li>
-</ul>
 <h2>What We Accomplished</h2>
 <ul>
 <li>All three signals flowing, with zero application code changed</li>
@@ -492,7 +483,7 @@ cleverness will make it one. On the JavaScript track you cannot even get this fa
 <li>A precise, hands-on understanding of where the easy path runs out</li>
 </ul>
 <h2>Next Steps</h2>
-<p>Before adding meaning, let&rsquo;s demystify the box in the middle. Continue with <a href="04-the-collector.html">Module 4: The Collector, and Where the Data Actually Goes</a>.</p>
+<p>Continue with <a href="04-the-collector.html">Module 4: The Collector, and Where the Data Actually Goes</a>.</p>
 
         </article>
 

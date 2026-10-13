@@ -177,7 +177,7 @@
 Trace context correlation is automatic and clean. Cost: the logs SDK is still marked experimental in both languages.</p>
 <p><strong>B. stdout JSON → Collector <code>filelog</code> receiver</strong>
 Rock solid, works for any language and any third-party container, no experimental dependency. Cost: you inject the trace context into the JSON yourself, and you own the parsing config.</p>
-<p>We&rsquo;ll build A and demo B in 6.4.</p>
+<p>We&rsquo;ll build A.</p>
 <h2>Exercise 6.2 — Structured logging with trace context [~25 min]</h2>
 <p><strong>You should be able to answer this by the end:</strong> <em>given an error log line, how do you get to the trace of the request that produced it?</em></p>
 <h3>Do</h3>
@@ -273,7 +273,7 @@ except Exception:
     return jsonify(error=&quot;internal&quot;), 500
 </code></pre>
 </div>
-<p>Note what&rsquo;s in there: severity, the exception, and <strong>the attributes a colleague would need to reproduce it</strong>. <code>title_length</code> rather than <code>title</code>, because the title might contain something you shouldn&rsquo;t be storing — a habit worth forming now, and one we&rsquo;ll come back to in Module 10.</p>
+<p>Note what&rsquo;s in there: severity, the exception, and <strong>the attributes a colleague would need to reproduce it</strong>. <code>title_length</code> rather than <code>title</code>, because the title might contain something you shouldn&rsquo;t be storing — a habit worth forming.</p>
 <ol start="4">
 <li>
 <p>Save the file, then create a failing todo to generate one of these:</p>
@@ -286,7 +286,7 @@ except Exception:
 <div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
 <p>Once the API has restarted (watch its log terminal), in another terminal:</p>
 <pre><code class="language-bash">curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;}'
-TRACK=py ./loadgen.sh 2m
+./loadgen.sh 2m
 </code></pre>
 </div>
 </li>
@@ -311,7 +311,7 @@ TRACK=py ./loadgen.sh 2m
 <p>Finally, copy a <code>trace_id</code> from any log line and paste it into VictoriaTraces vmui:</p>
 <pre><code>trace_id:=&lt;paste it here&gt;
 </code></pre>
-<p>You should land on the exact request that produced that log line. That is the payoff, and it&rsquo;s the mechanism behind everything in Module 8.</p>
+<p>You should land on the exact request that produced that log line.</p>
 <h3>Verify in Grafana</h3>
 <p>Explore → <strong>VictoriaLogs</strong> → same query. Switch on <strong>Live</strong> streaming and watch records arrive while the loadgen runs.</p>
 <h3>Think about</h3>
@@ -369,7 +369,7 @@ TRACK=py ./loadgen.sh 2m
 <h3>Verify in Grafana</h3>
 <p>Explore → VictoriaLogs. Try the same queries through the <strong>visual query builder</strong> and then switch to the raw LogsQL box to see what it generated. The builder is good for exploration; the raw box is what you&rsquo;ll paste into a runbook.</p>
 <h3>Think about</h3>
-<p>You just learned a query language. In Module 7 you&rsquo;ll query <strong>spans</strong> with the same one. What does that save you, compared with a stack where metrics, logs and traces each have their own syntax?</p>
+<p>You just learned a query language, and VictoriaTraces uses the same one for spans. What does that save you, compared with a stack where metrics, logs and traces each have their own syntax?</p>
 <h3>If you&rsquo;re stuck</h3>
 <ul>
 <li><strong><code>_stream:{...}</code> returns nothing.</strong> Stream selectors match the fields declared in <code>VL-Stream-Fields</code> at <em>ingest</em> time. Records written before your change have the old stream shape.</li>
@@ -430,7 +430,7 @@ TRACK=py ./loadgen.sh 2m
 <li>A clear-eyed view of the stdout+Collector alternative</li>
 </ul>
 <h2>Next Steps</h2>
-<p>Metrics tell you <em>that</em>. Logs tell you <em>what</em>. Continue with <a href="07-manual-traces.html">Module 7: Manual Traces</a> to find out <em>where</em> and <em>why</em>.</p>
+<p>Continue with <a href="07-manual-traces.html">Module 7: Manual Traces</a>.</p>
 
         </article>
 

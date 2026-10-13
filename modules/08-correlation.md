@@ -221,4 +221,4 @@ You just built four jumps by hand. In a fifty-service organisation, who owns thi
 
 ## Next Steps
 
-Time to find out whether it actually works. Continue with [Module 9: Capstone — The Debugging Challenge](./09-capstone-debugging-challenge.md).
+Continue with [Module 9: Capstone — The Debugging Challenge](./09-capstone-debugging-challenge.md).

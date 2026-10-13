@@ -114,4 +114,4 @@ So: what's the actual blocker to doing this at work? Is it tooling, or is it som
 
 ## Next Steps
 
-One short conversation left, and it's the one about what happens when this leaves your laptop. Continue with [Module 10: Production Realities and Wrap-Up](./10-production-realities.md).
+Continue with [Module 10: Production Realities and Wrap-Up](./10-production-realities.md).

@@ -213,7 +213,7 @@ Explore → VictoriaTraces (Tempo) → open **Traces Drilldown**. Its RED panels
 
 ### Think about
 
-Standard names mean vendor dashboards, Grafana Drilldown and the spanmetrics connector (which you'll add in Module 8) all work on your data with zero configuration. That's the payoff.
+Standard names mean vendor dashboards, Grafana Drilldown and the Collector's spanmetrics connector all work on your data with zero configuration. That's the payoff.
 
 The cost is real too: **some conventions are still marked experimental and do change between releases.** `http.method` became `http.request.method`; `db.system` became `db.system.name`. If you pin to a convention that moves, your dashboards break. Name that cost rather than pretending it doesn't exist — and pin your SDK versions.
 
@@ -480,4 +480,4 @@ When would you reach for each? A reasonable answer:
 
 ## Next Steps
 
-You have three signals. Now make them one thing. Continue with [Module 8: Correlation](./08-correlation.md).
+Continue with [Module 8: Correlation](./08-correlation.md).

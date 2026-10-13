@@ -159,7 +159,7 @@ var englishConfig = LangConfig{
 	DisplayName:  "English",
 	Metadata: []moduleMeta{
 		{"00-setup-and-sanity-check", "Setup and Sanity Check", "Start the whole stack, your API included, with one Docker Compose command, and check with the doctor script that everything is up and running."},
-		{"01-the-application", "The Application You'll Instrument", "Tour the todo-api you'll be editing all day — its endpoints, its dependencies, and the handful of functions that matter."},
+		{"01-the-application", "The Application You'll Instrument", "Tour the todo-api you'll be editing all day — its endpoints, its dependencies and its code."},
 		{"02-what-observability-is", "The Three Signals — Metrics, Logs and Traces", "What metrics, logs and traces are, with an example of each taken from the application you'll instrument."},
 		{"03-auto-instrumentation", "The Easy Path: Zero-Code Auto-Instrumentation", "Get all three signals flowing without touching application code, then find the ceiling of what that buys you."},
 		{"04-the-collector", "The Collector, and Where the Data Actually Goes", "Read and edit the OpenTelemetry Collector config that fans a single OTLP endpoint out to three backends."},
@@ -247,7 +247,7 @@ var spanishConfig = LangConfig{
 	DisplayName:  "Español",
 	Metadata: []moduleMeta{
 		{"00-setup-and-sanity-check", "Preparación y Comprobación del Entorno", "Arranca todo el stack, tu API incluida, con un solo comando de Docker Compose, y comprueba con el script doctor que todo está funcionando."},
-		{"01-the-application", "La Aplicación que Vas a Instrumentar", "Recorre la todo-api que vas a editar durante todo el día — sus endpoints, sus dependencias y el puñado de funciones que importan."},
+		{"01-the-application", "La Aplicación que Vas a Instrumentar", "Recorre la todo-api que vas a editar durante todo el día — sus endpoints, sus dependencias y su código."},
 		{"02-what-observability-is", "Las Tres Señales — Métricas, Logs y Trazas", "Qué son las métricas, los logs y las trazas, con un ejemplo de cada una sacado de la aplicación que vas a instrumentar."},
 		{"03-auto-instrumentation", "El Camino Fácil: Auto-instrumentación Sin Código", "Haz que fluyan las tres señales sin tocar el código de la aplicación, y descubre hasta dónde llega ese atajo."},
 		{"04-the-collector", "El Collector, y Dónde Acaban los Datos", "Lee y modifica la configuración del OpenTelemetry Collector que reparte un único endpoint OTLP entre tres backends."},

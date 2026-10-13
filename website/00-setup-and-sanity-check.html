@@ -188,7 +188,7 @@ every code example to your language and remembers the choice.</p>
 OpenTelemetry Collector, and VictoriaMetrics, VictoriaLogs and VictoriaTraces to store
 metrics, logs and traces. Their data lives in <strong>Docker volumes</strong>, outside the repository:
 it survives restarts and <code>docker compose down</code>, and <code>docker compose down -v</code> deletes it.</p>
-<p><img src="images/docker-compose-stack.png" alt="Everything docker compose starts: your browser reaches the frontend on localhost; the frontend calls todo-api, which uses Postgres and calls notify-service; both send OTLP to the OpenTelemetry Collector, which routes metrics, logs and traces to VictoriaMetrics, VictoriaLogs and VictoriaTraces, each with its own volume; Grafana, from Module 3, reads from all three."></p>
+<p><img src="images/docker-compose-stack.png" alt="Everything docker compose starts: your browser reaches the frontend on localhost; the frontend calls todo-api, which uses Postgres and calls notify-service; both send OTLP to the OpenTelemetry Collector, which routes metrics, logs and traces to VictoriaMetrics, VictoriaLogs and VictoriaTraces, each with its own volume; Grafana reads from all three."></p>
 <p>Your API&rsquo;s source code is mounted into its container, so <strong>saving a file restarts it</strong> —
 that&rsquo;s the whole deploy cycle for today.</p>
 </li>
@@ -212,7 +212,7 @@ the <code>up</code> again.</li>
 it&rsquo;s <code>docker compose logs SERVICE</code> for the service that failed.</li>
 </ul>
 <h2>Next Steps</h2>
-<p>Before we instrument the application, you should know what it <em>does</em>. Continue with <a href="01-the-application.html">Module 1: The Application You&rsquo;ll Instrument</a>.</p>
+<p>Continue with <a href="01-the-application.html">Module 1: The Application You&rsquo;ll Instrument</a>.</p>
 
         </article>
 

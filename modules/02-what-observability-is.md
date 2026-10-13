@@ -23,8 +23,7 @@ By the end of this module, you will:
 
 A **metric** is a number measured over time. Instead of recording every event, the
 application keeps aggregated values — a count, a sum, a distribution — and exports them
-periodically, by default every 60 seconds (every 10 in this workshop). Each combination of
-a metric name and a set of attributes is a separate **time series**.
+periodically, by default every 60 seconds (every 10 in this workshop).
 
 OpenTelemetry has a few metric types. The three you'll use most are:
 
@@ -36,22 +35,24 @@ OpenTelemetry has a few metric types. The three you'll use most are:
 
 ### Example
 
-This is a counter you'll create in Module 5, as VictoriaMetrics stores it:
+A counter of the todos created, as VictoriaMetrics stores it:
 
 ```
 todos_created_total{service_name="todo-api", list="work"}   1287
 todos_created_total{service_name="todo-api", list="home"}    342
 ```
 
-- `todos_created_total` is the metric name. In the code it is called `todos.created`; the
-  storage adds `_total` because it is a counter, and replaces the dots with underscores.
-- `service_name="todo-api"` says which service emitted it. It comes from the service's
-  configuration, not from the code that increments the counter.
-- `list="work"` is an **attribute** added when the counter is incremented. Each value of
-  `list` produces its own time series, which is why there are two lines.
+- `todos_created_total` is the metric name.
+- `service_name="todo-api"` is a **label**; in this case it tells us which service emitted
+  it.
+- `list="work"` is another **label**, in this case the todo list the todo belongs to.
 - `1287` is the value: the number of todos created in the `work` list since the service
-  started. On its own it says little; what you query is how fast it grows, for example
-  "todos created per second, per list".
+  started.
+
+As you can see, each combination of metric name and label values produces a separate
+line. That means the metrics database creates one **time series** for each of those
+combinations. The number of distinct time series is what we call **cardinality**, and for
+now it's enough to know that it's important to keep it low.
 
 ## 2.2 — Logs
 
@@ -63,7 +64,7 @@ request's trace.
 
 ### Example
 
-A log record you'll produce in Module 6, when a todo is created:
+A log record emitted when a todo is created:
 
 ```
 timestamp:      2026-10-13T09:15:02.123Z
@@ -86,8 +87,7 @@ span_id:        00f067aa0ba902b7
   todo.
 - `resource` describes who emitted the record: the same `service.name` the metric carries.
 - `trace_id` and `span_id` identify the request that was being handled when the record was
-  written. They are what will let you jump from this log line to the full trace of that
-  request in Module 8.
+  written. They connect this log line with the full trace of that request.
 
 ## 2.3 — Traces
 
@@ -152,8 +152,7 @@ each one to its own storage:
 | Logs | VictoriaLogs | LogsQL |
 | Traces | VictoriaTraces | LogsQL |
 
-Logs and traces share a query language: what you learn to query logs in Module 6 also
-works for traces in Module 7.
+Logs and traces share the same query language.
 
 ## What We Accomplished
 
@@ -164,4 +163,4 @@ works for traces in Module 7.
 
 ## Next Steps
 
-Continue with [Module 3: The Easy Path — Zero-Code Auto-Instrumentation](./03-auto-instrumentation.md), where the app starts emitting all three signals without you changing a single line of it.
+Continue with [Module 3: The Easy Path — Zero-Code Auto-Instrumentation](./03-auto-instrumentation.md).

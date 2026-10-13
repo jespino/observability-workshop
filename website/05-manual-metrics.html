@@ -285,14 +285,8 @@ meter.create_observable_gauge(
 <li>
 <p>Save the file and generate load. The API restarts by itself as soon as you save —
 watch it happen in its log terminal. Then, in another terminal:</p>
-<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
 <pre><code class="language-bash">./loadgen.sh 3m
 </code></pre>
-</div>
-<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
-<pre><code class="language-bash">TRACK=py ./loadgen.sh 3m
-</code></pre>
-</div>
 </li>
 </ol>
 <h3>Verify in the Victoria UI</h3>
@@ -474,7 +468,6 @@ your todos, is not touched.</p>
 <p><strong>When <code>todo_id</code> genuinely is what you need to know</strong> — and sometimes it is — where does it belong? Not on a metric. It belongs on a <strong>span</strong>, and on a <strong>log record</strong>. Same value, different signal, completely opposite verdict.</p>
 </li>
 </ol>
-<p>Hold on to that. It&rsquo;s the cleanest possible motivation for the next two modules.</p>
 <h3>If you&rsquo;re stuck</h3>
 <ul>
 <li><strong>Cardinality doesn&rsquo;t seem to grow.</strong> The loadgen may be reusing a fixed set of todos. Use <code>--rps 50</code> and make sure it&rsquo;s creating, not just reading.</li>
@@ -558,15 +551,12 @@ record them. Add the three panels anyway, with the queries below, and leave them
 </tr>
 </tbody>
 </table>
-<p>They will start returning data in <strong>Module 8.1</strong>, when you add the spanmetrics connector
-to the Collector and RED metrics get derived from the spans you already have. Three empty
-panels on your dashboard for the next two modules is a fair price for understanding
-<em>why</em> they were empty — and for seeing them fill up without touching the application.</p>
+<p>They read RED metrics derived from spans, which nothing produces yet, so they stay empty.</p>
 </div>
 <p>Add a <strong>template variable</strong> named <code>list</code>, of type Query, against the VictoriaMetrics datasource:</p>
 <pre><code>label_values(todos_created_total, list)
 </code></pre>
-<p>Set it to multi-value and include an &ldquo;All&rdquo; option. Save the dashboard — you&rsquo;ll add a logs panel to it in Module 6 and correlation links in Module 8.</p>
+<p>Set it to multi-value and include an &ldquo;All&rdquo; option. Save the dashboard.</p>
 <h3>Verify in Grafana</h3>
 <p>Switch the <code>list</code> variable between values and confirm the bottom three panels follow while the top three don&rsquo;t. That difference — infrastructure metrics versus business metrics — is worth pointing at.</p>
 <h3>Think about</h3>
@@ -585,7 +575,7 @@ panels on your dashboard for the next two modules is a fair price for understand
 <li>A RED dashboard with your own business panels on it</li>
 </ul>
 <h2>Next Steps</h2>
-<p>You now have numbers. Numbers tell you <em>that</em> something happened. Continue with <a href="06-manual-logs.html">Module 6: Manual Logs</a> to find out <em>what</em>.</p>
+<p>Continue with <a href="06-manual-logs.html">Module 6: Manual Logs</a>.</p>
 
         </article>
 

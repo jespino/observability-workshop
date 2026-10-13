@@ -9,7 +9,7 @@ The Collector is the box everybody nods at and nobody reads. By the end of this 
 By the end of this module, you will:
 
 - Be able to read an OpenTelemetry Collector config and say what each section does
-- Be comfortable adding a processor to a pipeline — you'll need this again in Module 8
+- Be comfortable adding a processor to a pipeline
 - Understand what VictoriaLogs stream fields are and why the wrong choice is expensive
 - Know how to tell whether your telemetry pipeline is itself healthy
 
@@ -108,15 +108,15 @@ Four sections, and the fourth is the one that matters:
 
 **`service.pipelines`** — the wiring. Nothing declared above is active until it appears in a pipeline. This trips up everyone at least once: you add a processor, restart, and nothing changes, because you never added it to a pipeline.
 
-So, to answer the exercise question: a missing span could be (1) never exported by the app, (2) dropped or misrouted in the Collector pipeline, or (3) rejected by the exporter's endpoint. You'll learn to distinguish these in 4.2.
+So, to answer the exercise question: a missing span could be (1) never exported by the app, (2) dropped or misrouted in the Collector pipeline, or (3) rejected by the exporter's endpoint.
 
 ### Three teaching points worth pausing on
 
-**`VL-Stream-Fields` is VictoriaLogs-specific and it matters a lot.** It defines what a log *stream* is. VictoriaLogs stores logs grouped by stream, so this choice drives both storage layout and query performance. `service.name,deployment.environment` gives you a handful of streams — good. Putting something high-cardinality in there, like `trace_id`, would give you one stream per request and degrade VictoriaLogs badly. You'll get to feel this in Module 6.3.
+**`VL-Stream-Fields` is VictoriaLogs-specific and it matters a lot.** It defines what a log *stream* is. VictoriaLogs stores logs grouped by stream, so this choice drives both storage layout and query performance. `service.name,deployment.environment` gives you a handful of streams — good. Putting something high-cardinality in there, like `trace_id`, would give you one stream per request and degrade VictoriaLogs badly.
 
 **VictoriaMetrics wants cumulative temporality.** Both SDKs default to cumulative, so you're fine by default. If you ever find yourself with delta metrics (some vendors' SDK configs default that way), the fix is the `deltatocumulative` processor in the Collector rather than a change in the app.
 
-**VictoriaMetrics is started with `-opentelemetry.usePrometheusNaming`.** It is set in `docker-compose.yml`, which started it in Module 0. Without it, VM stores OTel's dotted names verbatim — `http.server.duration_count` — and your queries need quoting. With it, you get the Prometheus form everyone expects: `http_server_duration_milliseconds_count`, and `service.name` becomes the `service_name` label. Module 5.2 cashes this in.
+**VictoriaMetrics is started with `-opentelemetry.usePrometheusNaming`.** It is set in `docker-compose.yml`, which started it in Module 0. Without it, VM stores OTel's dotted names verbatim — `http.server.duration_count` — and your queries need quoting. With it, you get the Prometheus form everyone expects: `http_server_duration_milliseconds_count`, and `service.name` becomes the `service_name` label.
 
 **Endpoint names are per-signal, not generic.** `metrics_endpoint`, `logs_endpoint`, `traces_endpoint`. If you use the generic `endpoint` key, the exporter appends its own conventional path and you'll get 404s that look like connectivity problems.
 
@@ -266,4 +266,4 @@ Most teams learn this the hard way, usually during an incident, usually by disco
 
 ## Next Steps
 
-The plumbing is understood. Time to add meaning, starting with the numbers. Continue with [Module 5: Manual Metrics](./05-manual-metrics.md).
+Continue with [Module 5: Manual Metrics](./05-manual-metrics.md).

@@ -177,21 +177,9 @@ meter.create_observable_gauge(
 4. Save the file and generate load. The API restarts by itself as soon as you save —
    watch it happen in its log terminal. Then, in another terminal:
 
-   <!-- track:js -->
-
    ```bash
    ./loadgen.sh 3m
    ```
-
-   <!-- /track -->
-
-   <!-- track:python -->
-
-   ```bash
-   TRACK=py ./loadgen.sh 3m
-   ```
-
-   <!-- /track -->
 
 ### Verify in the Victoria UI
 
@@ -437,8 +425,6 @@ Two questions, and the second is the better one.
 
 2. **When `todo_id` genuinely is what you need to know** — and sometimes it is — where does it belong? Not on a metric. It belongs on a **span**, and on a **log record**. Same value, different signal, completely opposite verdict.
 
-Hold on to that. It's the cleanest possible motivation for the next two modules.
-
 ### If you're stuck
 
 - **Cardinality doesn't seem to grow.** The loadgen may be reusing a fixed set of todos. Use `--rps 50` and make sure it's creating, not just reading.
@@ -485,10 +471,7 @@ record them. Add the three panels anyway, with the queries below, and leave them
 | **E**rrors | `sum(rate(traces_span_metrics_calls_total{service_name="todo-api",status_code="STATUS_CODE_ERROR"}[5m]))` |
 | **D**uration | `histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name="todo-api"}[5m])) by (le))` |
 
-They will start returning data in **Module 8.1**, when you add the spanmetrics connector
-to the Collector and RED metrics get derived from the spans you already have. Three empty
-panels on your dashboard for the next two modules is a fair price for understanding
-*why* they were empty — and for seeing them fill up without touching the application.
+They read RED metrics derived from spans, which nothing produces yet, so they stay empty.
 
 <!-- /track -->
 
@@ -498,7 +481,7 @@ Add a **template variable** named `list`, of type Query, against the VictoriaMet
 label_values(todos_created_total, list)
 ```
 
-Set it to multi-value and include an "All" option. Save the dashboard — you'll add a logs panel to it in Module 6 and correlation links in Module 8.
+Set it to multi-value and include an "All" option. Save the dashboard.
 
 ### Verify in Grafana
 
@@ -523,4 +506,4 @@ The RED panels are identical for every HTTP service in the world. The bottom thr
 
 ## Next Steps
 
-You now have numbers. Numbers tell you *that* something happened. Continue with [Module 6: Manual Logs](./06-manual-logs.md) to find out *what*.
+Continue with [Module 6: Manual Logs](./06-manual-logs.md).

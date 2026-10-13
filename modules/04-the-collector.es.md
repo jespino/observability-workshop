@@ -9,7 +9,7 @@ El Collector es la caja que todo el mundo asiente al ver y nadie lee. Al termina
 Al terminar este módulo, serás capaz de:
 
 - Leer una configuración de OpenTelemetry Collector y decir qué hace cada sección
-- Añadir un processor a un pipeline con soltura — lo vas a necesitar otra vez en el Módulo 8
+- Añadir un processor a un pipeline con soltura
 - Entender qué son los stream fields de VictoriaLogs y por qué elegirlos mal sale caro
 - Saber si tu propio pipeline de telemetría está sano
 
@@ -108,15 +108,15 @@ Cuatro secciones, y la cuarta es la que importa:
 
 **`service.pipelines`** — el cableado. Nada de lo declarado arriba está activo hasta que aparece en un pipeline. Esto pilla a todo el mundo al menos una vez: añades un processor, reinicias y no cambia nada, porque nunca lo metiste en un pipeline.
 
-Así que, respondiendo a la pregunta del ejercicio: un span que falta puede ser (1) que la app nunca lo exportó, (2) que se descartó o se enrutó mal en el pipeline del Collector, o (3) que el endpoint del exporter lo rechazó. Aprenderás a distinguirlos en 4.2.
+Así que, respondiendo a la pregunta del ejercicio: un span que falta puede ser (1) que la app nunca lo exportó, (2) que se descartó o se enrutó mal en el pipeline del Collector, o (3) que el endpoint del exporter lo rechazó.
 
 ### Tres puntos que merecen una pausa
 
-**`VL-Stream-Fields` es específico de VictoriaLogs y sí importa.** Define qué es un *stream*. VictoriaLogs guarda los logs agrupados por stream, así que esta elección condiciona tanto el diseño de almacenamiento como el rendimiento de las consultas. `service.name,deployment.environment` te da un puñado de streams — bien. Meter ahí algo de cardinalidad alta, como `trace_id`, te daría un stream por petición y degradaría VictoriaLogs seriamente. Lo vas a poder sentir en el Módulo 6.3.
+**`VL-Stream-Fields` es específico de VictoriaLogs y sí importa.** Define qué es un *stream*. VictoriaLogs guarda los logs agrupados por stream, así que esta elección condiciona tanto el diseño de almacenamiento como el rendimiento de las consultas. `service.name,deployment.environment` te da un puñado de streams — bien. Meter ahí algo de cardinalidad alta, como `trace_id`, te daría un stream por petición y degradaría VictoriaLogs seriamente.
 
 **VictoriaMetrics quiere temporalidad cumulative.** Los dos SDKs usan cumulative por defecto, así que estás bien tal cual. Si alguna vez acabas con métricas delta (algunas configuraciones de SDK de ciertos proveedores van así por defecto), el arreglo es el processor `deltatocumulative` en el Collector, no un cambio en la app.
 
-**VictoriaMetrics arranca con `-opentelemetry.usePrometheusNaming`.** Está puesto en `docker-compose.yml`, que lo arrancó en el Módulo 0. Sin ese flag, VM guarda los nombres con puntos de OTel tal cual — `http.server.duration_count` — y tus consultas necesitan comillas. Con él obtienes la forma Prometheus de toda la vida: `http_server_duration_milliseconds_count`, y `service.name` pasa a ser la etiqueta `service_name`. El Módulo 5.2 lo aprovecha.
+**VictoriaMetrics arranca con `-opentelemetry.usePrometheusNaming`.** Está puesto en `docker-compose.yml`, que lo arrancó en el Módulo 0. Sin ese flag, VM guarda los nombres con puntos de OTel tal cual — `http.server.duration_count` — y tus consultas necesitan comillas. Con él obtienes la forma Prometheus de toda la vida: `http_server_duration_milliseconds_count`, y `service.name` pasa a ser la etiqueta `service_name`.
 
 **Los nombres de endpoint son por señal, no genéricos.** `metrics_endpoint`, `logs_endpoint`, `traces_endpoint`. Si usas la clave genérica `endpoint`, el exporter añade su propia ruta convencional y acabarás con 404 que parecen problemas de conectividad.
 
@@ -266,4 +266,4 @@ La mayoría de los equipos aprende esto por las malas, normalmente durante un in
 
 ## Siguientes Pasos
 
-La fontanería está entendida. Toca añadir significado, empezando por los números. Continúa con el [Módulo 5: Métricas Manuales](./05-manual-metrics.es.md).
+Continúa con el [Módulo 5: Métricas Manuales](./05-manual-metrics.es.md).

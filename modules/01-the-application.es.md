@@ -2,7 +2,7 @@
 
 **Duración:** ~15 min · **Los dos tracks, la misma aplicación**
 
-No puedes instrumentar un sistema que no entiendes. Este módulo es un recorrido guiado por la app de tareas: qué piezas tiene, qué hace la API y — lo más importante — el puñado de funciones a las que vas a volver en todos los módulos siguientes. 🗺️
+No puedes instrumentar un sistema que no entiendes. Este módulo es un recorrido guiado por la app de tareas: qué piezas tiene, qué hace la API y dónde vive su código. 🗺️
 
 ## Objetivos de Aprendizaje
 
@@ -28,16 +28,13 @@ Cuatro cosas que merece la pena notar:
    y el servidor en modo vigilancia — así tu editor edita ficheros de verdad, y guardar uno
    es todo el ciclo de construir y desplegar. Todo lo demás es decorado fijo.
 2. **Postgres es su única dependencia externa.** La caché que hay delante del camino de
-   lectura es un map en memoria, no Redis. Recuérdalo: nada en la red puede observarla, y
-   eso resulta importar bastante más adelante.
+   lectura es un map en memoria, no Redis: nada en la red puede observarla.
 3. **`notify-service` está escrito en el otro lenguaje respecto a tu track.** Es
    deliberado. Viene en los dos lenguajes, y tu track llama al que está escrito en el
    lenguaje *contrario* — el track de JS llama a la implementación en Python en `:8083`, y
    el de Python a la de JavaScript en `:8084`. Los dos reportan un `service.name` de
    `notify-service`, así que todas las consultas de estos guiones funcionan igual en ambos
-   casos. En el Módulo 7 harás que una sola traza atraviese los dos servicios y los dos
-   lenguajes, y ahí es cuando el "OTel es un protocolo, no una librería" deja de ser
-   abstracto.
+   casos.
 4. **`./loadgen.sh` mantiene el tráfico**, así siempre hay algo que mirar. Ejecuta
    `./loadgen.sh 2m` cuando las gráficas se queden quietas.
 
@@ -107,7 +104,7 @@ app.use(todosRouter);
 app.listen(8081, () => log.info('todo-api listening on 8081'));
 ```
 
-**`src/routes/todos.js`** — los handlers. Estos dos son a los que vas a volver en los Módulos 5, 6 y 7:
+**`src/routes/todos.js`** — los handlers:
 
 ```js
 todosRouter.post('/todos', async (req, res) => {
@@ -166,7 +163,7 @@ def create_app():
 app = create_app()
 ```
 
-**`todo_api/routes.py`** — los handlers. Estos dos son a los que vas a volver en los Módulos 5, 6 y 7:
+**`todo_api/routes.py`** — los handlers:
 
 ```python
 @bp.post("/todos")
@@ -189,29 +186,11 @@ def patch_complete(todo_id):
 
 <!-- /track -->
 
-### Las funciones que nos importan
-
-A lo largo de todo el taller, estas son las que salen una y otra vez. Apréndete los nombres ahora y los módulos siguientes se leerán mucho más rápido:
-
-| Función | Vive en | Por qué importa |
-|---|---|---|
-| `createTodo` / `create_todo` | repo | El evento de negocio. El counter del Módulo 5, el log estructurado del Módulo 6 |
-| `completeTodo` / `complete_todo` | repo | Te da una duración genuinamente de negocio en el Módulo 5 |
-| `listTodos` / `list_todos` | repo | El camino de lectura. Interesante por motivos que ya descubrirás |
-| `readSummary` / `read_summary` | cache | El único camino de lectura de caché de la app |
-| `notifyUrgent` / `notify_urgent` | notify | La frontera entre servicios. El ejercicio de propagación del Módulo 7 |
-| `enrich` | enrich | Lógica de negocio pura, sin instrumentación de librería propia — el mejor candidato para tu primer span personalizado |
-| `overdueCount` / `overdue_count` | repo | Alimenta el observable gauge del Módulo 5 |
-
-### Lo que deliberadamente no te enseñamos
-
-Las *tripas* de los módulos de repo y caché — cómo se construyen las consultas, cómo se deriva la clave de caché — quedan para que las descubras tú. No porque sean un secreto, sino porque para el Módulo 9 deberías poder describir qué hacen sin abrirlos, solo a partir de la telemetría. Esa es toda la promesa de este taller, y es más divertido si puedes ponerla a prueba. 🔍
-
 ## Lo Que Hemos Conseguido
 
 - Sabes dibujar el sistema, nombrar sus dependencias y listar sus endpoints
-- Conoces los cuatro ficheros y las siete funciones sobre los que gira el resto del taller
+- Conoces los cuatro ficheros sobre los que gira el resto del taller
 
 ## Siguientes Pasos
 
-Ahora que sabes qué vamos a instrumentar, veamos qué datos produce instrumentarla. Continúa con el [Módulo 2: Las Tres Señales — Métricas, Logs y Trazas](./02-what-observability-is.es.md).
+Continúa con el [Módulo 2: Las Tres Señales — Métricas, Logs y Trazas](./02-what-observability-is.es.md).

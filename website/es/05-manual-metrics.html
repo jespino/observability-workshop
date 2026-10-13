@@ -285,14 +285,8 @@ meter.create_observable_gauge(
 <li>
 <p>Guarda el fichero y genera carga. La API se reinicia sola en cuanto guardas — míralo en
 la terminal de su log. Después, en otra terminal:</p>
-<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
 <pre><code class="language-bash">./loadgen.sh 3m
 </code></pre>
-</div>
-<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
-<pre><code class="language-bash">TRACK=py ./loadgen.sh 3m
-</code></pre>
-</div>
 </li>
 </ol>
 <h3>Comprueba en la UI de Victoria</h3>
@@ -474,7 +468,6 @@ volumen <code>workshop_postgres</code>, con tus todos, no se toca.</p>
 <p><strong>Cuando <code>todo_id</code> es de verdad lo que necesitas saber</strong> — y a veces lo es — ¿dónde va? En una métrica no. Va en un <strong>span</strong>, y en un <strong>registro de log</strong>. El mismo valor, otra señal, el veredicto completamente opuesto.</p>
 </li>
 </ol>
-<p>Quédate con eso. Es la motivación más limpia posible para los dos módulos siguientes.</p>
 <h3>Si te atascas</h3>
 <ul>
 <li><strong>La cardinalidad no parece crecer.</strong> Puede que el loadgen esté reutilizando un conjunto fijo de todos. Usa <code>--rps 50</code> y asegúrate de que está creando, no solo leyendo.</li>
@@ -558,15 +551,13 @@ las registra. Añade los tres paneles igualmente, con las consultas de abajo, y 
 </tr>
 </tbody>
 </table>
-<p>Empezarán a devolver datos en el <strong>Módulo 8.1</strong>, cuando añadas el connector spanmetrics al
-Collector y las métricas RED se deriven de los spans que ya tienes. Tener tres paneles
-vacíos en tu dashboard durante los próximos dos módulos es un precio justo por entender
-<em>por qué</em> estaban vacíos — y por verlos llenarse sin tocar la aplicación.</p>
+<p>Leen métricas RED derivadas de los spans, que todavía no produce nada, así que se quedan
+vacíos.</p>
 </div>
 <p>Añade una <strong>variable de plantilla</strong> llamada <code>list</code>, de tipo Query, contra el datasource VictoriaMetrics:</p>
 <pre><code>label_values(todos_created_total, list)
 </code></pre>
-<p>Ponla en multivalor e incluye la opción &ldquo;All&rdquo;. Guarda el dashboard — le añadirás un panel de logs en el Módulo 6 y enlaces de correlación en el Módulo 8.</p>
+<p>Ponla en multivalor e incluye la opción &ldquo;All&rdquo;. Guarda el dashboard.</p>
 <h3>Comprueba en Grafana</h3>
 <p>Cambia la variable <code>list</code> entre valores y confirma que los tres paneles de abajo la siguen y los tres de arriba no. Esa diferencia — métricas de infraestructura frente a métricas de negocio — merece que se señale.</p>
 <h3>Para pensar</h3>
@@ -585,7 +576,7 @@ vacíos en tu dashboard durante los próximos dos módulos es un precio justo po
 <li>Un dashboard RED con tus propios paneles de negocio encima</li>
 </ul>
 <h2>Siguientes Pasos</h2>
-<p>Ya tienes números. Los números te dicen <em>que</em> algo pasó. Continúa con el <a href="06-manual-logs.html">Módulo 6: Logs Manuales</a> para averiguar <em>qué</em>.</p>
+<p>Continúa con el <a href="06-manual-logs.html">Módulo 6: Logs Manuales</a>.</p>
 
         </article>
 

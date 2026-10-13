@@ -34,7 +34,7 @@ Start the whole stack, your API included, with one Docker Compose command, and c
 
 ### [Module 1: The Application You'll Instrument](./modules/01-the-application.md)
 
-Tour the todo-api you'll be editing all day — its endpoints, its dependencies, and the handful of functions that matter.
+Tour the todo-api you'll be editing all day — its endpoints, its dependencies and its code.
 
 ### [Module 2: The Three Signals — Metrics, Logs and Traces](./modules/02-what-observability-is.md)
 

@@ -34,7 +34,7 @@ Arranca todo el stack, tu API incluida, con un solo comando de Docker Compose, y
 
 ### [Módulo 1: La Aplicación que Vas a Instrumentar](./modules/01-the-application.es.md)
 
-Recorre la todo-api que vas a editar durante todo el día — sus endpoints, sus dependencias y el puñado de funciones que importan.
+Recorre la todo-api que vas a editar durante todo el día — sus endpoints, sus dependencias y su código.
 
 ### [Módulo 2: Las Tres Señales — Métricas, Logs y Trazas](./modules/02-what-observability-is.es.md)
 

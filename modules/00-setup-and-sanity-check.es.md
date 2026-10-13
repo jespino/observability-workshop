@@ -67,7 +67,7 @@ docker compose --profile js --profile py --profile grafana pull
    repositorio: sobreviven a los reinicios y a `docker compose down`, y
    `docker compose down -v` los borra.
 
-   ![Todo lo que arranca docker compose: tu navegador llega al frontend en localhost; el frontend llama a todo-api, que usa Postgres y llama a notify-service; los dos envían OTLP al OpenTelemetry Collector, que reparte métricas, logs y trazas entre VictoriaMetrics, VictoriaLogs y VictoriaTraces, cada uno con su volumen; Grafana, a partir del Módulo 3, lee de los tres.](images/docker-compose-stack.png)
+   ![Todo lo que arranca docker compose: tu navegador llega al frontend en localhost; el frontend llama a todo-api, que usa Postgres y llama a notify-service; los dos envían OTLP al OpenTelemetry Collector, que reparte métricas, logs y trazas entre VictoriaMetrics, VictoriaLogs y VictoriaTraces, cada uno con su volumen; Grafana lee de los tres.](images/docker-compose-stack.png)
 
    El código de tu API está montado dentro de su contenedor, así que **guardar un fichero
    la reinicia** — ese es todo el ciclo de despliegue de hoy.
@@ -94,4 +94,4 @@ docker compose --profile js --profile py --profile grafana pull
 
 ## Siguientes Pasos
 
-Antes de instrumentar la aplicación, deberías saber qué *hace*. Continúa con el [Módulo 1: La Aplicación que Vas a Instrumentar](./01-the-application.es.md).
+Continúa con el [Módulo 1: La Aplicación que Vas a Instrumentar](./01-the-application.es.md).

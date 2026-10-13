@@ -124,7 +124,7 @@
 <p>By the end of this module, you will:</p>
 <ul>
 <li>Be able to read an OpenTelemetry Collector config and say what each section does</li>
-<li>Be comfortable adding a processor to a pipeline — you&rsquo;ll need this again in Module 8</li>
+<li>Be comfortable adding a processor to a pipeline</li>
 <li>Understand what VictoriaLogs stream fields are and why the wrong choice is expensive</li>
 <li>Know how to tell whether your telemetry pipeline is itself healthy</li>
 </ul>
@@ -214,11 +214,11 @@ service:
 </ul>
 <p><strong><code>exporters</code></strong> — where it goes. Three of them, and look closely at <em>why</em>: three different hosts, three different URL paths, one of them needing a special header. <strong>This is the reason the Collector exists in this architecture.</strong> Your app knows one endpoint; the Collector knows these three.</p>
 <p><strong><code>service.pipelines</code></strong> — the wiring. Nothing declared above is active until it appears in a pipeline. This trips up everyone at least once: you add a processor, restart, and nothing changes, because you never added it to a pipeline.</p>
-<p>So, to answer the exercise question: a missing span could be (1) never exported by the app, (2) dropped or misrouted in the Collector pipeline, or (3) rejected by the exporter&rsquo;s endpoint. You&rsquo;ll learn to distinguish these in 4.2.</p>
+<p>So, to answer the exercise question: a missing span could be (1) never exported by the app, (2) dropped or misrouted in the Collector pipeline, or (3) rejected by the exporter&rsquo;s endpoint.</p>
 <h3>Three teaching points worth pausing on</h3>
-<p><strong><code>VL-Stream-Fields</code> is VictoriaLogs-specific and it matters a lot.</strong> It defines what a log <em>stream</em> is. VictoriaLogs stores logs grouped by stream, so this choice drives both storage layout and query performance. <code>service.name,deployment.environment</code> gives you a handful of streams — good. Putting something high-cardinality in there, like <code>trace_id</code>, would give you one stream per request and degrade VictoriaLogs badly. You&rsquo;ll get to feel this in Module 6.3.</p>
+<p><strong><code>VL-Stream-Fields</code> is VictoriaLogs-specific and it matters a lot.</strong> It defines what a log <em>stream</em> is. VictoriaLogs stores logs grouped by stream, so this choice drives both storage layout and query performance. <code>service.name,deployment.environment</code> gives you a handful of streams — good. Putting something high-cardinality in there, like <code>trace_id</code>, would give you one stream per request and degrade VictoriaLogs badly.</p>
 <p><strong>VictoriaMetrics wants cumulative temporality.</strong> Both SDKs default to cumulative, so you&rsquo;re fine by default. If you ever find yourself with delta metrics (some vendors&rsquo; SDK configs default that way), the fix is the <code>deltatocumulative</code> processor in the Collector rather than a change in the app.</p>
-<p><strong>VictoriaMetrics is started with <code>-opentelemetry.usePrometheusNaming</code>.</strong> It is set in <code>docker-compose.yml</code>, which started it in Module 0. Without it, VM stores OTel&rsquo;s dotted names verbatim — <code>http.server.duration_count</code> — and your queries need quoting. With it, you get the Prometheus form everyone expects: <code>http_server_duration_milliseconds_count</code>, and <code>service.name</code> becomes the <code>service_name</code> label. Module 5.2 cashes this in.</p>
+<p><strong>VictoriaMetrics is started with <code>-opentelemetry.usePrometheusNaming</code>.</strong> It is set in <code>docker-compose.yml</code>, which started it in Module 0. Without it, VM stores OTel&rsquo;s dotted names verbatim — <code>http.server.duration_count</code> — and your queries need quoting. With it, you get the Prometheus form everyone expects: <code>http_server_duration_milliseconds_count</code>, and <code>service.name</code> becomes the <code>service_name</code> label.</p>
 <p><strong>Endpoint names are per-signal, not generic.</strong> <code>metrics_endpoint</code>, <code>logs_endpoint</code>, <code>traces_endpoint</code>. If you use the generic <code>endpoint</code> key, the exporter appends its own conventional path and you&rsquo;ll get 404s that look like connectivity problems.</p>
 <h3>Verify in the Victoria UI</h3>
 <p>Confirm the <code>resource</code> processor is really doing its job. VictoriaLogs vmui:</p>
@@ -317,7 +317,7 @@ between them.</p>
 <li>You know why <code>VL-Stream-Fields</code> is a decision and not a formality</li>
 </ul>
 <h2>Next Steps</h2>
-<p>The plumbing is understood. Time to add meaning, starting with the numbers. Continue with <a href="05-manual-metrics.html">Module 5: Manual Metrics</a>.</p>
+<p>Continue with <a href="05-manual-metrics.html">Module 5: Manual Metrics</a>.</p>
 
         </article>
 

@@ -114,4 +114,4 @@ Entonces: ¿cuál es el bloqueo real para hacer esto en el trabajo? ¿Es de herr
 
 ## Siguientes Pasos
 
-Queda una conversación corta, y es la de qué pasa cuando esto sale de tu portátil. Continúa con el [Módulo 10: Realidades de Producción y Cierre](./10-production-realities.es.md).
+Continúa con el [Módulo 10: Realidades de Producción y Cierre](./10-production-realities.es.md).

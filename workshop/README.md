@@ -127,8 +127,8 @@ the stack is up.
 
 ```bash
 ./doctor.sh                     # waits for the stack, then 13 checks in one table. Starts nothing.
-./loadgen.sh 2m                 # traffic against the JS API
-TRACK=py ./loadgen.sh 2m        # ...against the Python API
+./loadgen.sh 2m                 # traffic against your track's API
+TRACK=py ./loadgen.sh 2m        # ...against a specific track (it finds yours on its own)
 ./loadgen.sh 3m --rps 50        # harder
 ./loadgen.sh 3m --errors        # include requests that fail (Module 8.2)
 ./reset.sh                      # wipe telemetry after the cardinality lab, keep the todos
@@ -269,7 +269,7 @@ to their `.env` and recreate the container:
 echo LIST_PAGE_THRESHOLD=5 >> track-js/todo-api/.env      # or track-py/
 docker compose up -d --force-recreate todo-api-js          # or todo-api-py
 
-./loadgen.sh forever --rps 25 --big-lists                  # TRACK=py on the Python track
+./loadgen.sh forever --rps 25 --big-lists
 ```
 
 To put it back, delete that line and recreate the container again. It is genuinely a config change and not a

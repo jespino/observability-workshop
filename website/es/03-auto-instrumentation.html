@@ -291,6 +291,7 @@ palabra delante del comando.</p>
 <pre><code>service.name:todo-api
 </code></pre>
 <p>Deberías ver: la salida de <code>console.log</code> / <code>logging.info</code> que ya tenía tu app, ahora almacenada y buscable — pero llegando como texto sin estructura en el cuerpo del mensaje.</p>
+<p>La app solo escribe logs cuando se <strong>crea</strong> o se <strong>completa</strong> un todo, así que verás líneas como <code>todo created …</code> — crea uno desde el frontend si no aparece nada. Y ojo, no es la consulta de las trazas: en VictoriaLogs el campo es <code>service.name</code> a secas, sin el prefijo <code>resource_attr:</code>.</p>
 <h3>Comprueba en Grafana</h3>
 <p>Grafana → <strong>Explore</strong> → datasource <strong>VictoriaMetrics</strong> → ejecuta:</p>
 <pre><code>rate(http_server_duration_milliseconds_count[1m])
@@ -329,7 +330,7 @@ palabra delante del comando.</p>
 <p>Nadie ha escrito nada de eso. Fíjate sobre todo en las dos últimas líneas: la traza ya
 cruza una frontera de servicio <strong>y</strong> una de lenguaje, porque la instrumentación del
 cliente HTTP inyectó una cabecera <code>traceparent</code> a la salida y la del servidor HTTP del
-otro servicio la leyó a la entrada. En el Módulo 7.4 romperás y repararás exactamente eso.</p>
+otro servicio la leyó a la entrada.</p>
 <blockquote>
 <p>🔑 <strong>Nombres de campo en VictoriaTraces.</strong> Los atributos de resource se guardan con el
 prefijo <code>resource_attr:</code> y los de span con <code>span_attr:</code>, así que el nombre del campo
@@ -358,8 +359,7 @@ obtienen <em>trazas</em> idénticas y <em>logs</em> idénticos; donde divergen e
 <p>Piensa en lo que eso implica. &ldquo;Hemos auto-instrumentado todo, así que tenemos métricas&rdquo;
 es una frase que puede ser falsa en un lenguaje y verdadera en otro, dentro de la misma
 flota, sin que nadie se entere hasta que un dashboard aparece vacío en mitad de un
-incidente. Lo arreglarás para el track de JS en el Módulo 8.1, generando las métricas a
-partir de los spans — que es la respuesta general a toda esta familia de problemas.</p>
+incidente.</p>
 </blockquote>
 <p><strong>VictoriaMetrics</strong> (<code>http://localhost:8428/vmui</code>) — mira qué ha aparecido:</p>
 <pre><code>{__name__=~&quot;http.*&quot;}
@@ -371,8 +371,7 @@ partir de los spans — que es la respuesta general a toda esta familia de probl
 <pre><code>service.name:todo-api
 </code></pre>
 <p>Fíjate en la forma de lo que ha llegado. El mensaje es un bloque de texto en <code>_msg</code>. No
-hay campo <code>list</code>, no hay campo <code>todo_id</code>, no hay nada por lo que filtrar o agregar.
-Arreglar eso es el Módulo 6.</p>
+hay campo <code>list</code>, no hay campo <code>todo_id</code>, no hay nada por lo que filtrar o agregar.</p>
 <blockquote>
 <p>🔑 <strong>Nombres de campo en VictoriaLogs</strong>, para contrastar con el recuadro de trazas de
 arriba: el mensaje es <code>_msg</code>, el nivel es <code>severity_text</code>, y los atributos de resource
@@ -480,12 +479,6 @@ hasta aquí.</p>
 <p><strong>La auto-instrumentación te da la fontanería, no el significado.</strong></p>
 </blockquote>
 <p>Sabe de HTTP, de Express o Flask y de Postgres, porque son estándar, populares y alguien escribió una librería de instrumentación para ellos. No sabe nada de todos, listas, urgencias ni usuarios — y absolutamente nada de esa caché en proceso, porque ahí no intervino ninguna librería. Nadie ha visto nunca tu dominio.</p>
-<p>Todo lo que viene ahora consiste en añadir el significado:</p>
-<ul>
-<li>El Módulo 5 añade <strong>métricas de negocio</strong> — los números que pide tu product owner</li>
-<li>El Módulo 6 añade <strong>logs estructurados</strong> — los campos por los que filtras un incidente</li>
-<li>El Módulo 7 añade <strong>spans de dominio</strong> — la &ldquo;qué decisión de la aplicación&rdquo; que necesitaba la pregunta 3</li>
-</ul>
 <h2>Lo Que Hemos Conseguido</h2>
 <ul>
 <li>Las tres señales fluyendo, sin cambiar código de aplicación</li>
@@ -494,7 +487,7 @@ hasta aquí.</p>
 <li>Una comprensión precisa y práctica de dónde se acaba el camino fácil</li>
 </ul>
 <h2>Siguientes Pasos</h2>
-<p>Antes de añadir significado, desmitifiquemos la caja del medio. Continúa con el <a href="04-the-collector.html">Módulo 4: El Collector, y Dónde Acaban los Datos</a>.</p>
+<p>Continúa con el <a href="04-the-collector.html">Módulo 4: El Collector, y Dónde Acaban los Datos</a>.</p>
 
         </article>
 

@@ -177,21 +177,9 @@ meter.create_observable_gauge(
 4. Guarda el fichero y genera carga. La API se reinicia sola en cuanto guardas — míralo en
    la terminal de su log. Después, en otra terminal:
 
-   <!-- track:js -->
-
    ```bash
    ./loadgen.sh 3m
    ```
-
-   <!-- /track -->
-
-   <!-- track:python -->
-
-   ```bash
-   TRACK=py ./loadgen.sh 3m
-   ```
-
-   <!-- /track -->
 
 ### Comprueba en la UI de Victoria
 
@@ -437,8 +425,6 @@ Dos preguntas, y la segunda es la buena.
 
 2. **Cuando `todo_id` es de verdad lo que necesitas saber** — y a veces lo es — ¿dónde va? En una métrica no. Va en un **span**, y en un **registro de log**. El mismo valor, otra señal, el veredicto completamente opuesto.
 
-Quédate con eso. Es la motivación más limpia posible para los dos módulos siguientes.
-
 ### Si te atascas
 
 - **La cardinalidad no parece crecer.** Puede que el loadgen esté reutilizando un conjunto fijo de todos. Usa `--rps 50` y asegúrate de que está creando, no solo leyendo.
@@ -485,10 +471,8 @@ las registra. Añade los tres paneles igualmente, con las consultas de abajo, y 
 | **E**rrors | `sum(rate(traces_span_metrics_calls_total{service_name="todo-api",status_code="STATUS_CODE_ERROR"}[5m]))` |
 | **D**uration | `histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name="todo-api"}[5m])) by (le))` |
 
-Empezarán a devolver datos en el **Módulo 8.1**, cuando añadas el connector spanmetrics al
-Collector y las métricas RED se deriven de los spans que ya tienes. Tener tres paneles
-vacíos en tu dashboard durante los próximos dos módulos es un precio justo por entender
-*por qué* estaban vacíos — y por verlos llenarse sin tocar la aplicación.
+Leen métricas RED derivadas de los spans, que todavía no produce nada, así que se quedan
+vacíos.
 
 <!-- /track -->
 
@@ -498,7 +482,7 @@ Añade una **variable de plantilla** llamada `list`, de tipo Query, contra el da
 label_values(todos_created_total, list)
 ```
 
-Ponla en multivalor e incluye la opción "All". Guarda el dashboard — le añadirás un panel de logs en el Módulo 6 y enlaces de correlación en el Módulo 8.
+Ponla en multivalor e incluye la opción "All". Guarda el dashboard.
 
 ### Comprueba en Grafana
 
@@ -523,4 +507,4 @@ Los paneles RED son idénticos para cualquier servicio HTTP del mundo. Los tres 
 
 ## Siguientes Pasos
 
-Ya tienes números. Los números te dicen *que* algo pasó. Continúa con el [Módulo 6: Logs Manuales](./06-manual-logs.es.md) para averiguar *qué*.
+Continúa con el [Módulo 6: Logs Manuales](./06-manual-logs.es.md).

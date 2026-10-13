@@ -213,7 +213,7 @@ The stack itself is Docker Compose; the four helper scripts never start it:
 cd workshop
 docker compose --profile js up -d   # the stack (--profile py for the Python track)
 ./doctor.sh                     # waits for the stack, then 13 checks. Starts nothing.
-./loadgen.sh 2m                 # traffic (TRACK=py for the Python API)
+./loadgen.sh 2m                 # traffic against the running track's API
 ./reset.sh                      # wipe telemetry, keep the todos
 ./verify-queries.sh             # do the handout's queries actually return data?
 ```

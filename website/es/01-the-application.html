@@ -119,7 +119,7 @@
         <article class="module-content">
             <h1>Módulo 1: La Aplicación que Vas a Instrumentar</h1>
 <p><strong>Duración:</strong> ~15 min · <strong>Los dos tracks, la misma aplicación</strong></p>
-<p>No puedes instrumentar un sistema que no entiendes. Este módulo es un recorrido guiado por la app de tareas: qué piezas tiene, qué hace la API y — lo más importante — el puñado de funciones a las que vas a volver en todos los módulos siguientes. 🗺️</p>
+<p>No puedes instrumentar un sistema que no entiendes. Este módulo es un recorrido guiado por la app de tareas: qué piezas tiene, qué hace la API y dónde vive su código. 🗺️</p>
 <h2>Objetivos de Aprendizaje</h2>
 <p>Al terminar este módulo, serás capaz de:</p>
 <ul>
@@ -141,16 +141,13 @@
 y el servidor en modo vigilancia — así tu editor edita ficheros de verdad, y guardar uno
 es todo el ciclo de construir y desplegar. Todo lo demás es decorado fijo.</li>
 <li><strong>Postgres es su única dependencia externa.</strong> La caché que hay delante del camino de
-lectura es un map en memoria, no Redis. Recuérdalo: nada en la red puede observarla, y
-eso resulta importar bastante más adelante.</li>
+lectura es un map en memoria, no Redis: nada en la red puede observarla.</li>
 <li><strong><code>notify-service</code> está escrito en el otro lenguaje respecto a tu track.</strong> Es
 deliberado. Viene en los dos lenguajes, y tu track llama al que está escrito en el
 lenguaje <em>contrario</em> — el track de JS llama a la implementación en Python en <code>:8083</code>, y
 el de Python a la de JavaScript en <code>:8084</code>. Los dos reportan un <code>service.name</code> de
 <code>notify-service</code>, así que todas las consultas de estos guiones funcionan igual en ambos
-casos. En el Módulo 7 harás que una sola traza atraviese los dos servicios y los dos
-lenguajes, y ahí es cuando el &ldquo;OTel es un protocolo, no una librería&rdquo; deja de ser
-abstracto.</li>
+casos.</li>
 <li><strong><code>./loadgen.sh</code> mantiene el tráfico</strong>, así siempre hay algo que mirar. Ejecuta
 <code>./loadgen.sh 2m</code> cuando las gráficas se queden quietas.</li>
 </ol>
@@ -257,7 +254,7 @@ app.use(todosRouter);
 
 app.listen(8081, () =&gt; log.info('todo-api listening on 8081'));
 </code></pre>
-<p><strong><code>src/routes/todos.js</code></strong> — los handlers. Estos dos son a los que vas a volver en los Módulos 5, 6 y 7:</p>
+<p><strong><code>src/routes/todos.js</code></strong> — los handlers:</p>
 <pre><code class="language-js">todosRouter.post('/todos', async (req, res) =&gt; {
   const todo = await createTodo(req.body);          // repo.js
   const enriched = await enrich(todo);              // enrich.js
@@ -305,7 +302,7 @@ def create_app():
 
 app = create_app()
 </code></pre>
-<p><strong><code>todo_api/routes.py</code></strong> — los handlers. Estos dos son a los que vas a volver en los Módulos 5, 6 y 7:</p>
+<p><strong><code>todo_api/routes.py</code></strong> — los handlers:</p>
 <pre><code class="language-python">@bp.post(&quot;/todos&quot;)
 def post_todo():
     todo = create_todo(request.get_json())        # repo.py
@@ -324,63 +321,13 @@ def patch_complete(todo_id):
     return jsonify(todo)
 </code></pre>
 </div>
-<h3>Las funciones que nos importan</h3>
-<p>A lo largo de todo el taller, estas son las que salen una y otra vez. Apréndete los nombres ahora y los módulos siguientes se leerán mucho más rápido:</p>
-<table>
-<thead>
-<tr>
-<th>Función</th>
-<th>Vive en</th>
-<th>Por qué importa</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>createTodo</code> / <code>create_todo</code></td>
-<td>repo</td>
-<td>El evento de negocio. El counter del Módulo 5, el log estructurado del Módulo 6</td>
-</tr>
-<tr>
-<td><code>completeTodo</code> / <code>complete_todo</code></td>
-<td>repo</td>
-<td>Te da una duración genuinamente de negocio en el Módulo 5</td>
-</tr>
-<tr>
-<td><code>listTodos</code> / <code>list_todos</code></td>
-<td>repo</td>
-<td>El camino de lectura. Interesante por motivos que ya descubrirás</td>
-</tr>
-<tr>
-<td><code>readSummary</code> / <code>read_summary</code></td>
-<td>cache</td>
-<td>El único camino de lectura de caché de la app</td>
-</tr>
-<tr>
-<td><code>notifyUrgent</code> / <code>notify_urgent</code></td>
-<td>notify</td>
-<td>La frontera entre servicios. El ejercicio de propagación del Módulo 7</td>
-</tr>
-<tr>
-<td><code>enrich</code></td>
-<td>enrich</td>
-<td>Lógica de negocio pura, sin instrumentación de librería propia — el mejor candidato para tu primer span personalizado</td>
-</tr>
-<tr>
-<td><code>overdueCount</code> / <code>overdue_count</code></td>
-<td>repo</td>
-<td>Alimenta el observable gauge del Módulo 5</td>
-</tr>
-</tbody>
-</table>
-<h3>Lo que deliberadamente no te enseñamos</h3>
-<p>Las <em>tripas</em> de los módulos de repo y caché — cómo se construyen las consultas, cómo se deriva la clave de caché — quedan para que las descubras tú. No porque sean un secreto, sino porque para el Módulo 9 deberías poder describir qué hacen sin abrirlos, solo a partir de la telemetría. Esa es toda la promesa de este taller, y es más divertido si puedes ponerla a prueba. 🔍</p>
 <h2>Lo Que Hemos Conseguido</h2>
 <ul>
 <li>Sabes dibujar el sistema, nombrar sus dependencias y listar sus endpoints</li>
-<li>Conoces los cuatro ficheros y las siete funciones sobre los que gira el resto del taller</li>
+<li>Conoces los cuatro ficheros sobre los que gira el resto del taller</li>
 </ul>
 <h2>Siguientes Pasos</h2>
-<p>Ahora que sabes qué vamos a instrumentar, veamos qué datos produce instrumentarla. Continúa con el <a href="02-what-observability-is.html">Módulo 2: Las Tres Señales — Métricas, Logs y Trazas</a>.</p>
+<p>Continúa con el <a href="02-what-observability-is.html">Módulo 2: Las Tres Señales — Métricas, Logs y Trazas</a>.</p>
 
         </article>
 

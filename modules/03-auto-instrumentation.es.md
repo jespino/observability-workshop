@@ -215,6 +215,8 @@ service.name:todo-api
 
 Deberías ver: la salida de `console.log` / `logging.info` que ya tenía tu app, ahora almacenada y buscable — pero llegando como texto sin estructura en el cuerpo del mensaje.
 
+La app solo escribe logs cuando se **crea** o se **completa** un todo, así que verás líneas como `todo created …` — crea uno desde el frontend si no aparece nada. Y ojo, no es la consulta de las trazas: en VictoriaLogs el campo es `service.name` a secas, sin el prefijo `resource_attr:`.
+
 ### Comprueba en Grafana
 
 Grafana → **Explore** → datasource **VictoriaMetrics** → ejecuta:
@@ -269,7 +271,7 @@ POST /todos                          ← span de servidor HTTP, nombrado por la 
 Nadie ha escrito nada de eso. Fíjate sobre todo en las dos últimas líneas: la traza ya
 cruza una frontera de servicio **y** una de lenguaje, porque la instrumentación del
 cliente HTTP inyectó una cabecera `traceparent` a la salida y la del servidor HTTP del
-otro servicio la leyó a la entrada. En el Módulo 7.4 romperás y repararás exactamente eso.
+otro servicio la leyó a la entrada.
 
 > 🔑 **Nombres de campo en VictoriaTraces.** Los atributos de resource se guardan con el
 > prefijo `resource_attr:` y los de span con `span_attr:`, así que el nombre del campo
@@ -299,8 +301,7 @@ Haz clic en un span suelto y lee sus atributos. Busca estos tres, que son **conv
 > Piensa en lo que eso implica. "Hemos auto-instrumentado todo, así que tenemos métricas"
 > es una frase que puede ser falsa en un lenguaje y verdadera en otro, dentro de la misma
 > flota, sin que nadie se entere hasta que un dashboard aparece vacío en mitad de un
-> incidente. Lo arreglarás para el track de JS en el Módulo 8.1, generando las métricas a
-> partir de los spans — que es la respuesta general a toda esta familia de problemas.
+> incidente.
 
 **VictoriaMetrics** (`http://localhost:8428/vmui`) — mira qué ha aparecido:
 
@@ -322,7 +323,6 @@ service.name:todo-api
 
 Fíjate en la forma de lo que ha llegado. El mensaje es un bloque de texto en `_msg`. No
 hay campo `list`, no hay campo `todo_id`, no hay nada por lo que filtrar o agregar.
-Arreglar eso es el Módulo 6.
 
 > 🔑 **Nombres de campo en VictoriaLogs**, para contrastar con el recuadro de trazas de
 > arriba: el mensaje es `_msg`, el nivel es `severity_text`, y los atributos de resource
@@ -427,12 +427,6 @@ Se supone que estás atascado. Ese es el ejercicio. 🙂
 
 Sabe de HTTP, de Express o Flask y de Postgres, porque son estándar, populares y alguien escribió una librería de instrumentación para ellos. No sabe nada de todos, listas, urgencias ni usuarios — y absolutamente nada de esa caché en proceso, porque ahí no intervino ninguna librería. Nadie ha visto nunca tu dominio.
 
-Todo lo que viene ahora consiste en añadir el significado:
-
-- El Módulo 5 añade **métricas de negocio** — los números que pide tu product owner
-- El Módulo 6 añade **logs estructurados** — los campos por los que filtras un incidente
-- El Módulo 7 añade **spans de dominio** — la "qué decisión de la aplicación" que necesitaba la pregunta 3
-
 ## Lo Que Hemos Conseguido
 
 - Las tres señales fluyendo, sin cambiar código de aplicación
@@ -442,4 +436,4 @@ Todo lo que viene ahora consiste en añadir el significado:
 
 ## Siguientes Pasos
 
-Antes de añadir significado, desmitifiquemos la caja del medio. Continúa con el [Módulo 4: El Collector, y Dónde Acaban los Datos](./04-the-collector.es.md).
+Continúa con el [Módulo 4: El Collector, y Dónde Acaban los Datos](./04-the-collector.es.md).

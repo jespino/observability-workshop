@@ -221,4 +221,4 @@ Acabas de construir cuatro saltos a mano. En una organización de cincuenta serv
 
 ## Siguientes Pasos
 
-Hora de averiguar si funciona de verdad. Continúa con el [Módulo 9: Proyecto Final — El Reto de Depuración](./09-capstone-debugging-challenge.es.md).
+Continúa con el [Módulo 9: Proyecto Final — El Reto de Depuración](./09-capstone-debugging-challenge.es.md).

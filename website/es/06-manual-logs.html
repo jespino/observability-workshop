@@ -177,7 +177,7 @@
 La correlación con el contexto de traza es automática y limpia. Coste: el SDK de logs sigue marcado como experimental en los dos lenguajes.</p>
 <p><strong>B. JSON por stdout → receiver <code>filelog</code> del Collector</strong>
 Sólido como una roca, sirve para cualquier lenguaje y cualquier contenedor de terceros, sin dependencia experimental. Coste: el contexto de traza lo inyectas tú en el JSON, y la configuración de parseo es cosa tuya.</p>
-<p>Construiremos la A y demostraremos la B en 6.4.</p>
+<p>Construiremos la A.</p>
 <h2>Ejercicio 6.2 — Logging estructurado con contexto de traza [~25 min]</h2>
 <p><strong>Deberías poder responder esto al terminar:</strong> <em>dada una línea de log de error, ¿cómo llegas a la traza de la petición que la produjo?</em></p>
 <h3>Hazlo</h3>
@@ -274,7 +274,7 @@ except Exception:
     return jsonify(error=&quot;internal&quot;), 500
 </code></pre>
 </div>
-<p>Fíjate en lo que hay ahí: severidad, la excepción, y <strong>los atributos que otra persona necesitaría para reproducirlo</strong>. <code>title_length</code> en lugar de <code>title</code>, porque el título podría contener algo que no deberías estar guardando — un hábito que conviene adquirir ya, y al que volveremos en el Módulo 10.</p>
+<p>Fíjate en lo que hay ahí: severidad, la excepción, y <strong>los atributos que otra persona necesitaría para reproducirlo</strong>. <code>title_length</code> en lugar de <code>title</code>, porque el título podría contener algo que no deberías estar guardando — un hábito que conviene adquirir.</p>
 <ol start="4">
 <li>
 <p>Guarda el fichero y crea un todo fallido para generar uno de estos:</p>
@@ -287,7 +287,7 @@ except Exception:
 <div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
 <p>Cuando la API se haya reiniciado (mira la terminal de su log), en otra terminal:</p>
 <pre><code class="language-bash">curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;}'
-TRACK=py ./loadgen.sh 2m
+./loadgen.sh 2m
 </code></pre>
 </div>
 </li>
@@ -312,7 +312,7 @@ TRACK=py ./loadgen.sh 2m
 <p>Por último, copia un <code>trace_id</code> de cualquier línea de log y pégalo en la vmui de VictoriaTraces:</p>
 <pre><code>trace_id:=&lt;pega aquí el valor&gt;
 </code></pre>
-<p>Deberías aterrizar en la petición exacta que produjo esa línea de log. Ese es el premio, y es el mecanismo que hay detrás de todo el Módulo 8.</p>
+<p>Deberías aterrizar en la petición exacta que produjo esa línea de log.</p>
 <h3>Comprueba en Grafana</h3>
 <p>Explore → <strong>VictoriaLogs</strong> → la misma consulta. Activa el modo <strong>Live</strong> y mira cómo llegan los registros mientras corre el loadgen.</p>
 <h3>Para pensar</h3>
@@ -370,7 +370,7 @@ TRACK=py ./loadgen.sh 2m
 <h3>Comprueba en Grafana</h3>
 <p>Explore → VictoriaLogs. Prueba las mismas consultas con el <strong>constructor visual</strong> y luego cambia a la caja de LogsQL en crudo para ver qué generó. El constructor va bien para explorar; la caja en crudo es lo que pegarás en un runbook.</p>
 <h3>Para pensar</h3>
-<p>Acabas de aprender un lenguaje de consulta. En el Módulo 7 vas a consultar <strong>spans</strong> con el mismo. ¿Qué te ahorra eso, comparado con un stack donde métricas, logs y trazas tienen cada uno su sintaxis?</p>
+<p>Acabas de aprender un lenguaje de consulta, y VictoriaTraces usa el mismo para los spans. ¿Qué te ahorra eso, comparado con un stack donde métricas, logs y trazas tienen cada uno su sintaxis?</p>
 <h3>Si te atascas</h3>
 <ul>
 <li><strong><code>_stream:{...}</code> no devuelve nada.</strong> Los selectores de stream casan con los campos declarados en <code>VL-Stream-Fields</code> en el momento de <em>ingesta</em>. Los registros escritos antes de tu cambio tienen la forma de stream antigua.</li>
@@ -431,7 +431,7 @@ TRACK=py ./loadgen.sh 2m
 <li>Una visión clara de la alternativa stdout+Collector</li>
 </ul>
 <h2>Siguientes Pasos</h2>
-<p>Las métricas te dicen <em>que</em>. Los logs te dicen <em>qué</em>. Continúa con el <a href="07-manual-traces.html">Módulo 7: Trazas Manuales</a> para averiguar <em>dónde</em> y <em>por qué</em>.</p>
+<p>Continúa con el <a href="07-manual-traces.html">Módulo 7: Trazas Manuales</a>.</p>
 
         </article>
 
