@@ -1,6 +1,6 @@
 # Módulo 1: La Aplicación que Vas a Instrumentar
 
-**Duración:** ~30 min · **Los dos tracks, la misma aplicación**
+**Duración:** ~15 min · **Los dos tracks, la misma aplicación**
 
 No puedes instrumentar un sistema que no entiendes. Este módulo es un recorrido guiado por la app de tareas: qué piezas tiene, qué hace la API y — lo más importante — el puñado de funciones a las que vas a volver en todos los módulos siguientes. 🗺️
 
@@ -11,7 +11,6 @@ Al terminar este módulo, serás capaz de:
 - Dibujar el sistema de memoria: qué servicio llama a cuál, y por dónde
 - Enumerar todos los endpoints que expone la API y qué toca cada uno
 - Conocer los cuatro ficheros de tu track que vas a editar todo el día, y qué vive en cada uno
-- Haber seguido una petición por el código a mano — por la vía lenta, para que luego valores hacerlo por la rápida
 
 ## Prerrequisitos
 
@@ -20,34 +19,14 @@ Al terminar este módulo, serás capaz de:
 
 ## El sistema
 
-```
-                    ┌─────────────┐
- navegador ────────▶│  frontend   │  ficheros estáticos, iguales en los dos tracks
-                    │   :8080     │
-                    └──────┬──────┘
-                           │ HTTP
-                    ┌──────▼───────────────┐
-                    │  todo-api            │  ◀── el código que editas
-                    │  js :8081 / py :8082 │      (un contenedor, en tu terminal)
-                    │  ┌────────────────┐  │
-                    │  │ caché          │  │  un simple map delante del
-                    │  │ en proceso     │  │  camino de lectura de listas
-                    │  └────────────────┘  │
-                    └───────┬───────┬──────┘
-                            │       │
-                  ┌─────────▼┐    ┌─▼─────────────┐
-                  │ Postgres │    │ notify-service│  pre-instrumentado,
-                  │  :5432   │    │  :8083 / :8084│  escrito en el *otro*
-                  └──────────┘    └───────────────┘  lenguaje a propósito
-```
+![La aplicación: tu navegador carga el frontend en :8080, que llama a todo-api (js :8081 / py :8082) por HTTP. todo-api — el código que editas, que se reinicia al guardar un fichero — tiene una caché en proceso delante del camino de lectura de listas, usa Postgres en :5432 como su única dependencia externa, y llama a notify-service en :8083 / :8084, que ya viene instrumentado y está escrito en el otro lenguaje a propósito.](images/application.png)
 
 Cuatro cosas que merece la pena notar:
 
 1. **`todo-api` es lo único que editas.** Corre en un contenedor `node:22-slim` o
-   `python:3.12-slim` de serie, en primer plano, en tu propia terminal, con el directorio
-   de código de tu portátil montado dentro — así tu editor edita ficheros de verdad y un
-   Ctrl-C más ↑ Enter es todo el ciclo de construir y desplegar. Todo lo demás es decorado
-   fijo.
+   `python:3.12-slim` de serie, con el directorio de código de tu portátil montado dentro
+   y el servidor en modo vigilancia — así tu editor edita ficheros de verdad, y guardar uno
+   es todo el ciclo de construir y desplegar. Todo lo demás es decorado fijo.
 2. **Postgres es su única dependencia externa.** La caché que hay delante del camino de
    lectura es un map en memoria, no Redis. Recuérdalo: nada en la red puede observarla, y
    eso resulta importar bastante más adelante.
@@ -228,123 +207,11 @@ A lo largo de todo el taller, estas son las que salen una y otra vez. Apréndete
 
 Las *tripas* de los módulos de repo y caché — cómo se construyen las consultas, cómo se deriva la clave de caché — quedan para que las descubras tú. No porque sean un secreto, sino porque para el Módulo 9 deberías poder describir qué hacen sin abrirlos, solo a partir de la telemetría. Esa es toda la promesa de este taller, y es más divertido si puedes ponerla a prueba. 🔍
 
-## Ejercicio 1.1 — Sigue una petición a mano [~15 min]
-
-**Deberías poder responder esto al terminar:** *¿cuántas idas y vueltas de red hace un `POST /todos` con la etiqueta `urgent`?*
-
-### Hazlo
-
-1. Abre el fichero de rutas de tu track y sigue `POST /todos` hasta el fondo. Apunta en papel la secuencia de llamadas: cada consulta a base de datos, cada operación de caché, cada petición HTTP saliente.
-
-2. Haz lo mismo con `GET /todos?list=work`.
-
-3. Ahora comprueba tu respuesta de la única forma disponible por ahora:
-
-   Mira la terminal en la que corre tu API. Luego, en otra terminal:
-
-   <!-- track:js -->
-
-   ```bash
-   curl -s -X POST localhost:8081/todos \
-     -H 'content-type: application/json' \
-     -d '{"title":"ship the thing","list":"work","tags":["urgent"],"priority":1}'
-   ```
-
-   <!-- /track -->
-
-   <!-- track:python -->
-
-   ```bash
-   curl -s -X POST localhost:8082/todos \
-     -H 'content-type: application/json' \
-     -d '{"title":"ship the thing","list":"work","tags":["urgent"],"priority":1}'
-   ```
-
-   <!-- /track -->
-
-4. Compara la salida del log con la secuencia que escribiste. ¿Cuánto de ello has podido confirmar de verdad?
-
-### Comprueba en la UI de Victoria
-
-Todavía no hay nada que comprobar — y ese es el ejercicio. Fíjate en cuánto te ha costado el paso 3 comparado con el paso 1.
-
-### Comprueba en Grafana
-
-Todavía nada.
-
-### Para pensar
-
-Acabas de reconstruir el camino de una petición leyendo código fuente. Funciona porque el proyecto tiene 400 líneas y lo tienes abierto. ¿Cuál es el sistema más pequeño en el que eso deja de funcionar?
-
-### Si te atascas
-
-- **El `POST` devuelve 500.** Revisa tu JSON — `title` tiene que ser una cadena no vacía. (Tenlo presente; vuelve en el Módulo 6.)
-- **`urgent` no parece llamar a notify-service.** La comparación de la etiqueta es exacta y en minúsculas. `Urgent` no vale.
-
-## Ejercicio 1.2 — Rompe algo, e intenta averiguar por qué [~10 min]
-
-**Deberías poder responder esto al terminar:** *¿cuánto se tarda en diagnosticar un 500 sin telemetría?*
-
-### Hazlo
-
-1. Crea un todo con el título vacío:
-
-   <!-- track:js -->
-
-   ```bash
-   curl -i -s -X POST localhost:8081/todos \
-     -H 'content-type: application/json' \
-     -d '{"title":"","list":"work","tags":[]}'
-   ```
-
-   <!-- /track -->
-
-   <!-- track:python -->
-
-   ```bash
-   curl -i -s -X POST localhost:8082/todos \
-     -H 'content-type: application/json' \
-     -d '{"title":"","list":"work","tags":[]}'
-   ```
-
-   <!-- /track -->
-
-2. Te devuelve un 500. Ahora responde a estas tres preguntas **sin abrir el código**:
-   - ¿Qué función lanzó el error?
-   - ¿Se tocó la base de datos antes de fallar?
-   - ¿Cuántos usuarios más se han topado con esto hoy?
-
-3. Ríndete a los cinco minutos. Ese es el resultado honesto, y es justo el objetivo.
-
-### Comprueba en la UI de Victoria
-
-Sigue sin haber nada. Disfruta del último módulo en que eso es cierto. 😄
-
-### Comprueba en Grafana
-
-Sigue sin haber nada.
-
-### Para pensar
-
-De esas tres preguntas, ¿cuál es un problema de *logging*, cuál de *tracing* y cuál de *métricas*? Guarda tu respuesta — la retomamos al final del Módulo 2.
-
-### Si te atascas
-
-- **Recibes un 400 en vez de un 500.** Estás en una build con checkpoint de un módulo posterior. Ejecuta `./checkpoint.sh 00` para volver al estado inicial.
-
-Este módulo no cambia código, así que no hay checkpoint que hacer. Si en algún
-momento quieres deshacer tus experimentos y volver al estado inicial impoluto:
-
-```bash
-./checkpoint.sh 00
-```
-
 ## Lo Que Hemos Conseguido
 
 - Sabes dibujar el sistema, nombrar sus dependencias y listar sus endpoints
 - Conoces los cuatro ficheros y las siete funciones sobre los que gira el resto del taller
-- Has sentido, en concreto, lo que cuesta depurar esta app sin telemetría
 
 ## Siguientes Pasos
 
-Ahora que sabes qué vamos a instrumentar, pongámonos de acuerdo en qué significa "instrumentar". Continúa con el [Módulo 2: Qué es Realmente la Observabilidad](./02-what-observability-is.es.md).
+Ahora que sabes qué vamos a instrumentar, veamos qué datos produce instrumentarla. Continúa con el [Módulo 2: Las Tres Señales — Métricas, Logs y Trazas](./02-what-observability-is.es.md).

@@ -1,10 +1,7 @@
-# Downloaded binaries and runtime state — Module 0.1 recreates them
+# Leftovers from the old binary-based setup — no longer used, safe to delete
 bin/
 data/
 logs/
-
-# Participant backups made by ./checkpoint.sh
-.checkpoint-backup/
 
 # Dependencies installed into the bind mount by the container
 node_modules/

@@ -2,40 +2,40 @@
 
 This is the directory you work in.
 
-**There is no setup script and no `docker-compose.yml`, and that is deliberate.** You
-download four binaries and start them yourself, one at a time, and you start four
-containers yourself with `docker run`. [Module 0](../modules/00-setup-and-sanity-check.md)
-walks you through every command. By the end of it you know which process owns which port
-and where its log went — which is the difference between debugging the workshop and
-guessing at it.
+**The whole stack is [`docker-compose.yml`](docker-compose.yml)**: your API, Postgres,
+notify-service, the frontend, the OpenTelemetry Collector, the three Victoria backends and
+(from Module 3.2) Grafana. [Module 0](../modules/00-setup-and-sanity-check.md) starts it
+with one command. Your API's source directory is mounted into its container and the server
+runs in watch mode, so saving a file is all it takes to deploy a change.
 
-Nothing in this repository is built into an image. The applications run in **stock images
-from Docker Hub** — `node:22-slim`, `python:3.12-slim` — with the source directory
-bind-mounted in. So you need Docker, and you do **not** need Node.js or Python installed.
+Nothing in this repository is built into an image. Everything runs in **stock images from
+Docker Hub**, with the relevant directory bind-mounted in. So you need Docker with the
+Compose plugin, and you do **not** need Node.js or Python installed.
 
 The handouts live one level up, in [`../modules/`](../modules/), and are published at
 <https://jespino.github.io/observability-workshop/>. Start with **Module 0**.
 
 ## Prerequisites
 
-- **Docker** — everything except the four telemetry binaries runs in one
-- `curl`, `tar`, and a Unix shell. On Windows use WSL2.
-- ~4GB free RAM, ~2GB free disk
+- **Docker** with the Compose plugin (`docker compose version`)
+- `git`, `curl`, and a Unix shell. On Windows use WSL2.
+- ~4GB free RAM, ~3GB free disk
 
 ## What runs where
 
-| Component | How it runs | Port |
-|---|---|---|
-| VictoriaMetrics | native binary from `./bin`, backgrounded | 8428 |
-| VictoriaLogs | native binary from `./bin`, backgrounded | 9428 |
-| VictoriaTraces | native binary from `./bin`, backgrounded | 10428 |
-| OpenTelemetry Collector | native binary from `./bin`, **its own terminal** | 4317 / 4318, 8888, 13133 |
-| todo-api (JS) | `node:22-slim` container, **your terminal** | 8081 |
-| todo-api (Python) | `python:3.12-slim` container, **your terminal** | 8082 |
-| frontend | `nginx:alpine` container | 8080 |
-| Postgres | `postgres:16-alpine` container | 5432 |
-| notify-service | container, other language from your track | 8083 (py) / 8084 (js) |
-| Grafana | `grafana/grafana` container, from Module 3.2 | 3000 |
+| Component | How it runs | Port | Data |
+|---|---|---|---|
+| VictoriaMetrics | Compose service `victoriametrics` | 8428 | volume `workshop_victoria-metrics` |
+| VictoriaLogs | Compose service `victorialogs` | 9428 | volume `workshop_victoria-logs` |
+| VictoriaTraces | Compose service `victoriatraces` | 10428 | volume `workshop_victoria-traces` |
+| OpenTelemetry Collector | Compose service `otel-collector` | 4317 / 4318, 8888, 13133 | — (config from `collector/`) |
+| Postgres | Compose service `postgres` | 5432 | volume `workshop_postgres` |
+| notify-service (Python impl, for the JS track) | Compose service `notify-py`, profile `js` | 8083 | — |
+| notify-service (JS impl, for the Python track) | Compose service `notify-js`, profile `py` | 8084 | — |
+| frontend | Compose service `frontend` | 8080 | — |
+| Grafana | Compose service `grafana`, profile `grafana`, from Module 3.2 | 3000 | volume `workshop_grafana` |
+| todo-api (JS) | Compose service `todo-api-js`, profile `js` — `node --watch` | 8081 | dependencies in volume `workshop_todo-api-js-modules` |
+| todo-api (Python) | Compose service `todo-api-py`, profile `py` — gunicorn under `watchmedo auto-restart` | 8082 | dependencies in volume `workshop_todo-api-py-deps` |
 
 | UI | URL |
 |---|---|
@@ -45,214 +45,107 @@ The handouts live one level up, in [`../modules/`](../modules/), and are publish
 | VictoriaTraces (traces) | <http://localhost:10428/select/vmui> |
 | Grafana | <http://localhost:3000> (`admin` / `admin`) |
 
-You'll want five terminals open all day: the three backgrounded backends live in one, the
-Collector has its own, your API has its own, and you need one or two spare for `curl`,
+You'll want two terminals open all day: one following your API's log
+(`docker compose logs -f todo-api-js`, or `todo-api-py`), and one for `curl`,
 `loadgen.sh` and `doctor.sh`.
 
 **The application's only dependency is Postgres.** No Redis, no message broker. The cache
 in front of the read path is a plain in-process map, which turns out to matter later —
 nothing observes it for you.
 
-## Container networking, once
+## Where the data lives
 
-Every container that has to reach something outside itself gets
-`--add-host=host.docker.internal:host-gateway`, and addresses it as
-`host.docker.internal`:
+Every storage writes into a **Docker named volume**, not into the repository. List them
+with `docker volume ls`.
+
+| Command | What happens to the data |
+|---|---|
+| `docker compose stop` / `restart` | kept |
+| `docker compose down` | containers removed, volumes kept |
+| `./reset.sh` | the three `workshop_victoria-*` volumes wiped; todos kept |
+| `docker compose down -v` | everything deleted, todos included |
+
+Postgres seeds itself from `postgres/init.sql` only when its volume is empty, so after a
+`down -v` the next `up` gives you the original few hundred todos again.
+
+## Container networking, once
 
 | From | To | Address |
 |---|---|---|
-| your browser / `curl` | anything | `localhost` |
-| todo-api container | Postgres, notify-service, the Collector's OTLP | `host.docker.internal` |
-| Grafana container | the three Victoria backends | `host.docker.internal` |
-| the Collector (native) | the three Victoria backends | `localhost` |
+| your browser / `curl` | anything | `localhost`, on the published port |
+| any Compose service — your API included | any other Compose service | its service name — `postgres`, `otel-collector`, `victoriametrics`, … |
 
-Inside a container, `localhost` is the container. This is the single most common mistake
-of the day, and it presents as "telemetry silently doesn't arrive". It is also why
-`collector/config.yaml` binds its OTLP receivers to `0.0.0.0` rather than `127.0.0.1`.
+Inside a container, `localhost` is the container. This is the single most common mistake of the day, and it
+presents as "telemetry silently doesn't arrive". It is also why `collector/config.yaml`
+binds its OTLP receivers to `0.0.0.0` rather than `127.0.0.1`.
 
 ## Reference card
 
-The commands Module 0 has you type, in one place, for when you lose your shell history.
-Run them from `workshop/`.
+The commands the handouts have you type, in one place, for when you lose your shell
+history. Run them from `workshop/`.
 
-### The four telemetry processes
-
-```bash
-mkdir -p bin data logs
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
-
-curl -sSL "https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/v1.151.0/victoria-metrics-${OS}-${ARCH}-v1.151.0.tar.gz" \
-  | tar -xzf - -C bin && mv bin/victoria-metrics-prod bin/victoria-metrics
-curl -sSL "https://github.com/VictoriaMetrics/VictoriaLogs/releases/download/v1.52.0/victoria-logs-${OS}-${ARCH}-v1.52.0.tar.gz" \
-  | tar -xzf - -C bin && mv bin/victoria-logs-prod bin/victoria-logs
-curl -sSL "https://github.com/VictoriaMetrics/VictoriaTraces/releases/download/v0.11.0/victoria-traces-${OS}-${ARCH}-v0.11.0.tar.gz" \
-  | tar -xzf - -C bin && mv bin/victoria-traces-prod bin/victoria-traces
-curl -sSL "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.159.0/otelcol-contrib_0.159.0_${OS}_${ARCH}.tar.gz" \
-  | tar -xzf - -C bin otelcol-contrib
-```
+### The stack
 
 ```bash
-nohup ./bin/victoria-metrics -storageDataPath=./data/victoria-metrics \
-  -httpListenAddr=:8428 -retentionPeriod=1 -selfScrapeInterval=10s \
-  -search.latencyOffset=1s -opentelemetry.usePrometheusNaming \
-  > logs/victoria-metrics.log 2>&1 &
+docker compose --profile js up -d      # JS track: your API + notify-service (Python) + the rest
+docker compose --profile py up -d      # Python track: your API + notify-service (JS) + the rest
+docker compose up -d grafana           # from Module 3.2
 
-nohup ./bin/victoria-logs -storageDataPath=./data/victoria-logs \
-  -httpListenAddr=:9428 -retentionPeriod=7d > logs/victoria-logs.log 2>&1 &
-
-nohup ./bin/victoria-traces -storageDataPath=./data/victoria-traces \
-  -httpListenAddr=:10428 -retentionPeriod=3d > logs/victoria-traces.log 2>&1 &
+docker compose ps                      # what's up (-a: and what has stopped)
+docker compose logs -f todo-api-js     # follow one service's log
+docker compose restart otel-collector  # after every edit to collector/config.yaml
+docker compose down                    # stop and remove containers, keep the data
 ```
+
+Before the day, to pull every image in one go:
 
 ```bash
-# in its own terminal, foreground: restart with Ctrl-C then ↑ Enter
-./bin/otelcol-contrib --config=collector/config.yaml
+docker compose --profile js --profile py --profile grafana pull
 ```
 
-Stop them: `kill %1` for a job of the current shell, or
-`pkill -f "$PWD/bin/victoria"` for all three.
+### Your API
 
-### Postgres
+| You changed… | Do |
+|---|---|
+| a source file | nothing — it restarts by itself |
+| `.env`, `package.json` / `requirements.txt`, or its `command:` in `docker-compose.yml` | `docker compose up -d --force-recreate todo-api-js` (or `todo-api-py`) |
 
-```bash
-docker run -d --name workshop-postgres \
-  -p 5432:5432 \
-  -e POSTGRES_USER=todo -e POSTGRES_PASSWORD=todo -e POSTGRES_DB=todo \
-  -v "$PWD/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro" \
-  postgres:16-alpine
+The container installs the dependencies every time it starts, into a Docker volume rather
+than your working tree, so there is no separate install step. On the Python track it also
+runs `opentelemetry-bootstrap` once `opentelemetry-distro` is installed (Module 3.1).
+
+On the Python track, Module 3.1 switches the SDK on by editing the service's `command:`:
+
+```yaml
+    command: opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
 ```
 
-### notify-service — the one written in the *other* language from your track
-
-```bash
-# for the JS track
-docker run -d --name workshop-notify \
-  -p 8083:8083 --add-host=host.docker.internal:host-gateway \
-  -u "$(id -u):$(id -g)" -e HOME=/tmp \
-  -v "$PWD/services/notify-service-py:/app" -w /app \
-  --env-file services/notify-service-py/otel.env \
-  python:3.12-slim \
-  sh -c 'pip install --user -q --no-warn-script-location -r requirements.txt \
-         && opentelemetry-bootstrap -a install > /dev/null \
-         && exec opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8083 app:app'
-```
-
-```bash
-# for the Python track
-docker run -d --name workshop-notify \
-  -p 8084:8084 --add-host=host.docker.internal:host-gateway \
-  -u "$(id -u):$(id -g)" -e HOME=/tmp \
-  -v "$PWD/services/notify-service-js:/app" -w /app \
-  --env-file services/notify-service-js/otel.env \
-  node:22-slim \
-  sh -c 'npm install --silent --no-fund --no-audit \
-         && exec node --require @opentelemetry/auto-instrumentations-node/register server.js'
-```
-
-### Your API's dependencies
-
-```bash
-# JS track
-docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
-  -v "$PWD/track-js/todo-api:/app" -w /app node:22-slim npm install
-```
-
-```bash
-# Python track
-docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
-  -v "$PWD/track-py/todo-api:/app" -w /app \
-  -e PYTHONUSERBASE=/app/.pylibs \
-  -e PATH=/app/.pylibs/bin:/usr/local/bin:/usr/bin:/bin \
-  python:3.12-slim \
-  sh -c 'pip install --user --no-warn-script-location -r requirements.txt \
-         && opentelemetry-bootstrap -a install'
-```
-
-`opentelemetry-bootstrap` only matters from Module 3.1, once
-`requirements.txt` mentions OpenTelemetry; before that it is a no-op.
-
-### Your API — the command you press ↑ for all day
-
-Both of these include the `--env-file` you create in Module 3.1. Before Module 3.1 that
-file does not exist yet, so drop the flag (and, on the Python track, the
-`opentelemetry-instrument` prefix).
-
-```bash
-# JS track
-docker run --rm -it --name workshop-todo-api \
-  -p 8081:8081 \
-  --add-host=host.docker.internal:host-gateway \
-  -u "$(id -u):$(id -g)" -e HOME=/tmp \
-  -v "$PWD/track-js/todo-api:/app" -w /app \
-  --env-file track-js/todo-api/.env \
-  -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-  -e NOTIFY_URL=http://host.docker.internal:8083 \
-  -e PORT=8081 \
-  node:22-slim node src/server.js
-```
-
-```bash
-# Python track
-docker run --rm -it --name workshop-todo-api \
-  -p 8082:8082 \
-  --add-host=host.docker.internal:host-gateway \
-  -u "$(id -u):$(id -g)" -e HOME=/tmp \
-  -v "$PWD/track-py/todo-api:/app" -w /app \
-  --env-file track-py/todo-api/.env \
-  -e PYTHONUSERBASE=/app/.pylibs \
-  -e PATH=/app/.pylibs/bin:/usr/local/bin:/usr/bin:/bin \
-  -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-  -e NOTIFY_URL=http://host.docker.internal:8084 \
-  python:3.12-slim opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
-```
-
-### Frontend and Grafana
-
-```bash
-docker run -d --name workshop-frontend \
-  -p 8080:80 -v "$PWD/frontend:/usr/share/nginx/html:ro" nginx:alpine
-```
-
-```bash
-docker run -d --name workshop-grafana \
-  -p 3000:3000 --add-host=host.docker.internal:host-gateway \
-  -e GF_SECURITY_ADMIN_USER=admin \
-  -e GF_SECURITY_ADMIN_PASSWORD=admin \
-  -e GF_INSTALL_PLUGINS=victoriametrics-metrics-datasource,victoriametrics-logs-datasource \
-  -e GF_FEATURE_TOGGLES_ENABLE=correlations,traceToMetrics,traceqlEditor \
-  -v "$PWD/grafana/provisioning:/etc/grafana/provisioning:ro" \
-  grafana/grafana:12.3.1
-```
-
-## The four scripts that are left
+## The helper scripts
 
 None of them start or set up anything. Every one of them is a tool you reach for *after*
 the stack is up.
 
 ```bash
-./doctor.sh                     # 17 checks, one table. Starts nothing; tells you what's missing.
+./doctor.sh                     # waits for the stack, then 13 checks in one table. Starts nothing.
 ./loadgen.sh 2m                 # traffic against the JS API
 TRACK=py ./loadgen.sh 2m        # ...against the Python API
 ./loadgen.sh 3m --rps 50        # harder
 ./loadgen.sh 3m --errors        # include requests that fail (Module 8.2)
-./checkpoint.sh 52              # catch up to the end of exercise 5.2
 ./reset.sh                      # wipe telemetry after the cardinality lab, keep the todos
 ./verify-queries.sh [module]    # facilitator: do the handouts' queries return data?
 ```
 
-`reset.sh` is the only one that touches a process: wiping a log backend means stopping it,
-deleting its storage directory and starting it again, because there is no delete-by-query
-API. It uses the same three command lines as the reference card above and leaves the
-Collector alone for you to restart.
+`reset.sh` is the only one that touches the stack: wiping a log backend means stopping it,
+deleting its storage and starting it again, because there is no delete-by-query API. It
+removes the three storage containers and their `workshop_victoria-*` volumes, brings them
+back up empty, and restarts the Collector so its export queues start clean. The
+`workshop_postgres` volume is not touched.
 
 ## Layout
 
 ```
 workshop/
-├── bin/                     # binaries you download in Module 0.1  (gitignored)
-├── data/                    # Victoria storage dirs                (gitignored)
-├── logs/                    # backgrounded process stdout          (gitignored)
+├── docker-compose.yml       # the whole stack, started in Module 0
 ├── collector/config.yaml    # ◀ you edit this from Module 4
 ├── postgres/init.sql        # schema and seed data
 ├── grafana/provisioning/    # 4 datasources + a starter dashboard
@@ -260,11 +153,10 @@ workshop/
 ├── track-js/todo-api/       # ◀ you edit this  (Node.js / Express)
 ├── track-py/todo-api/       # ◀ you edit this  (Python / Flask)
 ├── services/                # notify-service in both languages, each with its otel.env
-├── solutions/               # checkpoint solutions (see its README)
+├── solutions/               # reference solutions, one per exercise (see its README)
 ├── scripts/                 # shared script internals
 ├── doctor.sh                # is everything green?
 ├── loadgen.sh               # generate traffic
-├── checkpoint.sh            # catch up to the end of an exercise
 ├── reset.sh                 # wipe all telemetry, keep the todos
 └── verify-queries.sh        # do the handouts' queries return data? (facilitator)
 ```
@@ -286,20 +178,17 @@ in Module 7.4 works whichever track you are on. Both report a `service.name` of
 
 ## Where the dependencies live
 
-There is no image build step, so `npm install` and `pip install` write into the
-bind-mounted source directory rather than into an image layer:
+There is no image build step. Each API container installs its dependencies when it
+starts, into a Docker volume mounted inside the container, so nothing lands in your working
+tree:
 
-| Track | Installed into | Found at runtime by |
+| Track | Installed into | Volume |
 |---|---|---|
-| JS | `track-js/todo-api/node_modules/` | Node's normal resolution from `/app` |
-| Python | `track-py/todo-api/.pylibs/` | `PYTHONUSERBASE=/app/.pylibs` and `PATH=/app/.pylibs/bin:…` |
+| JS | `/app/node_modules` | `workshop_todo-api-js-modules` |
+| Python | `/deps` (`PYTHONUSERBASE`, with `/deps/bin` on `PATH`) | `workshop_todo-api-py-deps` |
 
-Both are gitignored, both survive the container, and both are owned by you rather than by
-root because every `docker run` carries `-u "$(id -u):$(id -g)"`. Drop that flag and you
-get root-owned files in your working tree that you need `sudo` to delete.
-
-`-e HOME=/tmp` is there for the same reason: with `-u` set, the image's `HOME` is not
-writable, and both npm and pip want somewhere to put a cache.
+On the JS track, Docker creates an empty `track-js/todo-api/node_modules/` directory as the
+mount point. It is gitignored and safe to ignore.
 
 ## Known SDK divergences
 
@@ -373,48 +262,39 @@ instrumentation has completed the migration rather than dual-emitting.
 
 **Module 9, the capstone.** Restart the participant's API with a lower N+1 threshold and
 turn the load up. There is no new bug — you are lowering the threshold at which an
-existing one becomes visible, which is how a latent fault becomes an incident. Add one
-flag to their usual run command:
+existing one becomes visible, which is how a latent fault becomes an incident. Add one line
+to their `.env` and recreate the container:
 
 ```bash
-#   -e LIST_PAGE_THRESHOLD=5
-docker run --rm -it --name workshop-todo-api \
-  -p 8081:8081 --add-host=host.docker.internal:host-gateway \
-  -u "$(id -u):$(id -g)" -e HOME=/tmp \
-  -v "$PWD/track-js/todo-api:/app" -w /app \
-  --env-file track-js/todo-api/.env \
-  -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-  -e NOTIFY_URL=http://host.docker.internal:8083 \
-  -e PORT=8081 \
-  -e LIST_PAGE_THRESHOLD=5 \
-  node:22-slim node src/server.js
+echo LIST_PAGE_THRESHOLD=5 >> track-js/todo-api/.env      # or track-py/
+docker compose up -d --force-recreate todo-api-js          # or todo-api-py
 
-./loadgen.sh forever --rps 25 --big-lists
+./loadgen.sh forever --rps 25 --big-lists                  # TRACK=py on the Python track
 ```
 
-To put it back, restart without that one flag. It is genuinely a config change and not a
+To put it back, delete that line and recreate the container again. It is genuinely a config change and not a
 new build, which is worth saying out loud in the debrief.
 
-**Before the day.** Get everyone to do the downloads and the `docker pull`s in advance —
-about 450MB of binaries (most of it the Collector) plus five images. The pre-work box at
-the top of Module 0 has the exact commands. Bring them on a USB drive too; venue wifi will
-not be your friend.
+**Before the day.** Get everyone to clone the repo and pull the images in advance — about
+2GB in all, most of it Grafana, the Collector and the two language runtimes:
 
-**Timing.** Module 0 is ~45 minutes if nobody did the pre-work and ~15 if everybody did.
-Setting things up by hand is the point of the module, but the *downloading* part is not,
-so buy that time back in advance if you can.
+```bash
+docker compose --profile js --profile py --profile grafana pull
+```
+
+The pre-work box at the top of Module 0 has the same command. Venue wifi will not be your
+friend; `docker save` the images onto a USB drive too.
+
+**Timing.** Module 0 is ~30 minutes if nobody did the pre-work and ~15 if everybody did.
+Most of the difference is the image downloads, so buy that time back in advance if you can.
 
 **Starting completely fresh**, including the todo database:
 
 ```bash
-pkill -f "$PWD/bin/victoria"; pkill -f "$PWD/bin/otelcol-contrib"
-docker rm -f workshop-postgres workshop-notify workshop-todo-api \
-              workshop-frontend workshop-grafana
-rm -rf bin data logs
-rm -rf track-js/todo-api/node_modules track-js/todo-api/package-lock.json
-rm -rf track-py/todo-api/.pylibs services/notify-service-py/.pylibs \
-       services/notify-service-js/node_modules
-git checkout track-js/todo-api track-py/todo-api collector
+docker compose --profile js --profile py --profile grafana down -v
+rm -rf track-js/todo-api/node_modules
+rm -f track-js/todo-api/.env track-py/todo-api/.env
+git checkout track-js/todo-api track-py/todo-api collector docker-compose.yml
 ```
 
-Then start again from Module 0.1.
+Then start again from Module 0.

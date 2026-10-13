@@ -118,15 +118,10 @@
     <div class="container">
         <article class="module-content">
             <h1>Module 6: Manual Logs</h1>
-
-<p><strong>Duration:</strong> ~75 min · <strong>Checkpoints: 62</strong></p>
-
+<p><strong>Duration:</strong> ~75 min</p>
 <p>Right now your logs are text. Text is what you grep at 3am while wishing you had something better. This module turns them into records you can filter, aggregate and — the important part — join to a trace. 🪵</p>
-
 <h2>Learning Objectives</h2>
-
 <p>By the end of this module, you will:</p>
-
 <ul>
 <li>Explain what an OpenTelemetry log record contains, and what belongs in the body versus the attributes</li>
 <li>Emit structured logs that carry <code>trace_id</code> and <code>span_id</code> automatically</li>
@@ -134,17 +129,12 @@
 <li>Query logs with LogsQL, including aggregations</li>
 <li>Know when to use the SDK and when to use stdout plus a Collector receiver instead</li>
 </ul>
-
 <h2>Prerequisites</h2>
-
 <ul>
-<li>Module 5 completed and checkpointed</li>
+<li>Module 5 completed</li>
 </ul>
-
 <h2>6.1 — Concepts [~10 min]</h2>
-
 <p>An OpenTelemetry <strong>log record</strong> is not a string. It has:</p>
-
 <table>
 <thead>
 <tr>
@@ -152,33 +142,27 @@
 <th>What goes in it</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td><code>timestamp</code></td>
 <td>when</td>
 </tr>
-
 <tr>
 <td><code>severity</code></td>
 <td><code>DEBUG</code> / <code>INFO</code> / <code>WARN</code> / <code>ERROR</code>, as both text and a number</td>
 </tr>
-
 <tr>
 <td><code>body</code></td>
 <td>the human-readable message — <em>and nothing else</em></td>
 </tr>
-
 <tr>
 <td><code>attributes</code></td>
 <td>the structured fields: <code>list</code>, <code>todo_id</code>, <code>user</code>, <code>error.type</code></td>
 </tr>
-
 <tr>
 <td><code>trace_id</code> / <code>span_id</code></td>
 <td>⭐ the correlation keys</td>
 </tr>
-
 <tr>
 <td>resource</td>
 <td>inherited: <code>service.name</code>, <code>service.version</code>, <code>deployment.environment</code></td>
@@ -186,64 +170,42 @@
 </tbody>
 </table>
 <p>The whole discipline of structured logging is one decision, made repeatedly: <strong>what goes in the body, and what goes in attributes.</strong></p>
-
 <p>The rule that works: the body should be a short, <em>constant</em> string that describes the kind of event. Everything variable goes in attributes. <code>&quot;todo created&quot;</code> with <code>{todo_id: &quot;...&quot;, list: &quot;work&quot;}</code> — never <code>&quot;todo abc-123 created in work&quot;</code>. The first can be counted, grouped and filtered. The second can only be grepped.</p>
-
 <h3>Two legitimate architectures</h3>
-
 <p>Both of these are used by serious teams in production, and it&rsquo;s worth knowing why you&rsquo;d pick each:</p>
-
 <p><strong>A. SDK → OTLP → Collector</strong> <em>(what we&rsquo;ll build)</em>
 Trace context correlation is automatic and clean. Cost: the logs SDK is still marked experimental in both languages.</p>
-
 <p><strong>B. stdout JSON → Collector <code>filelog</code> receiver</strong>
 Rock solid, works for any language and any third-party container, no experimental dependency. Cost: you inject the trace context into the JSON yourself, and you own the parsing config.</p>
-
 <p>We&rsquo;ll build A and demo B in 6.4.</p>
-
-<h2>Exercise 6.2 — Structured logging with trace context [~25 min] [checkpoint: 62]</h2>
-
+<h2>Exercise 6.2 — Structured logging with trace context [~25 min]</h2>
 <p><strong>You should be able to answer this by the end:</strong> <em>given an error log line, how do you get to the trace of the request that produced it?</em></p>
-
 <h3>Do</h3>
-
 <ol>
 <li>Set up the structured logger.</li>
 </ol>
-
 <div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
-
 <p>The app already uses pino, in <code>src/log.js</code>:</p>
-
 <pre><code class="language-js">const pino = require('pino');
 
 const log = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
 module.exports = { log };
 </code></pre>
-
 <p>There is nothing to install: <code>@opentelemetry/instrumentation-pino</code> is part of the
 auto-instrumentations bundle you added in Module 3, which is why those log lines have
 been reaching VictoriaLogs since then. What&rsquo;s missing is <em>structure</em>.</p>
-
 <p>Today the handlers call it like this — a message with the data melted into it:</p>
-
 <pre><code class="language-js">log.info('todo created ' + todo.id);
 </code></pre>
-
 <p>Change them to pass an attribute object first and a <strong>constant</strong> message second:</p>
-
 <pre><code class="language-js">const { log } = require('../log.js');
 
 log.info({ list: todo.list, todo_id: todo.id }, 'todo created');
 </code></pre>
-
 </div>
-
 <div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
-
 <p>The app already has a logger, in <code>todo_api/log.py</code>:</p>
-
 <pre><code class="language-python">import logging
 import os
 
@@ -257,43 +219,35 @@ logging.basicConfig(level=LEVEL)
 log = logging.getLogger(&quot;todo-api&quot;)
 log.setLevel(LEVEL)
 </code></pre>
-
 <p>There is nothing to install: <code>OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true</code>
 from Module 3 attached the SDK&rsquo;s <code>LoggingHandler</code> to the root logger, which is why those
 log lines have been reaching VictoriaLogs since then. What&rsquo;s missing is <em>structure</em>.</p>
-
 <blockquote>
 <p>📌 That comment about the root logger is not decoration. If you configure logging
 yourself before reading it, your <code>INFO</code> records vanish silently. It is the single most
 common way a Python service ends up with no logs in the backend and no error anywhere.</p>
 </blockquote>
-
 <p>Today the handlers call it like this — a message with the data melted into it:</p>
-
 <pre><code class="language-python">log.info(&quot;todo created %s&quot;, todo.id)
 </code></pre>
-
 <p>Change them to put the variable data in <code>extra</code> and keep the message <strong>constant</strong>:</p>
-
 <pre><code class="language-python">log.info(&quot;todo created&quot;, extra={&quot;list&quot;: todo.list, &quot;todo_id&quot;: todo.id})
 </code></pre>
-
 </div>
-
-<ol>
-<li><p><strong>Convert three existing log statements</strong> to structured form. Good candidates:</p>
-
+<ol start="2">
+<li>
+<p><strong>Convert three existing log statements</strong> to structured form. Good candidates:</p>
 <ul>
 <li>the create path (<code>todo created</code>)</li>
 <li>the complete path (<code>todo completed</code>)</li>
 <li>the cache path in <code>cache.js</code> / <code>cache.py</code> — log the key you looked up and whether it hit</li>
-</ul></li>
-
-<li><p><strong>Log the error path properly.</strong> Find the handler that returns a 500 when the title is empty (you met it in Module 1.2) and make it produce something actionable:</p></li>
+</ul>
+</li>
+<li>
+<p><strong>Log the error path properly.</strong> Find the handler that returns a 500 when the title is empty and make it produce something actionable:</p>
+</li>
 </ol>
-
 <div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
-
 <pre><code class="language-js">try {
   const todo = await createTodo(req.body);
   // ...
@@ -306,11 +260,8 @@ common way a Python service ends up with no logs in the backend and no error any
   res.status(500).json({ error: 'internal' });
 }
 </code></pre>
-
 </div>
-
 <div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
-
 <pre><code class="language-python">try:
     todo = create_todo(request.get_json())
     # ...
@@ -321,229 +272,155 @@ except Exception:
     })
     return jsonify(error=&quot;internal&quot;), 500
 </code></pre>
-
 </div>
-
 <p>Note what&rsquo;s in there: severity, the exception, and <strong>the attributes a colleague would need to reproduce it</strong>. <code>title_length</code> rather than <code>title</code>, because the title might contain something you shouldn&rsquo;t be storing — a habit worth forming now, and one we&rsquo;ll come back to in Module 10.</p>
-
-<ol>
-<li>Rebuild, then create a failing todo to generate one of these:</li>
+<ol start="4">
+<li>
+<p>Save the file, then create a failing todo to generate one of these:</p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>Once the API has restarted (watch its log terminal), in another terminal:</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8081/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;}'
+./loadgen.sh 2m
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>Once the API has restarted (watch its log terminal), in another terminal:</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;}'
+TRACK=py ./loadgen.sh 2m
+</code></pre>
+</div>
+</li>
 </ol>
-
-<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
-
-<p>Restart the API — Ctrl-C in its terminal, then ↑ Enter — and in another terminal:</p>
-
-<pre><code class="language-bash">   curl -s -X POST localhost:8081/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;}'
-   ./loadgen.sh 2m
-</code></pre>
-
-<p></div></p>
-
-<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
-
-<p>Restart the API — Ctrl-C in its terminal, then ↑ Enter — and in another terminal:</p>
-
-<pre><code class="language-bash">   curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;}'
-   TRACK=py ./loadgen.sh 2m
-</code></pre>
-
-<p></div></p>
-
 <h3>Verify in the Victoria UI</h3>
-
 <p>VictoriaLogs vmui (<code>http://localhost:9428/select/vmui</code>):</p>
-
 <pre><code>service.name:todo-api AND severity_text:ERROR
 </code></pre>
-
 <p>You should see: your <code>create todo failed</code> record. Open it and confirm all of these are present:</p>
-
 <ul>
 <li><code>list</code>, <code>title_length</code> as real fields, not text in the message</li>
 <li>a stack trace or exception type</li>
 <li><strong><code>trace_id</code> and <code>span_id</code></strong></li>
 </ul>
-
 <p>Then check that correlation holds on the happy path too:</p>
-
 <pre><code>service.name:todo-api AND _msg:&quot;todo created&quot; | fields _time, trace_id, list, todo_id
 </code></pre>
-
 <p>Every row must have a <code>trace_id</code>. <strong>If any row has an empty <code>trace_id</code>, that&rsquo;s the real exercise</strong> — go find out why.</p>
-
 <blockquote>
 <p>🔎 The two usual causes: on the JS side, logging from outside an active span context (a callback, a timer, a <code>setImmediate</code>). On the Python side, a logger that was created and configured <em>before</em> the handler was attached, so it never got the OTel handler.</p>
 </blockquote>
-
 <p>Finally, copy a <code>trace_id</code> from any log line and paste it into VictoriaTraces vmui:</p>
-
 <pre><code>trace_id:=&lt;paste it here&gt;
 </code></pre>
-
 <p>You should land on the exact request that produced that log line. That is the payoff, and it&rsquo;s the mechanism behind everything in Module 8.</p>
-
 <h3>Verify in Grafana</h3>
-
 <p>Explore → <strong>VictoriaLogs</strong> → same query. Switch on <strong>Live</strong> streaming and watch records arrive while the loadgen runs.</p>
-
 <h3>Think about</h3>
-
 <p>In Module 5.4, adding <code>todo_id</code> as a metric attribute was a disaster that consumed memory until you reset the database. Here, <code>todo_id</code> as a <strong>log attribute</strong> is not only fine, it&rsquo;s the single most useful field on the record.</p>
-
 <p>Same value. Opposite verdict. Why? Say the reason out loud — if you can articulate it, you&rsquo;ve understood the most practically important thing in this workshop.</p>
-
 <h3>If you&rsquo;re stuck</h3>
-
 <ul>
 <li><strong>Logs arrive but have no attributes.</strong> You&rsquo;re probably still interpolating into the message. <code>log.info(&quot;created &quot; + id)</code> produces a body and nothing else.</li>
 <li><strong>(JS) No <code>trace_id</code> anywhere.</strong> The pino instrumentation only patches pino instances created <em>after</em> the SDK loaded, and it only patches CommonJS <code>require()</code> calls. Check that the <code>--require</code> flag is still on the start command and that you did not turn <code>src/log.js</code> into an ES module.</li>
 <li><strong>(Python) Nothing reaches VictoriaLogs.</strong> Check <code>OTEL_LOGS_EXPORTER=otlp</code> is still set, and that you attached the handler to the root logger rather than a child.</li>
 </ul>
-
-<pre><code class="language-bash">./checkpoint.sh 62
-</code></pre>
-
 <h2>Exercise 6.3 — Streams and LogsQL [~25 min]</h2>
-
 <p><strong>You should be able to answer this by the end:</strong> <em>what is a VictoriaLogs stream, and what happens if you choose its fields badly?</em></p>
-
 <h3>Do</h3>
-
 <p><strong>Part 1 — Streams.</strong></p>
-
 <p>Back in Module 4 you read this line in the Collector config:</p>
-
 <pre><code class="language-yaml">headers:
   VL-Stream-Fields: &quot;service.name,deployment.environment&quot;
 </code></pre>
-
 <p>That defines what a <em>stream</em> is. VictoriaLogs groups records into streams and stores each stream&rsquo;s data together, which is what makes it fast and compact.</p>
-
 <ol>
-<li><p>Look at what your choice produced:</p>
-
+<li>
+<p>Look at what your choice produced:</p>
 <pre><code>_stream:{service.name=&quot;todo-api&quot;}
-</code></pre></li>
-
-<li><p>Now break it deliberately. In the Collector config, change the header to:</p></li>
-</ol>
-
-<pre><code class="language-yaml">   VL-Stream-Fields: &quot;service.name,trace_id&quot;
 </code></pre>
-
+</li>
+<li>
+<p>Now break it deliberately. In the Collector config, change the header to:</p>
+<pre><code class="language-yaml">VL-Stream-Fields: &quot;service.name,trace_id&quot;
+</code></pre>
 <p>Restart the Collector, run the loadgen for a minute, and observe. You&rsquo;ve just created one stream per request. Query performance degrades, storage grows, and the stream selector becomes useless.</p>
-
-<ol>
-<li>Change it back and restart. 🙏</li>
+</li>
+<li>
+<p>Change it back and restart. 🙏</p>
+</li>
 </ol>
-
 <p><strong>Part 2 — LogsQL, building up.</strong></p>
-
 <p>Paste each of these into VictoriaLogs vmui in order. Each one adds one idea:</p>
-
 <pre><code>service.name:todo-api
 </code></pre>
-
 <pre><code>service.name:todo-api AND severity_text:ERROR
 </code></pre>
-
 <pre><code>service.name:todo-api AND _time:5m | stats by (severity_text) count()
 </code></pre>
-
 <pre><code>service.name:todo-api | filter list:&quot;work&quot; | fields _time, _msg, trace_id
 </code></pre>
-
 <pre><code>_stream:{service.name=&quot;todo-api&quot;} | top 10 by (list)
 </code></pre>
-
 <p>Then try the three display modes in the UI — <strong>Group</strong>, <strong>Table</strong> and <strong>JSON</strong>. JSON mode shows the raw response from <code>/select/logsql/query</code>, which is exactly what you&rsquo;d get from a script or a CI check:</p>
-
 <pre><code class="language-bash">curl -s http://localhost:9428/select/logsql/query \
   --data-urlencode 'query=service.name:todo-api AND severity_text:ERROR AND _time:1h' | head -c 1000
 </code></pre>
-
 <h3>Verify in the Victoria UI</h3>
-
 <p>The <code>stats by (level) count()</code> query should return one row per severity present, with counts. If <code>ERROR</code> is missing, generate one with the empty-title curl from 6.2.</p>
-
 <h3>Verify in Grafana</h3>
-
 <p>Explore → VictoriaLogs. Try the same queries through the <strong>visual query builder</strong> and then switch to the raw LogsQL box to see what it generated. The builder is good for exploration; the raw box is what you&rsquo;ll paste into a runbook.</p>
-
 <h3>Think about</h3>
-
 <p>You just learned a query language. In Module 7 you&rsquo;ll query <strong>spans</strong> with the same one. What does that save you, compared with a stack where metrics, logs and traces each have their own syntax?</p>
-
 <h3>If you&rsquo;re stuck</h3>
-
 <ul>
 <li><strong><code>_stream:{...}</code> returns nothing.</strong> Stream selectors match the fields declared in <code>VL-Stream-Fields</code> at <em>ingest</em> time. Records written before your change have the old stream shape.</li>
 <li><strong><code>| stats</code> errors out.</strong> The pipe operators come after the filter, and <code>_time:5m</code> is a filter, not a pipe.</li>
 </ul>
-
 <h2>Exercise 6.4 — Grafana, plus the fallback path [~15 min]</h2>
-
 <p><strong>You should be able to answer this by the end:</strong> <em>when would you deliberately not use the logs SDK?</em></p>
-
 <h3>Do</h3>
-
 <ol>
-<li>Open the dashboard you built in Module 5.5 and add a <strong>Logs</strong> panel:
-
+<li>
+<p>Open the dashboard you built in Module 5.5 and add a <strong>Logs</strong> panel:</p>
 <ul>
 <li>Datasource: VictoriaLogs</li>
 <li>Query: <code>service.name:todo-api AND list:$list</code></li>
 <li>Place it under the business panels</li>
-</ul></li>
-</ol>
-
+</ul>
 <p>Now your <code>list</code> template variable filters metrics <em>and</em> logs together. This is the first taste of correlation, and it cost you one line.</p>
-
-<ol>
-<li><strong>Watch the demo — don&rsquo;t build it.</strong> Your facilitator will show the alternative architecture: the app writes JSON to stdout, and the Collector picks it up with a <code>filelog</code> receiver:</li>
-</ol>
-
-<pre><code class="language-yaml">   receivers:
-     filelog:
-       include: [/var/lib/docker/containers/*/*.log]
-       operators:
-         - type: json_parser
-           timestamp: { parse_from: attributes.time, layout: '%Y-%m-%dT%H:%M:%S.%fZ' }
-         - type: trace_parser
-           trace_id: { parse_from: attributes.trace_id }
-           span_id:  { parse_from: attributes.span_id }
+</li>
+<li>
+<p><strong>Watch the demo — don&rsquo;t build it.</strong> Your facilitator will show the alternative architecture: the app writes JSON to stdout, and the Collector picks it up with a <code>filelog</code> receiver:</p>
+<pre><code class="language-yaml">receivers:
+  filelog:
+    include: [/var/lib/docker/containers/*/*.log]
+    operators:
+      - type: json_parser
+        timestamp: { parse_from: attributes.time, layout: '%Y-%m-%dT%H:%M:%S.%fZ' }
+      - type: trace_parser
+        trace_id: { parse_from: attributes.trace_id }
+        span_id:  { parse_from: attributes.span_id }
 </code></pre>
-
 <p>Note the <code>trace_parser</code> operator: with this architecture you are responsible for getting <code>trace_id</code> into your JSON yourself, and then telling the Collector where to find it.</p>
-
-<ol>
-<li>Discuss when you&rsquo;d choose it:
-
+</li>
+<li>
+<p>When would you choose it?</p>
 <ul>
 <li>Third-party services you can&rsquo;t add an SDK to</li>
 <li>Languages where the logs SDK isn&rsquo;t ready</li>
 <li>Organisations that won&rsquo;t ship an experimental package to production</li>
 <li>Anywhere you already have good JSON logging and don&rsquo;t want to rebuild it</li>
-</ul></li>
+</ul>
+</li>
 </ol>
-
 <h3>Verify in Grafana</h3>
-
 <p>The dashboard&rsquo;s logs panel should respond to the <code>list</code> variable. Set it to <code>work</code>, then to <code>home</code>, and confirm the panel changes.</p>
-
 <h3>Think about</h3>
-
 <p>Architecture B decouples your application from OpenTelemetry almost entirely — the app just writes JSON. Is that a feature or a missed opportunity?</p>
-
 <h3>If you&rsquo;re stuck</h3>
-
 <ul>
 <li><strong>The logs panel ignores <code>$list</code>.</strong> In LogsQL the variable interpolates as a bare value: <code>list:$list</code> works, <code>list:&quot;$list&quot;</code> may not if the value contains no spaces. Check the panel&rsquo;s query inspector.</li>
 </ul>
-
 <h2>What We Accomplished</h2>
-
 <ul>
 <li>Logs that are records, not strings</li>
 <li>Every record carrying trace context, verified</li>
@@ -552,9 +429,7 @@ except Exception:
 <li>A logs panel wired to the same template variable as your metrics</li>
 <li>A clear-eyed view of the stdout+Collector alternative</li>
 </ul>
-
 <h2>Next Steps</h2>
-
 <p>Metrics tell you <em>that</em>. Logs tell you <em>what</em>. Continue with <a href="07-manual-traces.html">Module 7: Manual Traces</a> to find out <em>where</em> and <em>why</em>.</p>
 
         </article>

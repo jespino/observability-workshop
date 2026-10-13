@@ -118,32 +118,22 @@
     <div class="container">
         <article class="module-content">
             <h1>Module 10: Production Realities and Wrap-Up</h1>
-
 <p><strong>Duration:</strong> ~30 min · <strong>Talk, no exercises</strong></p>
-
 <p>Everything you built today ran on one laptop with one service and a load generator. Here&rsquo;s what changes when it doesn&rsquo;t. 🚀</p>
-
 <h2>Learning Objectives</h2>
-
 <p>By the end of this module, you will:</p>
-
 <ul>
 <li>Know where the money goes in each signal, and roughly how to reason about it</li>
 <li>Know what to redact and where to redact it</li>
 <li>Have seen alerting on both MetricsQL and LogsQL</li>
 <li>Have a concrete, ordered plan for rolling this out on a real team</li>
 </ul>
-
 <h2>Prerequisites</h2>
-
 <ul>
 <li>Module 9 completed, including the debrief</li>
 </ul>
-
 <h2>10.1 — Cost</h2>
-
 <p>Each signal has its own cost driver, and they fail differently.</p>
-
 <table>
 <thead>
 <tr>
@@ -152,20 +142,17 @@
 <th>What blows up</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td><strong>Metrics</strong></td>
 <td>Cardinality — active time series</td>
 <td>One unbounded attribute. You watched this happen in Module 5.4. Growth is <em>permanent</em> until retention expires</td>
 </tr>
-
 <tr>
 <td><strong>Logs</strong></td>
 <td>Volume — bytes ingested and stored</td>
 <td>A debug log left on in a hot loop. Growth is proportional to traffic, so it&rsquo;s at least predictable</td>
 </tr>
-
 <tr>
 <td><strong>Traces</strong></td>
 <td>Sampling rate × span count per trace</td>
@@ -174,17 +161,13 @@
 </tbody>
 </table>
 <p>Useful intuitions:</p>
-
 <ul>
 <li>Metrics cost is driven by <em>distinct label combinations</em>, not by request rate. Ten million requests over ten series is cheap. Ten thousand requests over ten million series is not.</li>
 <li>Log cost scales with traffic, which means you can forecast it. Metric cardinality cost scales with <em>carelessness</em>, which means you can&rsquo;t.</li>
 <li>A trace is worth roughly a thousand log lines during an incident and nothing at all the rest of the time. That asymmetry is why tail sampling exists.</li>
 </ul>
-
 <h2>10.2 — Retention</h2>
-
 <p>Different per signal, for good reasons:</p>
-
 <table>
 <thead>
 <tr>
@@ -193,20 +176,17 @@
 <th>Why</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td>Metrics</td>
 <td>6–13 months</td>
 <td>Cheap per unit and you need year-over-year comparisons</td>
 </tr>
-
 <tr>
 <td>Logs</td>
 <td>7–30 days</td>
 <td>Expensive per unit; most value is in the first hours</td>
 </tr>
-
 <tr>
 <td>Traces</td>
 <td>3–7 days</td>
@@ -214,27 +194,20 @@
 </tr>
 </tbody>
 </table>
-<p>You typed the flags yourself in Module 0.1:</p>
-
-<pre><code>victoria-metrics  -retentionPeriod=1   -search.latencyOffset=1s ...
-victoria-logs     -retentionPeriod=7d
-victoria-traces   -retentionPeriod=3d
+<p>The workshop sets them in <code>docker-compose.yml</code>:</p>
+<pre><code>victoriametrics  -retentionPeriod=1   -search.latencyOffset=1s ...
+victorialogs     -retentionPeriod=7d
+victoriatraces   -retentionPeriod=3d
 </code></pre>
-
 <p>The interesting production question isn&rsquo;t &ldquo;how long&rdquo; — it&rsquo;s &ldquo;what do I do with the <em>aggregate</em> when the detail expires&rdquo;. Recording rules that roll up a high-resolution metric into a low-resolution one are the standard answer.</p>
-
 <h2>10.3 — PII and compliance</h2>
-
 <p>Telemetry leaks personal data in three places, and log bodies are only the most obvious one:</p>
-
 <ol>
 <li><strong>Log bodies</strong> — someone logs the whole request object. Once.</li>
 <li><strong>Span attributes</strong> — a full URL with an email address in the query string, <code>db.query.text</code> with literal values in it.</li>
 <li><strong>Metric attributes</strong> — rarer, but a <code>user_email</code> label is both a privacy incident and a cardinality incident.</li>
 </ol>
-
 <p>This is one of the strongest arguments for the Collector architecture. You can enforce it <strong>centrally</strong>, once, rather than reviewing it in every service:</p>
-
 <pre><code class="language-yaml">processors:
   redaction:
     allow_all_keys: true
@@ -249,15 +222,10 @@ victoria-traces   -retentionPeriod=3d
         statements:
           - delete_key(attributes, &quot;authorization&quot;)
 </code></pre>
-
 <p>A service team that forgets is caught by the platform. That&rsquo;s a genuinely different security posture from &ldquo;we wrote it in the coding standards&rdquo;.</p>
-
 <p>Note the habit we started in Module 6.2: logging <code>title_length</code> rather than <code>title</code>. Redaction at the Collector is the safety net; not collecting it in the first place is the actual fix.</p>
-
 <h2>10.4 — Alerting</h2>
-
 <p><strong>vmalert</strong> evaluates rules and writes results back into VictoriaMetrics. The MetricsQL side is what you&rsquo;d expect:</p>
-
 <pre><code class="language-yaml">groups:
   - name: todo-api
     rules:
@@ -274,21 +242,15 @@ victoria-traces   -retentionPeriod=3d
         annotations:
           summary: &quot;todo-api error rate above 5% for 5 minutes&quot;
 </code></pre>
-
 <p>And here&rsquo;s the nice property of this stack: <strong>vmalert also runs LogsQL rules</strong>, against both VictoriaLogs and VictoriaTraces. So you can alert on a log pattern or a span condition and have the result land in VictoriaMetrics as an ordinary time series:</p>
-
 <pre><code class="language-yaml">- alert: CreateFailuresSpiking
   expr: 'service.name:todo-api AND severity_text:ERROR AND _msg:&quot;create todo failed&quot;'
   # evaluated by vmalert against VictoriaLogs
   for: 10m
 </code></pre>
-
 <p>That means one alerting system, one notification path, and rules over all three signals. Your facilitator will demo one rule firing.</p>
-
 <h2>10.5 — Rollout strategy for a real team</h2>
-
 <p>The order matters more than people expect. This one is battle-tested:</p>
-
 <ol>
 <li><strong>Auto-instrument everything.</strong> Every service, config only, no code changes. You&rsquo;ll be astonished how far this gets you, and it costs almost nothing to try.</li>
 <li><strong>Deploy a Collector</strong> and route everything through it. Do this early, before you have twenty services with hard-coded backend endpoints.</li>
@@ -297,20 +259,15 @@ victoria-traces   -retentionPeriod=3d
 <li><strong>Wire up correlation</strong> — the jumps from Module 8. This is where it starts feeling like a system rather than three tools.</li>
 <li><strong>Then, and only then</strong>, think about taxonomy, naming standards and governance.</li>
 </ol>
-
 <blockquote>
 <p>❌ <strong>Do not start by designing a metrics taxonomy.</strong> It&rsquo;s the most common failure mode: six weeks of meetings, a beautiful document, zero telemetry in production, and the enthusiasm gone. Ship step 1 this week instead.</p>
 </blockquote>
-
 <p>Two more pieces of advice that cost nothing:</p>
-
 <ul>
 <li><strong>Pick <code>service.name</code> values deliberately and never change them.</strong> They&rsquo;re the join key for everything.</li>
 <li><strong>Put your SDK setup in a shared internal package</strong> from day one. When you need to add a View, change a sampler or fix a resource attribute across the fleet, you&rsquo;ll be glad it&rsquo;s one dependency bump and not forty pull requests.</li>
 </ul>
-
 <h2>10.6 — What to read next</h2>
-
 <ul>
 <li><a href="https://opentelemetry.io/docs/specs/semconv/">OpenTelemetry Semantic Conventions registry</a> — skim the sections for the technologies you actually use</li>
 <li><a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor">Collector processor list</a> — you&rsquo;ll find something useful you didn&rsquo;t know existed</li>
@@ -318,11 +275,8 @@ victoria-traces   -retentionPeriod=3d
 <li><a href="https://docs.victoriametrics.com/victorialogs/logsql/">LogsQL</a> — the pipe operators, especially <code>stats</code> and <code>top</code></li>
 <li><a href="https://opentelemetry.io/docs/collector/">OpenTelemetry Collector documentation</a></li>
 </ul>
-
 <h2>Wrap-up</h2>
-
 <p>Look back at what you did today:</p>
-
 <ul>
 <li>Started with an application that emitted <strong>nothing</strong></li>
 <li>Got all three signals flowing without changing a line of it</li>
@@ -333,24 +287,17 @@ victoria-traces   -retentionPeriod=3d
 <li>Wired the three signals into one navigable system</li>
 <li>Diagnosed two unfamiliar faults using only telemetry</li>
 </ul>
-
 <p>Then look at the wall, at the answers from the Module 9 debrief. That list — <em>what I would add on Monday</em> — is the actual output of this workshop.</p>
-
 <p><strong>Please fill in the feedback form now, while you&rsquo;re still in the room.</strong> 📝 Not later by email. Later never happens.</p>
-
 <p>Thank you for spending the day on this. Go instrument something. 👋</p>
-
 <h2>What We Accomplished</h2>
-
 <ul>
 <li>A working model of where telemetry costs come from</li>
 <li>A central strategy for PII, and the habit that makes it unnecessary</li>
 <li>Alerting over all three signals from one system</li>
 <li>An ordered rollout plan you can start on Monday</li>
 </ul>
-
 <h2>Next Steps</h2>
-
 <p>That&rsquo;s the last module. Head back to the <a href="index.html">workshop index</a> — or better, open your own service and do step 1.</p>
 
         </article>

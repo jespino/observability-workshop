@@ -118,295 +118,204 @@
     <div class="container">
         <article class="module-content">
             <h1>Module 3: The Easy Path — Zero-Code Auto-Instrumentation</h1>
-
-<p><strong>Duration:</strong> ~60 min · <strong>Checkpoints: 31</strong></p>
-
+<p><strong>Duration:</strong> ~60 min</p>
 <p>In this module the application starts emitting metrics, logs and traces. You will not change a single line of application code to make that happen. Then we&rsquo;ll look hard at what that does — and doesn&rsquo;t — buy you. ⚡</p>
-
 <h2>Learning Objectives</h2>
-
 <p>By the end of this module, you will:</p>
-
 <ul>
 <li>Have all three signals flowing from <code>todo-api</code> into the Victoria backends, configured entirely through environment variables</li>
 <li>Be able to read a distributed trace and identify the semantic-convention attributes on a span</li>
 <li>Know your way around all three Victoria UIs and Grafana&rsquo;s Explore mode</li>
 <li>Be able to state precisely what auto-instrumentation cannot tell you, and why</li>
 </ul>
-
 <h2>Prerequisites</h2>
-
 <ul>
 <li>Modules 0–2 completed</li>
 <li>Stack running, <code>./doctor.sh</code> green</li>
 </ul>
-
-<h2>Exercise 3.1 — Turn it on [~20 min] [checkpoint: 31]</h2>
-
+<h2>Exercise 3.1 — Turn it on [~20 min]</h2>
 <p><strong>You should be able to answer this by the end:</strong> <em>which file did you have to edit to get telemetry, and which file did you not?</em></p>
-
 <h3>Do</h3>
-
 <div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
-
 <ol>
-<li>Add the two packages. Same shape as the install in Module 0.2 — a throwaway container
-writing into your bind-mounted source directory:</li>
-</ol>
-
-<pre><code class="language-bash">   docker run --rm \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-js/todo-api:/app&quot; -w /app \
-     node:22-slim npm install @opentelemetry/api @opentelemetry/auto-instrumentations-node
+<li>
+<p>Add the two packages to the <code>dependencies</code> in <code>track-js/todo-api/package.json</code>:</p>
+<pre><code class="language-json">&quot;dependencies&quot;: {
+  &quot;@opentelemetry/api&quot;: &quot;latest&quot;,
+  &quot;@opentelemetry/auto-instrumentations-node&quot;: &quot;latest&quot;,
+  &quot;express&quot;: &quot;^4.21.2&quot;,
+  ...
+}
 </code></pre>
-
-<p><code>package.json</code> and <code>node_modules/</code> on your laptop both changed. Nothing was baked into
-   an image, and no image was rebuilt.</p>
-
-<ol>
-<li>Create <code>track-js/todo-api/.env</code>. <strong>This is the only file you create, and the
-application never reads it</strong> — you pass it to the container with <code>--env-file</code>, exactly
-the way a deployment platform would hand environment to a process:</li>
-</ol>
-
-<pre><code class="language-bash">   OTEL_SERVICE_NAME=todo-api
-   OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
-   OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318
-   OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-   OTEL_TRACES_EXPORTER=otlp
-   OTEL_METRICS_EXPORTER=otlp
-   OTEL_LOGS_EXPORTER=otlp
-   OTEL_METRIC_EXPORT_INTERVAL=10000
-   OTEL_METRIC_EXPORT_TIMEOUT=5000
-   NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register
+<p>Your API&rsquo;s container runs <code>npm install</code> every time it starts, so there is nothing to
+install by hand. Nothing gets baked into an image, and no image is rebuilt.</p>
+</li>
+<li>
+<p>Create <code>track-js/todo-api/.env</code>. <strong>This is the only file you create, and the
+application never reads it</strong> — <code>docker-compose.yml</code> already hands it to the container
+as environment (<code>env_file:</code>), exactly the way a deployment platform would hand
+environment to a process:</p>
+<pre><code class="language-bash">OTEL_SERVICE_NAME=todo-api
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_TRACES_EXPORTER=otlp
+OTEL_METRICS_EXPORTER=otlp
+OTEL_LOGS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=10000
+OTEL_METRIC_EXPORT_TIMEOUT=5000
+NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register
 </code></pre>
-
 <p>That last line is the one that actually turns the SDK on. It is the canonical form:</p>
-
-<pre><code>   node --require @opentelemetry/auto-instrumentations-node/register src/server.js
+<pre><code>node --require @opentelemetry/auto-instrumentations-node/register src/server.js
 </code></pre>
-
 <blockquote>
-<p>🚨 <strong>Two things in that file will bite you if you change them.</strong></p>
-
-<p><strong>Do not put quotes around the <code>NODE_OPTIONS</code> value.</strong> Docker&rsquo;s <code>--env-file</code> takes the
-rest of the line literally, quotes included, so <code>NODE_OPTIONS=&quot;--require …&quot;</code> arrives
-with the quote marks still attached and Node ignores the whole thing. This is not
-how your shell behaves, and it is why the file has no quotes anywhere.</p>
-
-<p><strong>The endpoint is <code>host.docker.internal</code>, not <code>localhost</code>.</strong> Your API is in a
-container; the Collector is not. Inside the container, <code>localhost</code> is the container,
-and the SDK will spend all day failing to export to nothing.</p>
-
+<p>🚨 <strong>The endpoint is <code>otel-collector</code>, not <code>localhost</code>.</strong> That&rsquo;s the Collector&rsquo;s
+service name in <code>docker-compose.yml</code>. Inside your API&rsquo;s container, <code>localhost</code> is the
+container, and the SDK would spend all day failing to export to nothing.</p>
+</blockquote>
+<blockquote>
 <p>⚠️ The <code>--require</code> must load <strong>before</strong> your application code, or the instrumentation
 has nothing left to hook. It also only patches CommonJS <code>require()</code> calls, which is
 why this application is CommonJS and not ESM. With ESM you would get HTTP spans and
 silently lose Express, database and logging instrumentation — a genuinely nasty
 failure mode, because it looks like it worked.</p>
 </blockquote>
-
+</li>
+</ol>
 </div>
-
 <div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
-
 <ol>
-<li>Add the packages to <code>track-py/todo-api/requirements.txt</code>:
-<code>
-opentelemetry-distro
+<li>
+<p>Add the packages to <code>track-py/todo-api/requirements.txt</code>:</p>
+<pre><code>opentelemetry-distro
 opentelemetry-exporter-otlp
-</code></li>
-</ol>
-
-<p>Then install them, the same way as in Module 0.2 — plus one extra command:</p>
-
-<pre><code class="language-bash">   docker run --rm \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-py/todo-api:/app&quot; -w /app \
-     -e PYTHONUSERBASE=/app/.pylibs \
-     -e PATH=/app/.pylibs/bin:/usr/local/bin:/usr/bin:/bin \
-     python:3.12-slim \
-     sh -c 'pip install --user --no-warn-script-location -r requirements.txt \
-            &amp;&amp; opentelemetry-bootstrap -a install'
 </code></pre>
-
+<p>Your API&rsquo;s container runs <code>pip install</code> every time it starts, so there is nothing to
+install by hand.</p>
 <blockquote>
-<p>ℹ️ <code>opentelemetry-distro</code> pulls in <code>opentelemetry-bootstrap</code>, and that second command
-is what makes the difference between &ldquo;traces only&rdquo; and all three signals. It scans
-your installed dependencies and installs a matching instrumentation library for each
-framework it recognises — Flask, psycopg, requests, logging. Skip it and you will
-wonder where your database spans went.</p>
+<p>ℹ️ <code>opentelemetry-distro</code> pulls in <code>opentelemetry-bootstrap</code>, which the container also
+runs on start once it exists. It is what makes the difference between &ldquo;traces only&rdquo;
+and all three signals: it scans your installed dependencies and installs a matching
+instrumentation library for each framework it recognises — Flask, psycopg, requests,
+logging. Without it you would wonder where your database spans went.</p>
 </blockquote>
-
-<ol>
-<li>Create <code>track-py/todo-api/.env</code>. <strong>This is the only file you create, and the application
-never reads it</strong> — you pass it to the container with <code>--env-file</code>, exactly the way a
-deployment platform would hand environment to a process:</li>
-</ol>
-
-<pre><code class="language-bash">   OTEL_SERVICE_NAME=todo-api
-   OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
-   OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318
-   OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-   OTEL_TRACES_EXPORTER=otlp
-   OTEL_METRICS_EXPORTER=otlp
-   OTEL_LOGS_EXPORTER=otlp
-   OTEL_METRIC_EXPORT_INTERVAL=10000
-   OTEL_METRIC_EXPORT_TIMEOUT=5000
-   OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
-   OTEL_PYTHON_LOG_CORRELATION=true
+</li>
+<li>
+<p>Create <code>track-py/todo-api/.env</code>. <strong>This is the only file you create, and the application
+never reads it</strong> — <code>docker-compose.yml</code> already hands it to the container as environment
+(<code>env_file:</code>), exactly the way a deployment platform would hand environment to a process:</p>
+<pre><code class="language-bash">OTEL_SERVICE_NAME=todo-api
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_TRACES_EXPORTER=otlp
+OTEL_METRICS_EXPORTER=otlp
+OTEL_LOGS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=10000
+OTEL_METRIC_EXPORT_TIMEOUT=5000
+OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
+OTEL_PYTHON_LOG_CORRELATION=true
 </code></pre>
-
 <blockquote>
-<p>🚨 <strong>The endpoint is <code>host.docker.internal</code>, not <code>localhost</code>.</strong> Your API is in a
-container; the Collector is not. Inside the container, <code>localhost</code> is the container,
-and the SDK will spend all day failing to export to nothing. Also note there are no
-quotes anywhere in that file: Docker&rsquo;s <code>--env-file</code> takes the rest of each line
-literally, quote marks included.</p>
+<p>🚨 <strong>The endpoint is <code>otel-collector</code>, not <code>localhost</code>.</strong> That&rsquo;s the Collector&rsquo;s
+service name in <code>docker-compose.yml</code>. Inside your API&rsquo;s container, <code>localhost</code> is the
+container, and the SDK would spend all day failing to export to nothing.</p>
 </blockquote>
-
 <p>Unlike the JavaScript track, no environment variable can turn the Python SDK on. You
-   change the <strong>command</strong> instead, in the next step, giving you the canonical form:</p>
-
-<pre><code>   opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
+change the <strong>command</strong> instead. In <code>docker-compose.yml</code>, find the <code>todo-api-py</code> service
+and put <code>opentelemetry-instrument</code> in front of <code>gunicorn</code>:</p>
+<pre><code class="language-yaml">    command: opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
 </code></pre>
-
-</div>
-
-<ol>
-<li>Restart your API. Ctrl-C in its terminal — and this time the command changes, so don&rsquo;t
-just press ↑. Two additions to the Module 0.2 command:</li>
-</ol>
-
-<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
-
-<pre><code class="language-bash">   docker run --rm -it --name workshop-todo-api \
-     -p 8081:8081 \
-     --add-host=host.docker.internal:host-gateway \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-js/todo-api:/app&quot; -w /app \
-     --env-file track-js/todo-api/.env \
-     -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-     -e NOTIFY_URL=http://host.docker.internal:8083 \
-     -e PORT=8081 \
-     node:22-slim node src/server.js
-</code></pre>
-
-<p>The only new thing is <code>--env-file track-js/todo-api/.env</code>. The image is the same, the
-   command is the same, your source is the same. <strong>This</strong> is the command you press ↑ for
-   from now on.</p>
-
-<p></div></p>
-
-<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
-
-<pre><code class="language-bash">   docker run --rm -it --name workshop-todo-api \
-     -p 8082:8082 \
-     --add-host=host.docker.internal:host-gateway \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-py/todo-api:/app&quot; -w /app \
-     --env-file track-py/todo-api/.env \
-     -e PYTHONUSERBASE=/app/.pylibs \
-     -e PATH=/app/.pylibs/bin:/usr/local/bin:/usr/bin:/bin \
-     -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-     -e NOTIFY_URL=http://host.docker.internal:8084 \
-     python:3.12-slim opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
-</code></pre>
-
-<p>Two new things: <code>--env-file track-py/todo-api/.env</code>, and <code>opentelemetry-instrument</code> in
-   front of <code>gunicorn</code>. The image is the same and your source is unchanged. <strong>This</strong> is the
-   command you press ↑ for from now on.</p>
-
+<p>That is the canonical form. Don&rsquo;t add gunicorn&rsquo;s <code>--reload</code>: the container already
+restarts the whole command when a file changes, and under <code>opentelemetry-instrument</code>
+gunicorn&rsquo;s own reloader silently stops logs from being exported.</p>
 <blockquote>
-<p>⚠️ Do <strong>not</strong> add <code>--preload</code> to gunicorn. With <code>--preload</code>, the SDK is initialised
-before forking and the workers emit nothing at all. If you must preload, initialise
-the SDK in a <code>post_fork</code> hook instead.</p>
+<p>⚠️ Do <strong>not</strong> add <code>--preload</code> to gunicorn either. With <code>--preload</code>, the SDK is
+initialised before forking and the workers emit nothing at all. If you must preload,
+initialise the SDK in a <code>post_fork</code> hook instead.</p>
 </blockquote>
-
-<p></div></p>
-
-<ol>
-<li>Generate traffic in another terminal:</li>
+</li>
 </ol>
-
-<pre><code class="language-bash">   ./loadgen.sh 2m
+</div>
+<ol start="3">
+<li>
+<p>Recreate your API&rsquo;s container, so it picks up the new environment and installs the new
+dependencies. Saving a source file is not enough this time — the container&rsquo;s
+configuration changed, not your code:</p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-js
 </code></pre>
-
+<p>Then open a second terminal and follow your API&rsquo;s log in it. Keep it open for the rest
+of the day — the handouts call it your <em>log terminal</em>:</p>
+<pre><code class="language-bash">docker compose logs -f todo-api-js
+</code></pre>
+<p>Wait for <code>OpenTelemetry automatic instrumentation started successfully</code>. The image is the same, the command is the same, your source is the same.
+The only new thing is the environment.</p>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-py
+</code></pre>
+<p>Then open a second terminal and follow your API&rsquo;s log in it. Keep it open for the rest
+of the day — the handouts call it your <em>log terminal</em>:</p>
+<pre><code class="language-bash">docker compose logs -f todo-api-py
+</code></pre>
+<p>It shows the new packages installing, then gunicorn starting. The image
+is the same and your source is unchanged. The new things are the environment and one word
+in front of the command.</p>
+</div>
+</li>
+<li>
+<p>Generate traffic in another terminal:</p>
+<pre><code class="language-bash">./loadgen.sh 2m
+</code></pre>
+</li>
+</ol>
 <p>Two settings in that block deserve an explanation rather than a copy-paste:</p>
-
 <ul>
 <li><strong><code>OTEL_METRIC_EXPORT_INTERVAL: 10000</code>.</strong> The default is 60 seconds. In a workshop, sixty seconds of nothing reads as &ldquo;it&rsquo;s broken&rdquo;. Ten seconds keeps the room sane. In production you&rsquo;d leave it at the default — you&rsquo;re paying for every export.</li>
 <li><strong><code>OTEL_METRIC_EXPORT_TIMEOUT: 5000</code>.</strong> It has to be less than the interval, and its default is 30 seconds. Lower the interval without lowering this and the JavaScript SDK refuses to initialise at all: one line on stderr, then no telemetry of any kind. A configuration error that disables everything is worth seeing once.</li>
-<li><strong><code>-search.latencyOffset=1s</code> on VictoriaMetrics</strong> — one of the flags you typed in Module 0.1. By default VM hides the most recent 30 seconds of data, so that a partially-written interval never produces a misleading graph. That&rsquo;s correct behaviour and wrong for a classroom. Worth noticing that <em>correctness</em> and <em>freshness</em> are in genuine tension here.</li>
+<li><strong><code>-search.latencyOffset=1s</code> on VictoriaMetrics</strong> — set in <code>docker-compose.yml</code>. By default VM hides the most recent 30 seconds of data, so that a partially-written interval never produces a misleading graph. That&rsquo;s correct behaviour and wrong for a classroom. Worth noticing that <em>correctness</em> and <em>freshness</em> are in genuine tension here.</li>
 </ul>
-
 <h3>Verify in the Victoria UI</h3>
-
 <p><strong>Traces</strong> — <code>http://localhost:10428/select/vmui</code>, paste:</p>
-
 <pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api
 </code></pre>
-
 <p>You should see: spans arriving within ~10 seconds. Open one for <code>POST /todos</code> and expand it.</p>
-
 <p><strong>Metrics</strong> — <code>http://localhost:8428/vmui</code>, paste:</p>
-
 <pre><code>{__name__=~&quot;http.*&quot;}
 </code></pre>
-
 <p>You should see: a handful of HTTP server series that did not exist in Module 0.</p>
-
 <p><strong>Logs</strong> — <code>http://localhost:9428/select/vmui</code>, paste:</p>
-
 <pre><code>service.name:todo-api
 </code></pre>
-
 <p>You should see: your app&rsquo;s existing <code>console.log</code> / <code>logging.info</code> output, now stored and searchable — but arriving as unstructured text in the message body.</p>
-
 <h3>Verify in Grafana</h3>
-
 <p>Grafana → <strong>Explore</strong> → <strong>VictoriaMetrics</strong> datasource → run:</p>
-
 <pre><code>rate(http_server_duration_milliseconds_count[1m])
 </code></pre>
-
 <p>You should see a line that responds when you run the loadgen.</p>
-
 <h3>Think about</h3>
-
 <p>You changed a start command and some environment variables. You did not change the application. What class of problem does that make auto-instrumentation the right tool for — and what does it imply about rolling this out across fifty services on Monday?</p>
-
 <h3>If you&rsquo;re stuck</h3>
-
 <ul>
-<li><strong>No data at all after 60 seconds.</strong> Read the Collector&rsquo;s terminal — it is right there, in the foreground. A refused connection means the endpoint or protocol variable is wrong. Note that <code>http/protobuf</code> goes to port <strong>4318</strong>, gRPC to <strong>4317</strong> — mixing them up is the single most common mistake.</li>
-<li><strong>Nothing at all, and the Collector&rsquo;s terminal is silent.</strong> Then nothing ever reached it. In order: is the endpoint <code>host.docker.internal</code> and not <code>localhost</code>? Does <code>docker exec workshop-todo-api env | grep OTEL</code> show your variables? Does <code>grep -n '\&quot;' track-*/todo-api/.env</code> find a stray quote mark?</li>
+<li><strong>No data at all after 60 seconds.</strong> Read the Collector&rsquo;s log — <code>docker compose logs -f otel-collector</code>. A refused connection means the endpoint or protocol variable is wrong. Note that <code>http/protobuf</code> goes to port <strong>4318</strong>, gRPC to <strong>4317</strong> — mixing them up is the single most common mistake.</li>
+<li><strong>Nothing at all, and the Collector&rsquo;s log is silent.</strong> Then nothing ever reached it. In order: is the endpoint <code>otel-collector</code> and not <code>localhost</code>? Did you recreate the container after creating <code>.env</code>? Does <code>docker compose exec todo-api-js env | grep OTEL</code> (or <code>todo-api-py</code>) show your variables?</li>
 <li><strong>(JS) One error line on startup, then normal logs and no telemetry.</strong> Read that line. <code>exportIntervalMillis must be greater than or equal to exportTimeoutMillis</code> means <code>OTEL_METRIC_EXPORT_TIMEOUT=5000</code> is missing from your <code>.env</code>.</li>
-<li><strong>(Python) Traces appear but nothing else.</strong> <code>opentelemetry-bootstrap -a install</code> didn&rsquo;t run, or <code>OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true</code> is missing from your <code>.env</code>. To start over cleanly: <code>rm -rf track-py/todo-api/.pylibs</code>, then re-run step 1.</li>
+<li><strong>(Python) Traces appear but nothing else.</strong> <code>opentelemetry-bootstrap</code> didn&rsquo;t run, or <code>OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true</code> is missing from your <code>.env</code>. Read the start of <code>docker compose logs todo-api-py</code>: the bootstrap step runs there, before gunicorn starts.</li>
 </ul>
-
-<pre><code class="language-bash">./checkpoint.sh 31
-</code></pre>
-
 <h2>Exercise 3.2 — Explore what arrived [~25 min]</h2>
-
 <p><strong>You should be able to answer this by the end:</strong> <em>what did the SDK learn about your application without being told anything?</em></p>
-
 <h3>Do</h3>
-
 <ol>
 <li>Make sure there&rsquo;s traffic: <code>./loadgen.sh 2m</code>.</li>
 <li>Work through each of the four UIs below. Don&rsquo;t skim — you&rsquo;ll be living in these for the rest of the day.</li>
 </ol>
-
 <h3>Verify in the Victoria UI</h3>
-
 <p><strong>VictoriaTraces</strong> (<code>http://localhost:10428/select/vmui</code>) — find a trace for a create:</p>
-
 <pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api name:=&quot;POST /todos&quot;
 </code></pre>
-
 <p>Open one and look at the span tree you got for free:</p>
-
 <pre><code>POST /todos                          ← HTTP server span, named by route
 ├── middleware - jsonParser          ← the web framework's own layers
 ├── middleware - query
@@ -416,13 +325,11 @@ the SDK in a <code>post_fork</code> hook instead.</p>
 └── POST                             ← outbound HTTP to notify-service
     └── POST /notify                 ← and the *other service's* span, same trace
 </code></pre>
-
 <p>Nobody wrote any of that. Note in particular the last two lines: the trace already
 crosses a service boundary <strong>and</strong> a language boundary, because the HTTP client
 instrumentation injected a <code>traceparent</code> header on the way out and the other service&rsquo;s
 HTTP server instrumentation read it on the way in. You&rsquo;ll break and repair exactly this
 in Module 7.4.</p>
-
 <blockquote>
 <p>🔑 <strong>VictoriaTraces field names.</strong> Resource attributes are stored under a
 <code>resource_attr:</code> prefix and span attributes under <code>span_attr:</code>, so the field name
@@ -431,85 +338,57 @@ contains a colon and has to be quoted:
 <code>:=</code> is an exact match. Span fields with no prefix are <code>name</code>, <code>kind</code>, <code>duration</code>,
 <code>status_code</code>, <code>trace_id</code>, <code>span_id</code> and <code>parent_span_id</code>.</p>
 </blockquote>
-
 <p>Click a single span and read its attributes. Find these three, which are <strong>semantic conventions</strong> — standard names that every OTel-instrumented service in the world uses:</p>
-
 <ul>
 <li><code>span_attr:http.method</code></li>
 <li><code>span_attr:http.target</code></li>
 <li><code>span_attr:db.system</code></li>
 </ul>
-
 <p><strong>VictoriaMetrics</strong> (<code>http://localhost:8428/vmui</code>) — see what showed up:</p>
-
 <pre><code>{__name__=~&quot;http.*&quot;}
 </code></pre>
-
 <p>then</p>
-
 <pre><code>rate(http_server_duration_milliseconds_count[1m])
 </code></pre>
-
 <blockquote>
 <p>⚠️ <strong>Compare notes with the other track now — this is the most useful five minutes in the module.</strong></p>
-
 <p>Run <code>count by (service_name, __name__) ({__name__=~&quot;http.*&quot;})</code> in vmui. You will find:</p>
-
 <ul>
 <li>The <strong>Python track&rsquo;s</strong> <code>todo-api</code> emits <code>http_server_duration_milliseconds_{count,sum,bucket}</code>.</li>
 <li>The <strong>JavaScript track&rsquo;s</strong> <code>todo-api</code> emits <strong>no HTTP metrics at all.</strong> Not differently-named ones. None.</li>
 </ul>
-
 <p>This is not a bug in the workshop. <code>@opentelemetry/instrumentation-http</code> does not
 record server duration metrics, while <code>opentelemetry-instrumentation-flask</code> does. Both
 tracks get identical <em>traces</em> and identical <em>logs</em>; the metrics signal is where they
 diverge.</p>
-
 <p>Sit with what that means. &ldquo;We auto-instrumented everything, so we have metrics&rdquo; is a
 sentence that can be false in one language and true in another, in the same fleet, with
 nobody noticing until a dashboard is empty during an incident. You will fix this for
 the JS track in Module 8.1, by generating the metrics from the spans instead — which is
 the general answer to this whole class of problem.</p>
 </blockquote>
-
 <p><strong>VictoriaLogs</strong> (<code>http://localhost:9428/select/vmui</code>):</p>
-
 <pre><code>service.name:todo-api
 </code></pre>
-
 <p>Look at the shape of what arrived. The message is a blob of text in <code>_msg</code>. There is no
 <code>list</code> field, no <code>todo_id</code> field, nothing you can filter or aggregate on. Fixing that is
 Module 6.</p>
-
 <blockquote>
 <p>🔑 <strong>VictoriaLogs field names</strong>, for contrast with the traces box above: the message is
 <code>_msg</code>, the level is <code>severity_text</code>, and resource attributes are plain fields —
 <code>service.name:todo-api</code>, no prefix, no quoting. Same query language, two different
 schemas. Worth noticing now rather than in the middle of an incident.</p>
 </blockquote>
-
 <h3>Verify in Grafana</h3>
-
-<p>Grafana is the ninth thing you start today, and the last. We left it until now because
-until now there was nothing to look at:</p>
-
-<pre><code class="language-bash">docker run -d --name workshop-grafana \
-  -p 3000:3000 \
-  --add-host=host.docker.internal:host-gateway \
-  -e GF_SECURITY_ADMIN_USER=admin \
-  -e GF_SECURITY_ADMIN_PASSWORD=admin \
-  -e GF_INSTALL_PLUGINS=victoriametrics-metrics-datasource,victoriametrics-logs-datasource \
-  -e GF_FEATURE_TOGGLES_ENABLE=correlations,traceToMetrics,traceqlEditor \
-  -v &quot;$PWD/grafana/provisioning:/etc/grafana/provisioning:ro&quot; \
-  grafana/grafana:12.3.1
+<p>Grafana is the last thing you start today. It has been sitting in <code>docker-compose.yml</code>
+since Module 0, behind its own profile; we left it until now because until now there was
+nothing to look at. Naming the service starts it:</p>
+<pre><code class="language-bash">docker compose up -d grafana
 </code></pre>
-
 <p>First boot takes a minute — it installs the two VictoriaMetrics plugins. Watch it with
-<code>docker logs -f workshop-grafana</code>, then open <a href="http://localhost:3000">http://localhost:3000</a> and log in with
+<code>docker compose logs -f grafana</code>, then open <a href="http://localhost:3000">http://localhost:3000</a> and log in with
 <code>admin</code> / <code>admin</code>.</p>
-
 <p><strong>Connections → Data sources.</strong> Four are pre-provisioned from <code>grafana/provisioning</code>:</p>
-
 <table>
 <thead>
 <tr>
@@ -518,131 +397,101 @@ until now there was nothing to look at:</p>
 <th>Points at</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td>VictoriaMetrics</td>
 <td><code>victoriametrics-metrics-datasource</code></td>
-<td><code>host.docker.internal:8428</code></td>
+<td><code>victoriametrics:8428</code></td>
 </tr>
-
 <tr>
 <td>VictoriaLogs</td>
 <td><code>victoriametrics-logs-datasource</code></td>
-<td><code>host.docker.internal:9428</code></td>
+<td><code>victorialogs:9428</code></td>
 </tr>
-
 <tr>
 <td>VictoriaTraces (Jaeger)</td>
 <td><code>jaeger</code> (core, no plugin)</td>
-<td><code>host.docker.internal:10428/select/jaeger</code></td>
+<td><code>victoriatraces:10428/select/jaeger</code></td>
 </tr>
-
 <tr>
 <td>VictoriaTraces (Tempo)</td>
 <td><code>tempo</code> (core, no plugin)</td>
-<td><code>host.docker.internal:10428/select/tempo</code></td>
+<td><code>victoriatraces:10428/select/tempo</code></td>
 </tr>
 </tbody>
 </table>
 <p>Click into each and hit <strong>Save &amp; test</strong>. All four must go green.</p>
-
 <p>Note the host in that last column, and note that it is <em>not</em> what you type in your own
-browser. Grafana is in a container and the three backends are not, so from Grafana&rsquo;s point
-of view they live on <code>host.docker.internal</code> — the same reason your API&rsquo;s <code>.env</code> says it.
-You reach the very same processes at <code>localhost</code>, because you are not in a container.</p>
-
+browser. Grafana is in the same Compose project as the three backends, so it reaches them
+by service name, exactly like the Collector does, and exactly like your API reaches
+<code>otel-collector</code>. You reach the very same containers at <code>localhost</code>, through the ports
+Compose published on your laptop, because you are not in a container.</p>
 <p>Then:</p>
-
 <ol>
 <li><strong>Explore → VictoriaMetrics</strong> — same query as above, better graph.</li>
 <li><strong>Explore → VictoriaTraces (Jaeger)</strong> — search by service <code>todo-api</code>. You get the familiar waterfall view. This works because VictoriaTraces implements the Jaeger query API; there&rsquo;s no plugin involved.</li>
 <li><strong>Explore → VictoriaLogs</strong> — same query as above, with a visual query builder alongside the raw LogsQL box.</li>
 <li><strong>Demo (watch, don&rsquo;t build):</strong> the <strong>VictoriaTraces (Tempo)</strong> datasource points at <code>/select/tempo</code> and unlocks Grafana&rsquo;s <strong>Traces Drilldown</strong> app — RED panels generated from your spans with no dashboard to build. It&rsquo;s experimental; treat it as a preview rather than something to depend on.</li>
 </ol>
-
 <h3>Think about</h3>
-
 <p>Look at the trace tree again. Which of those spans came from a library the OpenTelemetry project maintains, and which came from your business logic? Count them.</p>
-
 <h3>If you&rsquo;re stuck</h3>
-
 <ul>
-<li><strong>Traces show only the HTTP span, no children.</strong> The database and framework instrumentations load with the SDK. Check what the container actually got: <code>docker exec workshop-todo-api env | grep -E 'NODE_OPTIONS|OTEL'</code>. On the Python track, check <code>opentelemetry-bootstrap -a install</code> ran.</li>
-<li><strong>Grafana&rsquo;s Jaeger datasource returns nothing but vmui has data.</strong> Check the datasource URL — it must be <code>http://host.docker.internal:10428/select/jaeger</code>, with <code>/select/jaeger</code> on the end.</li>
-<li><strong>Grafana can&rsquo;t reach any datasource.</strong> You started it without <code>--add-host=host.docker.internal:host-gateway</code>. <code>docker rm -f workshop-grafana</code> and run the command again.</li>
+<li><strong>Traces show only the HTTP span, no children.</strong> The database and framework instrumentations load with the SDK. Check what the container actually got: <code>docker compose exec todo-api-js env | grep -E 'NODE_OPTIONS|OTEL'</code>. On the Python track, check the start of <code>docker compose logs todo-api-py</code> for the bootstrap step.</li>
+<li><strong>Grafana&rsquo;s Jaeger datasource returns nothing but vmui has data.</strong> Check the datasource URL — it must be <code>http://victoriatraces:10428/select/jaeger</code>, with <code>/select/jaeger</code> on the end.</li>
+<li><strong>Grafana can&rsquo;t reach any datasource.</strong> Check that the three backends are up (<code>docker compose ps</code>) and that Grafana was started through Compose, not with a <code>docker run</code> of its own — only containers in the Compose project can resolve <code>victoriametrics</code>, <code>victorialogs</code> and <code>victoriatraces</code>.</li>
 </ul>
-
 <h2>Exercise 3.3 — Find the ceiling [~15 min]</h2>
-
 <p><strong>You should be able to answer this by the end:</strong> <em>what is auto-instrumentation structurally unable to tell you?</em></p>
-
 <h3>Do</h3>
-
 <p>Here are three questions a product owner or an on-call engineer would genuinely ask. Try to answer each one with the telemetry you now have. <strong>You are expected to fail at all three.</strong> Spend five minutes trying anyway — the failure is the lesson.</p>
-
 <ol>
-<li><p><strong>&ldquo;How many todos were created today, broken down by list?&rdquo;</strong>
-Try: VictoriaMetrics vmui, look for anything resembling a business event.</p></li>
-
-<li><p><strong>&ldquo;Which user hit that error?&rdquo;</strong>
-Try: VictoriaLogs, <code>service.name:todo-api AND _time:1h</code>, and attempt to filter by user.</p></li>
-
-<li><p><strong>&ldquo;Why was <em>this specific</em> request slow?&rdquo;</strong>
-Try: find a slow trace in VictoriaTraces. You&rsquo;ll see a slow <code>pg</code> span. Now say <em>which application decision</em> produced that query.</p></li>
+<li>
+<p><strong>&ldquo;How many todos were created today, broken down by list?&rdquo;</strong>
+Try: VictoriaMetrics vmui, look for anything resembling a business event.</p>
+</li>
+<li>
+<p><strong>&ldquo;Which user hit that error?&rdquo;</strong>
+Try: VictoriaLogs, <code>service.name:todo-api AND _time:1h</code>, and attempt to filter by user.</p>
+</li>
+<li>
+<p><strong>&ldquo;Why was <em>this specific</em> request slow?&rdquo;</strong>
+Try: find a slow trace in VictoriaTraces. You&rsquo;ll see a slow <code>pg</code> span. Now say <em>which application decision</em> produced that query.</p>
+</li>
 </ol>
-
 <h3>Verify in the Victoria UI</h3>
-
 <p>For question 1, this is the closest you can get — and only on the Python track, per the
 note above:</p>
-
 <pre><code>sum(rate(http_server_duration_milliseconds_count{http_method=&quot;POST&quot;, http_target=&quot;/todos&quot;}[5m]))
 </code></pre>
-
 <p>That&rsquo;s a rate of HTTP requests. It counts failed creates, retries and health checks from
 your load generator. It is <em>not</em> the number of todos created, and no amount of query
 cleverness will make it one. On the JavaScript track you cannot even get this far.</p>
-
 <h3>Verify in Grafana</h3>
-
 <p>Try building a panel titled &ldquo;Todos created per list&rdquo;. Get as far as you can. Notice exactly where you stop.</p>
-
 <h3>Think about</h3>
-
-<p>Go back to the three questions you sorted in Module 1.2 — which was a logging problem, which tracing, which metrics. Were you right?</p>
-
+<p>A todo with an empty title returns a 500. Three questions about it: <em>which function raised?</em>, <em>was the database touched before it failed?</em>, <em>how many users hit this today?</em> Which of them is a logging problem, which a tracing problem, which a metrics problem — and which can you answer right now, with only auto-instrumentation?</p>
 <h3>If you&rsquo;re stuck</h3>
-
 <p>You&rsquo;re supposed to be stuck. That&rsquo;s the exercise. 🙂</p>
-
 <h2>The takeaway</h2>
-
 <blockquote>
 <p><strong>Auto-instrumentation gives you the plumbing, not the meaning.</strong></p>
 </blockquote>
-
 <p>It knows about HTTP, Express or Flask, and Postgres, because those are standard, popular, and someone wrote an instrumentation library for them. It knows nothing about todos, lists, urgency or users — and nothing at all about that in-process cache, because no library was involved in it. Nobody has ever seen your domain.</p>
-
 <p>Everything from here on is about adding the meaning:</p>
-
 <ul>
 <li>Module 5 adds <strong>business metrics</strong> — the numbers your product owner asks for</li>
 <li>Module 6 adds <strong>structured logs</strong> — the fields you filter incidents by</li>
 <li>Module 7 adds <strong>domain spans</strong> — the &ldquo;which application decision&rdquo; that question 3 needed</li>
 </ul>
-
 <h2>What We Accomplished</h2>
-
 <ul>
 <li>All three signals flowing, with zero application code changed</li>
 <li>A trace that spans two services and two languages, obtained for free</li>
 <li>Familiarity with all four UIs</li>
 <li>A precise, hands-on understanding of where the easy path runs out</li>
 </ul>
-
 <h2>Next Steps</h2>
-
 <p>Before adding meaning, let&rsquo;s demystify the box in the middle. Continue with <a href="04-the-collector.html">Module 4: The Collector, and Where the Data Actually Goes</a>.</p>
 
         </article>

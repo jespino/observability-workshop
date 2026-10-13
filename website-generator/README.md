@@ -61,7 +61,7 @@ go run . -serve -port 3001
 ## How It Works
 
 1. **Reads Markdown Files**: For each configured language, reads one file per module from the modules directory
-2. **Converts to HTML**: Uses [blackfriday](https://github.com/russross/blackfriday) to convert markdown to HTML
+2. **Converts to HTML**: Uses [goldmark](https://github.com/yuin/goldmark) (CommonMark + GitHub tables) to convert markdown to HTML
 3. **Applies Templates**: Wraps content in HTML templates with navigation and styling
 4. **Fixes Links**: Converts relative markdown links to HTML links
 5. **Generates Index**: Creates an index page with all modules listed
@@ -94,7 +94,7 @@ website-generator/
 
 ## Dependencies
 
-- [blackfriday v2](https://github.com/russross/blackfriday) - Markdown processor
+- [goldmark](https://github.com/yuin/goldmark) - Markdown processor
 
 ## Generated Output
 

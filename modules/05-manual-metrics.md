@@ -1,6 +1,6 @@
 # Module 5: Manual Metrics
 
-**Duration:** ~90 min · **Checkpoints: 52, 53, 54**
+**Duration:** ~90 min
 
 Auto-instrumentation gave you HTTP request rates. Nobody has ever been paged about an HTTP request rate. This module is about emitting the numbers your business actually asks about — and about the one mistake that will cost you real money if you make it at scale. 📊
 
@@ -37,7 +37,7 @@ The two failure modes are picking a gauge when you wanted a counter (you lose ev
 
 **Aggregation temporality**, briefly: cumulative means "total since process start", delta means "since the last export". VictoriaMetrics wants cumulative, both SDKs default to cumulative, so you're fine — but now you know the word.
 
-## Exercise 5.2 — Your first business metrics [~30 min] [checkpoint: 52]
+## Exercise 5.2 — Your first business metrics [~30 min]
 
 **You should be able to answer this by the end:** *how many todos were created in the last five minutes, in the `work` list?* — the question you could not answer in Module 3.3.
 
@@ -174,9 +174,8 @@ meter.create_observable_gauge(
 
 <!-- /track -->
 
-4. Restart the API and generate load. **Ctrl-C in the API's terminal, then ↑ Enter** — the
-   container mounts your source directory, so the restart is all it takes to pick up the
-   edit. Then, in another terminal:
+4. Save the file and generate load. The API restarts by itself as soon as you save —
+   watch it happen in its log terminal. Then, in another terminal:
 
    <!-- track:js -->
 
@@ -232,11 +231,7 @@ You added `source` as an attribute on `todos.created`, filled from a client head
 - **(JS) `metrics.getMeter` returns a no-op.** The API is a no-op unless an SDK is registered — make sure the `--require` flag from Module 3 is still on the start command.
 - **(Python) The observable gauge callback never fires.** It must be registered at import time, not inside a request handler.
 
-```bash
-./checkpoint.sh 52
-```
-
-## Exercise 5.3 — Views: shaping metrics without changing code [~20 min] [checkpoint: 53]
+## Exercise 5.3 — Views: shaping metrics without changing code [~20 min]
 
 **You should be able to answer this by the end:** *how do you fix a badly-bucketed histogram in a library you don't own?*
 
@@ -351,11 +346,7 @@ Very few people know Views exist. Given that they let a platform team fix a thir
 - **The old buckets are still there.** Old series don't disappear; you're looking at data from before the restart. Narrow the time range to the last two minutes.
 - **The rename produced both names.** Same thing — historical series. Expected.
 
-```bash
-./checkpoint.sh 53
-```
-
-## Exercise 5.4 — The cardinality lab [~25 min] [checkpoint: 54] *(cuttable — but it's the best exercise in the module)*
+## Exercise 5.4 — The cardinality lab [~25 min] *(cuttable — but it's the best exercise in the module)*
 
 **You should be able to answer this by the end:** *what rule tells you whether a value is safe to use as a metric attribute?*
 
@@ -429,9 +420,10 @@ You should see: series count and memory both rising steadily, and continuing to 
    ```
 
    There is no delete-by-query API for logs, so wiping a backend means stopping it,
-   deleting its storage directory and starting it again — which is all `reset.sh` does,
-   with the same three command lines you typed in Module 0.1. It leaves the Collector
-   alone, so restart that one yourself: **Ctrl-C, then ↑ Enter**.
+   deleting its storage and starting it again — which is all `reset.sh` does: it removes
+   the three storage containers and their Docker volumes, starts them again empty, and
+   restarts the Collector so its queues start clean. The `workshop_postgres` volume, with
+   your todos, is not touched.
 
 ### Verify in Grafana
 
@@ -450,11 +442,7 @@ Hold on to that. It's the cleanest possible motivation for the next two modules.
 ### If you're stuck
 
 - **Cardinality doesn't seem to grow.** The loadgen may be reusing a fixed set of todos. Use `--rps 50` and make sure it's creating, not just reading.
-- **VictoriaMetrics gets slow or unresponsive.** Congratulations, you've reproduced a real production incident. Run `./reset.sh`, then restart the Collector in its terminal as the script tells you to.
-
-```bash
-./checkpoint.sh 54
-```
+- **VictoriaMetrics gets slow or unresponsive.** Congratulations, you've reproduced a real production incident. Run `./reset.sh`.
 
 ## Exercise 5.5 — Grafana [~15 min]
 

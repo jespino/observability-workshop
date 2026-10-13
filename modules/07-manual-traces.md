@@ -1,6 +1,6 @@
 # Module 7: Manual Traces
 
-**Duration:** ~90 min · **Checkpoints: 72, 74, 75**
+**Duration:** ~90 min
 
 Auto-instrumentation gave you spans for HTTP, your web framework and Postgres. Those describe your *infrastructure*. This module is about spans that describe your *domain* — and about the moment a trace crosses a service boundary and a language boundary and still holds together. 🧵
 
@@ -17,7 +17,7 @@ By the end of this module, you will:
 
 ## Prerequisites
 
-- Module 6 completed and checkpointed
+- Module 6 completed
 
 ## 7.1 — Concepts [~10 min]
 
@@ -36,7 +36,7 @@ A **span** is one operation with a start, an end, and a place in a tree:
 
 **Context propagation** is how the span tree survives a network hop. The active span id travels in the W3C `traceparent` header; the receiving service reads it and makes its own span a child. When someone says "the trace broke at this boundary", the header didn't make it. That's nearly always the whole story.
 
-## Exercise 7.2 — Custom spans around business operations [~25 min] [checkpoint: 72]
+## Exercise 7.2 — Custom spans around business operations [~25 min]
 
 **You should be able to answer this by the end:** *could a colleague debug a failed create at 3am from this trace alone, without opening the source?*
 
@@ -166,10 +166,6 @@ You added `cache.key` as a span attribute. In Module 5.4 an unbounded value on a
 - **The span appears at the root instead of nested.** You created it outside the active context. In JS that usually means you lost the context across an `await` in a non-instrumented callback; in Python, that you used `start_span` instead of `start_as_current_span`.
 - **The span never appears.** Check that `end()` is actually called on every path.
 
-```bash
-./checkpoint.sh 72
-```
-
 ## Exercise 7.3 — Semantic conventions [~10 min]
 
 **You should be able to answer this by the end:** *what do you get for using a standard attribute name instead of your own?*
@@ -225,7 +221,7 @@ The cost is real too: **some conventions are still marked experimental and do ch
 
 - **Your query returns nothing after renaming.** Old spans keep the old attribute. Narrow the time range to after your restart.
 
-## Exercise 7.4 — Cross-service and cross-language propagation [~25 min] [checkpoint: 74]
+## Exercise 7.4 — Cross-service and cross-language propagation [~25 min]
 
 **You should be able to answer this by the end:** *what exactly travels between two services to make one trace out of two?*
 
@@ -354,11 +350,7 @@ Propagation worked automatically until you replaced one library. What's the gene
 - **`inject()` adds nothing to the headers.** There's no active span at that point in the code — you're outside the request context. Log `trace.getActiveSpan()` / `trace.get_current_span()` to confirm.
 - **Both services have spans but with different trace ids after the fix.** Check the header actually reaches the wire; `docker logs workshop-notify-py` (or `-js`) prints the headers it received.
 
-```bash
-./checkpoint.sh 74
-```
-
-## Exercise 7.5 — Sampling [~20 min] [checkpoint: 75] *(cuttable)*
+## Exercise 7.5 — Sampling [~20 min] *(cuttable)*
 
 **You should be able to answer this by the end:** *why is "sample 10% of traces" a bad default for an error budget?*
 
@@ -418,16 +410,12 @@ Compare `rate(http_server_duration_milliseconds_count[1m])` — which is unaffec
 
 Tail sampling needs the *whole trace* to arrive at *one* Collector instance before it can decide. That constrains how you scale your Collector fleet: you need consistent hashing by trace id in front of it, or a two-tier layout.
 
-There is no free answer here. Discuss what you'd actually do with 200 services and 50k spans/second.
+There is no free answer here. What would you actually do with 200 services and 50k spans/second?
 
 ### If you're stuck
 
 - **Tail sampling drops everything.** `decision_wait` must be longer than your slowest trace, or spans that arrive late are judged against an incomplete trace.
 - **Head and tail sampling both on.** They compose multiplicatively and you'll see almost nothing. Turn head sampling off first.
-
-```bash
-./checkpoint.sh 75
-```
 
 ## Exercise 7.6 — Explore [~15 min, threaded through the above]
 
@@ -439,7 +427,7 @@ Look at the same data three ways, deliberately.
 
 **1. VictoriaTraces vmui** (`http://localhost:10428/select/vmui`)
 
-Notice what you're typing: **LogsQL**. The same language as Module 6. This is the payoff for the "one query language, two signals" point from Module 2.
+Notice what you're typing: **LogsQL**. The same language as Module 6. As Module 2 put it: logs and traces share a query language.
 
 ```
 _time:15m "resource_attr:service.name":=todo-api duration:>500ms

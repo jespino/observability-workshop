@@ -1,6 +1,6 @@
 # Module 4: The Collector, and Where the Data Actually Goes
 
-**Duration:** ~45 min · **Checkpoints: 42** · **Same for both tracks**
+**Duration:** ~45 min · **Same for both tracks**
 
 The Collector is the box everybody nods at and nobody reads. By the end of this module you'll have read its config line by line, edited it, deliberately broken it, and found the breakage in its own telemetry. 📦
 
@@ -15,7 +15,7 @@ By the end of this module, you will:
 
 ## Prerequisites
 
-- Module 3 completed and checkpointed — telemetry is flowing
+- Module 3 completed — telemetry is flowing
 
 ## Exercise 4.1 — Read the config [~20 min]
 
@@ -29,8 +29,11 @@ Open `collector/config.yaml` and follow along. The whole file:
 receivers:
   otlp:
     protocols:
-      grpc: { endpoint: 127.0.0.1:4317 }
-      http: { endpoint: 127.0.0.1:4318 }
+      # 0.0.0.0, not 127.0.0.1: the Collector runs in a container, and your
+      # application reaches it from outside that container. A receiver bound
+      # to the loopback interface would refuse that connection.
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
 
   # The Collector scrapes its own metrics and ships them through its own
   # metrics pipeline. Module 4.2 depends on this: it is how you find out that
@@ -61,19 +64,19 @@ processors:
 
 exporters:
   otlphttp/victoriametrics:
-    metrics_endpoint: http://localhost:8428/opentelemetry/v1/metrics
+    metrics_endpoint: http://victoriametrics:8428/opentelemetry/v1/metrics
     encoding: proto
     compression: gzip
   otlphttp/victorialogs:
-    logs_endpoint: http://localhost:9428/insert/opentelemetry/v1/logs
+    logs_endpoint: http://victorialogs:9428/insert/opentelemetry/v1/logs
     headers:
       VL-Stream-Fields: "service.name,deployment.environment"
   otlphttp/victoriatraces:
-    traces_endpoint: http://localhost:10428/insert/opentelemetry/v1/traces
+    traces_endpoint: http://victoriatraces:10428/insert/opentelemetry/v1/traces
 
 extensions:
   health_check:
-    endpoint: 127.0.0.1:13133
+    endpoint: 0.0.0.0:13133
 
 service:
   extensions: [health_check]
@@ -83,7 +86,7 @@ service:
         - pull:
             exporter:
               prometheus:
-                host: 127.0.0.1
+                host: 0.0.0.0
                 port: 8888
   pipelines:
     traces:  { receivers: [otlp], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriatraces] }
@@ -113,7 +116,7 @@ So, to answer the exercise question: a missing span could be (1) never exported 
 
 **VictoriaMetrics wants cumulative temporality.** Both SDKs default to cumulative, so you're fine by default. If you ever find yourself with delta metrics (some vendors' SDK configs default that way), the fix is the `deltatocumulative` processor in the Collector rather than a change in the app.
 
-**VictoriaMetrics is started with `-opentelemetry.usePrometheusNaming`.** It is one of the flags you typed in Module 0.1. Without it, VM stores OTel's dotted names verbatim — `http.server.duration_count` — and your queries need quoting. With it, you get the Prometheus form everyone expects: `http_server_duration_milliseconds_count`, and `service.name` becomes the `service_name` label. Module 5.2 cashes this in.
+**VictoriaMetrics is started with `-opentelemetry.usePrometheusNaming`.** It is set in `docker-compose.yml`, which started it in Module 0. Without it, VM stores OTel's dotted names verbatim — `http.server.duration_count` — and your queries need quoting. With it, you get the Prometheus form everyone expects: `http_server_duration_milliseconds_count`, and `service.name` becomes the `service_name` label. Module 5.2 cashes this in.
 
 **Endpoint names are per-signal, not generic.** `metrics_endpoint`, `logs_endpoint`, `traces_endpoint`. If you use the generic `endpoint` key, the exporter appends its own conventional path and you'll get 404s that look like connectivity problems.
 
@@ -143,10 +146,10 @@ The Collector reports on itself. Note the number climbing.
 
 ### If you're stuck
 
-- **Editing the config does nothing.** The Collector reads its config once, at startup. Go to its terminal: **Ctrl-C, then ↑ Enter**. You will do this a dozen times today, which is exactly why it got a terminal of its own in Module 0.1.
-- **The Collector won't start after an edit.** It's YAML, and it will be the indentation. It names the offending line as it dies — and because it is in the foreground, you cannot miss it.
+- **Editing the config does nothing.** The Collector reads its config once, at startup. Restart it: **`docker compose restart otel-collector`**. You will do this a dozen times today; follow its log with `docker compose logs -f otel-collector` to watch it come back.
+- **The Collector won't start after an edit.** It's YAML, and it will be the indentation. It names the offending line as it dies — read it with `docker compose logs otel-collector`. `docker compose ps -a` shows it as exited.
 
-## Exercise 4.2 — Edit it [~25 min] [checkpoint: 42] *(cuttable in the one-day version)*
+## Exercise 4.2 — Edit it [~25 min] *(cuttable in the one-day version)*
 
 **You should be able to answer this by the end:** *how would you know, right now, if your Collector had stopped delivering spans?*
 
@@ -172,7 +175,7 @@ service:
       processors: [memory_limiter, resource, attributes/clean, batch]
 ```
 
-Restart the Collector and confirm the attribute is gone from new spans.
+Restart the Collector — `docker compose restart otel-collector` — and confirm the attribute is gone from new spans.
 
 **Task 2 — Filter out health checks.**
 
@@ -187,7 +190,7 @@ processors:
 
 Add `filter/healthz` to the traces pipeline, restart, confirm the `/healthz` spans stop arriving.
 
-Then have the argument: you just made your uptime probe invisible. If the health endpoint starts failing, will anyone find out from this system? Discuss with your neighbour whether that filter should ship.
+Then think about what you just did: you made your uptime probe invisible. If the health endpoint starts failing, will anyone find out from this system? Should that filter ship?
 
 **Task 3 — Break it on purpose. This is the important one.** 💥
 
@@ -252,11 +255,7 @@ Most teams learn this the hard way, usually during an incident, usually by disco
 
 - **`filter` processor rejected at startup.** The OTTL syntax is picky: `attributes["url.path"]` with double quotes inside square brackets, and the whole condition in single quotes.
 - **`otelcol_exporter_send_failed_spans_total` returns nothing at all.** Expected — see the note above. Use the receiver-vs-exporter rate comparison instead.
-- **Every metric is flat, including the Collector's own.** You may have broken the config so badly that the Collector never started. Look at its terminal — a Collector that is dead exports nothing, including its own failure metrics. That's its own lesson, and it is the reason `curl -s localhost:13133/` is worth knowing by heart.
-
-```bash
-./checkpoint.sh 42
-```
+- **Every metric is flat, including the Collector's own.** You may have broken the config so badly that the Collector never started. Look at its log (`docker compose logs otel-collector`) — a Collector that is dead exports nothing, including its own failure metrics. That's its own lesson, and it is the reason `curl -s localhost:13133/` is worth knowing by heart.
 
 ## What We Accomplished
 

@@ -4,16 +4,17 @@
 # spanmetrics connector. Keep it valid: a Collector that will not start
 # exports nothing at all, including its own failure metrics.
 #
-# The Collector itself runs natively on your laptop, so the addresses it dials
-# — the three Victoria backends — are localhost. The addresses it *listens* on
-# are 0.0.0.0, because the traffic arrives from containers.
+# The Collector runs in a container, started by docker-compose.yml. The
+# addresses it dials — the three Victoria backends — are their Compose service
+# names. The addresses it *listens* on are 0.0.0.0, because the traffic arrives
+# from other containers, through the ports published on your laptop.
 
 receivers:
   otlp:
     protocols:
-      # 0.0.0.0, not 127.0.0.1: your application runs in a container, and it
-      # reaches the Collector across the container/host boundary. A receiver
-      # bound to the loopback interface would refuse that connection.
+      # 0.0.0.0, not 127.0.0.1: the Collector runs in a container, and your
+      # application reaches it from outside that container. A receiver bound
+      # to the loopback interface would refuse that connection.
       grpc: { endpoint: 0.0.0.0:4317 }
       http: { endpoint: 0.0.0.0:4318 }
 
@@ -46,19 +47,19 @@ processors:
 
 exporters:
   otlphttp/victoriametrics:
-    metrics_endpoint: http://localhost:8428/opentelemetry/v1/metrics
+    metrics_endpoint: http://victoriametrics:8428/opentelemetry/v1/metrics
     encoding: proto
     compression: gzip
   otlphttp/victorialogs:
-    logs_endpoint: http://localhost:9428/insert/opentelemetry/v1/logs
+    logs_endpoint: http://victorialogs:9428/insert/opentelemetry/v1/logs
     headers:
       VL-Stream-Fields: "service.name,deployment.environment"
   otlphttp/victoriatraces:
-    traces_endpoint: http://localhost:10428/insert/opentelemetry/v1/traces
+    traces_endpoint: http://victoriatraces:10428/insert/opentelemetry/v1/traces
 
 extensions:
   health_check:
-    endpoint: 127.0.0.1:13133
+    endpoint: 0.0.0.0:13133
 
 service:
   extensions: [health_check]
@@ -68,7 +69,7 @@ service:
         - pull:
             exporter:
               prometheus:
-                host: 127.0.0.1
+                host: 0.0.0.0
                 port: 8888
   pipelines:
     traces:  { receivers: [otlp], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriatraces] }

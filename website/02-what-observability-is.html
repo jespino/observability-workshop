@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Module 2: What Observability Actually Is - Observability Workshop</title>
+    <title>Module 2: The Three Signals — Metrics, Logs and Traces - Observability Workshop</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
@@ -117,224 +117,186 @@
 
     <div class="container">
         <article class="module-content">
-            <h1>Module 2: What Observability Actually Is</h1>
-
-<p><strong>Duration:</strong> ~30 min · <strong>Talk and demo — laptops mostly closed</strong></p>
-
-<p>This is the only module with no code to write. It exists so that everything after it lands in a shared vocabulary instead of a fog of buzzwords. 🧠</p>
-
+            <h1>Module 2: The Three Signals — Metrics, Logs and Traces</h1>
+<p><strong>Duration:</strong> ~20 min · <strong>Talk — no code to write</strong></p>
+<p>OpenTelemetry describes what a running system is doing with three kinds of data, called
+<strong>signals</strong>: metrics, logs and traces. This module explains each one with an example taken
+from the application you&rsquo;ll instrument, so that the rest of the workshop builds on a shared
+vocabulary. 🧠</p>
 <h2>Learning Objectives</h2>
-
 <p>By the end of this module, you will:</p>
-
 <ul>
-<li>Be able to explain the OpenTelemetry data model — resource, scope, signal, attributes, context — without saying &ldquo;three pillars&rdquo;</li>
-<li>Know the difference between the API, the SDK, an instrumentation library, an exporter, and the Collector, and why that distinction resolves most confusion later</li>
-<li>Understand why there&rsquo;s a Collector in the middle of our architecture</li>
-<li>Know which parts of the OpenTelemetry ecosystem are stable and which are still moving</li>
+<li>Know what a metric, a log record and a trace are</li>
+<li>Be able to read an example of each one and say what every part of it means</li>
+<li>Know where each signal is stored in this workshop</li>
 </ul>
-
 <h2>Prerequisites</h2>
-
 <ul>
 <li>Module 1 completed — you should be able to describe the app</li>
 </ul>
-
-<h2>2.1 — We start with a failure, not a definition</h2>
-
-<p>Your facilitator will show you two recordings of the same investigation:</p>
-
-<ol>
-<li><strong>With the finished stack.</strong> A user complains the app is slow. Ninety seconds later, someone is pointing at the exact line of code.</li>
-<li><strong>With <code>docker logs | grep</code>.</strong> The same investigation. It does not finish.</li>
-</ol>
-
-<p>Don&rsquo;t worry about <em>how</em> the first one works yet. Just note where we&rsquo;re going — you&rsquo;ll build every piece of it yourself.</p>
-
-<h2>2.2 — Why &ldquo;three pillars&rdquo; is a misleading framing</h2>
-
-<p>You&rsquo;ve probably seen observability described as three pillars: metrics, logs, traces. The picture is a bad one, because pillars stand apart, and separateness is precisely what you don&rsquo;t want.</p>
-
-<p>What actually makes observability work is that a log line, a metric point and a span all carry:</p>
-
-<ul>
-<li><strong>the same resource</strong> — they agree on who emitted them, and</li>
-<li><strong>the same trace context</strong> — they can be stitched into one story about one request.</li>
-</ul>
-
-<blockquote>
-<p><strong>Correlation is the product. The signals are the raw material.</strong> 🔗</p>
-</blockquote>
-
-<p>Everything in Modules 5 through 8 is in service of that sentence. When we get to Module 8 you&rsquo;ll click from a graph to a log line to a trace to a line of code, and that only works because of decisions made in the modules before it.</p>
-
-<h2>2.3 — The OpenTelemetry data model</h2>
-
-<p>Five concepts. That&rsquo;s the whole thing.</p>
-
-<p><strong>Resource</strong> — <em>who</em> is emitting. Set once at startup, attached to everything the process produces.</p>
-
-<pre><code>service.name          = todo-api
-service.version       = 1.0.0
-deployment.environment = workshop
-</code></pre>
-
-<p><code>service.name</code> is the single most important attribute in the entire system. Get it wrong and nothing correlates.</p>
-
-<p><strong>Instrumentation scope</strong> — <em>which library</em> produced this piece of telemetry. Lets you tell &ldquo;the HTTP instrumentation said this&rdquo; apart from &ldquo;the application said this&rdquo;.</p>
-
-<p><strong>The signal payload</strong> — a metric point, a log record, or a span. This is the only part that differs per signal.</p>
-
-<p><strong>Attributes</strong> — key/value pairs on the payload. The dimension you slice by. <code>http.route</code>, <code>todo.list</code>, <code>error.type</code>.</p>
-
-<blockquote>
-<p>⚠️ Attributes are also where costs hide. Every distinct combination of attribute values on a metric is a new time series. Remember this sentence; you&rsquo;ll pay for it in Module 5.4.</p>
-</blockquote>
-
-<p><strong>Context and propagation</strong> — the mechanism that carries the current trace and span id along with a request, including across process boundaries via the W3C <code>traceparent</code> header:</p>
-
-<pre><code>traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
-             ^  ^                                ^                ^
-             |  trace id                         parent span id   flags
-             version
-</code></pre>
-
-<p>If you understand nothing else today, understand that when someone says &ldquo;the trace broke at this boundary&rdquo;, they nearly always mean <em>that header did not make it across</em>.</p>
-
-<h2>2.4 — API vs SDK vs instrumentation vs exporter vs Collector</h2>
-
-<p>This is the distinction that resolves half of the questions people ask later. Your facilitator will draw it; here it is in words:</p>
-
+<h2>2.1 — Metrics</h2>
+<p>A <strong>metric</strong> is a number measured over time. Instead of recording every event, the
+application keeps aggregated values — a count, a sum, a distribution — and exports them
+periodically, by default every 60 seconds (every 10 in this workshop). Each combination of
+a metric name and a set of attributes is a separate <strong>time series</strong>.</p>
+<p>OpenTelemetry has a few metric types. The three you&rsquo;ll use most are:</p>
 <table>
 <thead>
 <tr>
-<th>Piece</th>
-<th>What it is</th>
-<th>Who ships it</th>
+<th>Type</th>
+<th>What it records</th>
+<th>Example</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
-<td><strong>API</strong></td>
-<td>The interface your code calls: <code>counter.add()</code>, <code>tracer.startSpan()</code>. Does nothing on its own — it&rsquo;s a no-op unless an SDK is registered.</td>
-<td>OpenTelemetry</td>
+<td><strong>Counter</strong></td>
+<td>A total that only goes up</td>
+<td>todos created</td>
 </tr>
-
 <tr>
-<td><strong>SDK</strong></td>
-<td>The implementation. Batching, sampling, views, resource detection. Configured once at process start.</td>
-<td>OpenTelemetry</td>
+<td><strong>Histogram</strong></td>
+<td>The distribution of measured values</td>
+<td>request duration</td>
 </tr>
-
 <tr>
-<td><strong>Instrumentation library</strong></td>
-<td>Code that calls the API <em>on your behalf</em> by hooking a framework — Express, Flask, <code>pg</code>, <code>psycopg</code>. This is what &ldquo;auto-instrumentation&rdquo; is made of.</td>
-<td>OpenTelemetry / community</td>
-</tr>
-
-<tr>
-<td><strong>Exporter</strong></td>
-<td>Turns SDK data into a wire format and ships it. We&rsquo;ll use OTLP over HTTP.</td>
-<td>OpenTelemetry</td>
-</tr>
-
-<tr>
-<td><strong>Collector</strong></td>
-<td>A separate process that receives, processes and re-exports telemetry. Optional, but see below.</td>
-<td>OpenTelemetry</td>
+<td><strong>Gauge</strong></td>
+<td>A value at a point in time</td>
+<td>todos currently open</td>
 </tr>
 </tbody>
 </table>
-<p>The practical consequence: <strong>a library that only uses the API adds no dependency on any backend.</strong> That&rsquo;s the design goal, and it&rsquo;s why instrumenting a library you maintain is a much smaller commitment than people assume.</p>
+<h3>Example</h3>
+<p>This is a counter you&rsquo;ll create in Module 5, as VictoriaMetrics stores it:</p>
+<pre><code>todos_created_total{service_name=&quot;todo-api&quot;, list=&quot;work&quot;}   1287
+todos_created_total{service_name=&quot;todo-api&quot;, list=&quot;home&quot;}    342
+</code></pre>
+<ul>
+<li><code>todos_created_total</code> is the metric name. In the code it is called <code>todos.created</code>; the
+storage adds <code>_total</code> because it is a counter, and replaces the dots with underscores.</li>
+<li><code>service_name=&quot;todo-api&quot;</code> says which service emitted it. It comes from the service&rsquo;s
+configuration, not from the code that increments the counter.</li>
+<li><code>list=&quot;work&quot;</code> is an <strong>attribute</strong> added when the counter is incremented. Each value of
+<code>list</code> produces its own time series, which is why there are two lines.</li>
+<li><code>1287</code> is the value: the number of todos created in the <code>work</code> list since the service
+started. On its own it says little; what you query is how fast it grows, for example
+&ldquo;todos created per second, per list&rdquo;.</li>
+</ul>
+<h2>2.2 — Logs</h2>
+<p>A <strong>log record</strong> describes one event that happened at a specific moment: a request failed,
+a todo was created, a connection was retried. Unlike a metric, every event produces its
+own record. In OpenTelemetry a log record has a body (the message), a severity, a timestamp
+and attributes, and if it was emitted while handling a request, the identifiers of that
+request&rsquo;s trace.</p>
+<h3>Example</h3>
+<p>A log record you&rsquo;ll produce in Module 6, when a todo is created:</p>
+<pre><code>timestamp:      2026-10-13T09:15:02.123Z
+severity_text:  INFO
+body:           todo created
+attributes:
+  list:         work
+  todo_id:      5a082413-27bb-495a-8010-7bd006c20252
+resource:
+  service.name: todo-api
+trace_id:       4bf92f3577b34da6a3ce929d0e0e4736
+span_id:        00f067aa0ba902b7
+</code></pre>
+<ul>
+<li><code>timestamp</code> is when the event happened, and <code>severity_text</code> how important it is
+(<code>DEBUG</code>, <code>INFO</code>, <code>WARN</code>, <code>ERROR</code>).</li>
+<li><code>body</code> is the message. It is the same text for every todo created, so you can count and
+group these records.</li>
+<li><code>attributes</code> carry the details that vary from one event to another: which list, which
+todo.</li>
+<li><code>resource</code> describes who emitted the record: the same <code>service.name</code> the metric carries.</li>
+<li><code>trace_id</code> and <code>span_id</code> identify the request that was being handled when the record was
+written. They are what will let you jump from this log line to the full trace of that
+request in Module 8.</li>
+</ul>
+<h2>2.3 — Traces</h2>
+<p>A <strong>trace</strong> follows one request through the system. It is made of <strong>spans</strong>: each span is
+one operation with a start time, a duration and attributes — handling an HTTP request,
+running a database query, calling another service. Spans have parents, so together they
+form a tree showing what happened, in what order, and how long each step took. When a
+request goes from one service to another, the trace id travels with it in an HTTP header
+(<code>traceparent</code>), so the spans of both services end up in the same trace.</p>
+<h3>Example</h3>
+<p>The trace of one <code>POST /todos</code>, simplified and drawn as a tree (the exact span names vary a
+little between the JavaScript and Python libraries):</p>
+<pre><code>trace 4bf92f3577b34da6a3ce929d0e0e4736
 
-<h2>2.5 — Why there&rsquo;s a Collector in our architecture</h2>
-
-<p>A reasonable question at this point is: our three backends all speak OTLP, so why not export straight to them?</p>
-
-<p>Because they don&rsquo;t all speak it <em>at the same address</em>:</p>
-
+POST /todos                       todo-api   ██████████████████████  24 ms
+├─ pg.connect                     todo-api   ██                       2 ms
+└─ INSERT INTO todos              todo-api       ███████              8 ms
+</code></pre>
+<p>And the top span in detail:</p>
+<pre><code>name:            POST /todos
+trace_id:        4bf92f3577b34da6a3ce929d0e0e4736
+span_id:         00f067aa0ba902b7
+parent_span_id:  (none — this is the root span)
+start:           2026-10-13T09:15:02.101Z
+duration:        24 ms
+status:          OK
+attributes:
+  http.method:      POST
+  http.route:       /todos
+  http.status_code: 201
+resource:
+  service.name:     todo-api
+</code></pre>
+<ul>
+<li>Every span in the tree shares the same <code>trace_id</code>: that is what makes them one trace.</li>
+<li>The root span, <code>POST /todos</code>, has no parent. It covers the whole request, from the
+moment it arrived to the moment the response was sent.</li>
+<li><code>pg.connect</code> and <code>INSERT INTO todos</code> are its children: they have <code>parent_span_id</code> set to
+the root&rsquo;s <code>span_id</code>, and they happened inside it. The bars show when each one started
+and how long it lasted.</li>
+<li><code>attributes</code> describe the operation: which HTTP method and route, what status code was
+returned. A database span would carry the query instead.</li>
+<li><code>status</code> says whether the operation succeeded. A failed request would show <code>ERROR</code>.</li>
+<li>The <code>span_id</code> of the root span is the same one the log record in 2.2 carries. That log
+line was written while this span was active.</li>
+</ul>
+<h2>2.4 — Where each signal goes in this workshop</h2>
+<p>Your application sends all three signals to the OpenTelemetry Collector, which forwards
+each one to its own storage:</p>
 <table>
 <thead>
 <tr>
 <th>Signal</th>
-<th>Endpoint</th>
+<th>Stored in</th>
+<th>Queried with</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td>Metrics</td>
-<td><code>http://victoriametrics:8428/opentelemetry/v1/metrics</code></td>
+<td>VictoriaMetrics</td>
+<td>MetricsQL (PromQL-compatible)</td>
 </tr>
-
 <tr>
 <td>Logs</td>
-<td><code>http://victorialogs:9428/insert/opentelemetry/v1/logs</code></td>
+<td>VictoriaLogs</td>
+<td>LogsQL</td>
 </tr>
-
 <tr>
 <td>Traces</td>
-<td><code>http://victoriatraces:10428/insert/opentelemetry/v1/traces</code></td>
+<td>VictoriaTraces</td>
+<td>LogsQL</td>
 </tr>
 </tbody>
 </table>
-<p>Three hosts, three paths. The Collector gives your application <strong>one</strong> <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> and does the fan-out itself.</p>
-
-<p>That&rsquo;s the immediate reason. The lasting reasons show up later:</p>
-
-<ul>
-<li>It&rsquo;s where you put <strong>sampling</strong> without redeploying the app (Module 7.5)</li>
-<li>It&rsquo;s where you <strong>redact</strong> PII centrally instead of in twelve services (Module 10)</li>
-<li>It&rsquo;s where you generate <strong>metrics from spans</strong> for free (Module 8.1)</li>
-<li>It <strong>buffers and retries</strong> when a backend is down, so your app doesn&rsquo;t have to</li>
-</ul>
-
-<p>There&rsquo;s an optional appendix exercise later that has you export directly to the backends and then take stock of what you lost. Recommended if you&rsquo;re the kind of person who suspects the Collector is ceremony.</p>
-
-<h2>2.6 — The stack we&rsquo;re using, and one genuinely nice property</h2>
-
-<ul>
-<li><strong>VictoriaMetrics</strong> stores metrics and speaks <strong>MetricsQL</strong>, a superset of PromQL. If you know PromQL you already know it.</li>
-<li><strong>VictoriaLogs</strong> stores logs and speaks <strong>LogsQL</strong>.</li>
-<li><strong>VictoriaTraces</strong> stores traces and speaks&hellip; <strong>LogsQL</strong> as well.</li>
-</ul>
-
-<p>That last point is worth stopping on. <strong>Learning one query language gets you two of the three signals.</strong> In Module 7 you&rsquo;ll query spans with the same syntax you learned for logs in Module 6, and it will feel like cheating. Compared with learning PromQL <em>and</em> LogQL <em>and</em> TraceQL, that&rsquo;s a real saving.</p>
-
-<p>VictoriaTraces also implements the <strong>Jaeger query API</strong>, which means Grafana&rsquo;s built-in Jaeger datasource works against it with no plugin, and you get the familiar waterfall view for free.</p>
-
-<h2>2.7 — Signal maturity, honestly</h2>
-
-<p>Not everything here is equally finished, and you should hear that from us rather than discover it at 2am:</p>
-
-<ul>
-<li><strong>Traces and metrics</strong> are stable in both SDKs. Use them with confidence.</li>
-<li><strong>The logs signal</strong> is still moving. The SDK packages are marked experimental in both JavaScript and Python. We&rsquo;re going to use them anyway, because they&rsquo;re the cleanest way to teach the correlation story — but pin your versions, and in Module 6.4 we&rsquo;ll show you the rock-solid alternative (stdout JSON plus a Collector <code>filelog</code> receiver) that you might reasonably prefer in production.</li>
-<li><strong>Some semantic conventions</strong> are still experimental and can change between releases. That&rsquo;s a genuine cost; we&rsquo;ll name it again in Module 7.3.</li>
-<li><strong>VictoriaMetrics has no exemplar support.</strong> That removes one specific correlation flow that a Prometheus+Tempo stack would give you. We&rsquo;ll show you the workaround in Module 8.2 and be explicit about the trade-off.</li>
-</ul>
-
-<h2>Discussion (5 min, in pairs)</h2>
-
-<blockquote>
-<p>Think of the last production incident you were involved in. <strong>Which signal would have shortened it, and did you have it?</strong></p>
-</blockquote>
-
-<p>Two or three pairs share. Keep your answer somewhere — in Module 9 you&rsquo;ll find out whether you were right.</p>
-
+<p>Logs and traces share a query language: what you learn to query logs in Module 6 also
+works for traces in Module 7.</p>
 <h2>What We Accomplished</h2>
-
 <ul>
-<li>A shared vocabulary: resource, scope, signal, attributes, context</li>
-<li>A clear map of API vs SDK vs instrumentation vs exporter vs Collector</li>
-<li>A concrete reason for every box in the architecture diagram</li>
-<li>An honest picture of which bits of this ecosystem are still moving</li>
+<li>You know what a metric, a log record and a trace are</li>
+<li>You can read an example of each and say what every field means</li>
+<li>You know how the three are connected — the same <code>service.name</code>, and the same <code>trace_id</code>
+on logs and spans — and where each one is stored</li>
 </ul>
-
 <h2>Next Steps</h2>
-
-<p>Enough talking. Continue with <a href="03-auto-instrumentation.html">Module 3: The Easy Path — Zero-Code Auto-Instrumentation</a>, where the app starts emitting all three signals without you changing a single line of it.</p>
+<p>Continue with <a href="03-auto-instrumentation.html">Module 3: The Easy Path — Zero-Code Auto-Instrumentation</a>, where the app starts emitting all three signals without you changing a single line of it.</p>
 
         </article>
 

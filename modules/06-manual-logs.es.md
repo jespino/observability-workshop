@@ -1,6 +1,6 @@
 # Módulo 6: Logs Manuales
 
-**Duración:** ~75 min · **Checkpoints: 62**
+**Duración:** ~75 min
 
 Ahora mismo tus logs son texto. El texto es lo que grepeas a las 3 de la mañana deseando tener algo mejor. Este módulo los convierte en registros que puedes filtrar, agregar y — lo importante — unir a una traza. 🪵
 
@@ -16,7 +16,7 @@ Al terminar este módulo, serás capaz de:
 
 ## Prerrequisitos
 
-- Módulo 5 completado y con checkpoint
+- Módulo 5 completado
 
 ## 6.1 — Conceptos [~10 min]
 
@@ -47,7 +47,7 @@ Sólido como una roca, sirve para cualquier lenguaje y cualquier contenedor de t
 
 Construiremos la A y demostraremos la B en 6.4.
 
-## Ejercicio 6.2 — Logging estructurado con contexto de traza [~25 min] [checkpoint: 62]
+## Ejercicio 6.2 — Logging estructurado con contexto de traza [~25 min]
 
 **Deberías poder responder esto al terminar:** *dada una línea de log de error, ¿cómo llegas a la traza de la petición que la produjo?*
 
@@ -134,7 +134,7 @@ log.info("todo created", extra={"list": todo.list, "todo_id": todo.id})
    - el camino de completado (`todo completed`)
    - el camino de caché en `cache.js` / `cache.py` — registra la clave que buscaste y si acertó
 
-3. **Registra bien el camino de error.** Busca el handler que devuelve un 500 cuando el título está vacío (lo conociste en el Módulo 1.2) y haz que produzca algo accionable:
+3. **Registra bien el camino de error.** Busca el handler que devuelve un 500 cuando el título está vacío y haz que produzca algo accionable:
 
 <!-- track:js -->
 
@@ -172,11 +172,11 @@ except Exception:
 
 Fíjate en lo que hay ahí: severidad, la excepción, y **los atributos que otra persona necesitaría para reproducirlo**. `title_length` en lugar de `title`, porque el título podría contener algo que no deberías estar guardando — un hábito que conviene adquirir ya, y al que volveremos en el Módulo 10.
 
-4. Reconstruye y crea un todo fallido para generar uno de estos:
+4. Guarda el fichero y crea un todo fallido para generar uno de estos:
 
    <!-- track:js -->
 
-   Reinicia la API — Ctrl-C en su terminal, y luego ↑ Enter — y en otra terminal:
+   Cuando la API se haya reiniciado (mira la terminal de su log), en otra terminal:
 
    ```bash
    curl -s -X POST localhost:8081/todos -H 'content-type: application/json' -d '{"title":"","list":"work"}'
@@ -187,7 +187,7 @@ Fíjate en lo que hay ahí: severidad, la excepción, y **los atributos que otra
 
    <!-- track:python -->
 
-   Reinicia la API — Ctrl-C en su terminal, y luego ↑ Enter — y en otra terminal:
+   Cuando la API se haya reiniciado (mira la terminal de su log), en otra terminal:
 
    ```bash
    curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{"title":"","list":"work"}'
@@ -243,10 +243,6 @@ El mismo valor. El veredicto opuesto. ¿Por qué? Dilo en voz alta — si sabes 
 - **Llegan logs pero sin atributos.** Probablemente sigas interpolando dentro del mensaje. `log.info("created " + id)` produce un cuerpo y nada más.
 - **(JS) No hay `trace_id` por ninguna parte.** La instrumentación de pino solo parchea instancias creadas *después* de que cargara el SDK, y solo parchea llamadas `require()` de CommonJS. Comprueba que el flag `--require` sigue en el comando de arranque y que no convertiste `src/log.js` en un módulo ES.
 - **(Python) No llega nada a VictoriaLogs.** Comprueba que `OTEL_LOGS_EXPORTER=otlp` sigue configurado, y que adjuntaste el handler al logger raíz y no a uno hijo.
-
-```bash
-./checkpoint.sh 62
-```
 
 ## Ejercicio 6.3 — Streams y LogsQL [~25 min]
 
@@ -358,7 +354,7 @@ Acabas de aprender un lenguaje de consulta. En el Módulo 7 vas a consultar **sp
 
    Fíjate en el operador `trace_parser`: con esta arquitectura eres tú quien tiene que meter el `trace_id` en tu JSON, y luego decirle al Collector dónde encontrarlo.
 
-3. Debatid cuándo la elegirías:
+3. ¿Cuándo la elegirías?
    - Servicios de terceros a los que no puedes añadir un SDK
    - Lenguajes donde el SDK de logs no está listo
    - Organizaciones que no van a llevar un paquete experimental a producción

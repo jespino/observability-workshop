@@ -14,7 +14,7 @@ Al terminar este módulo, serás capaz de:
 
 ## Prerrequisitos
 
-- Módulos 0–8 completados, con todos los checkpoints aplicados
+- Módulos 0–8 completados
 - Tu dashboard, tu panel de logs y tus cuatro saltos de Grafana funcionando
 
 ## El montaje

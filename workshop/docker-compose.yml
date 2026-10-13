@@ -1,0 +1,248 @@
+# The workshop stack. Module 0 walks through this file before you start it.
+#
+#   docker compose --profile js up -d     # JS track: todo-api (JS) + notify-service (Python)
+#   docker compose --profile py up -d     # Python track: todo-api (Python) + notify-service (JS)
+#
+# Everything here is a stock image from Docker Hub — nothing is built.
+#
+# Inside this file, services reach each other by service name
+# (http://victoriametrics:8428). Your browser and curl reach them on the
+# ports published to your laptop, at localhost.
+#
+# Data lives in Docker named volumes (bottom of the file), not in the repo.
+# `docker compose down` keeps them; `docker compose down -v` deletes them.
+
+name: workshop
+
+services:
+
+  # --- Telemetry storage --------------------------------------------------
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.151.0
+    container_name: workshop-victoria-metrics
+    command:
+      - -storageDataPath=/storage
+      - -httpListenAddr=:8428
+      - -retentionPeriod=1                  # one month, plenty for one day
+      - -selfScrapeInterval=10s             # VM scrapes itself; Modules 4.2 and 5.4 query it
+      - -search.latencyOffset=1s            # default hides the last 30s; maddening in a classroom
+      - -opentelemetry.usePrometheusNaming  # todos.created -> todos_created_total
+    ports: ["8428:8428"]
+    volumes: ["victoria-metrics:/storage"]
+    restart: unless-stopped
+
+  victorialogs:
+    image: victoriametrics/victoria-logs:v1.52.0
+    container_name: workshop-victoria-logs
+    command:
+      - -storageDataPath=/storage
+      - -httpListenAddr=:9428
+      - -retentionPeriod=7d
+    ports: ["9428:9428"]
+    volumes: ["victoria-logs:/storage"]
+    restart: unless-stopped
+
+  victoriatraces:
+    image: victoriametrics/victoria-traces:v0.11.0
+    container_name: workshop-victoria-traces
+    command:
+      - -storageDataPath=/storage
+      - -httpListenAddr=:10428
+      - -retentionPeriod=3d
+    ports: ["10428:10428"]
+    volumes: ["victoria-traces:/storage"]
+    restart: unless-stopped
+
+  # --- The OpenTelemetry Collector ----------------------------------------
+  #
+  # You edit collector/config.yaml from Module 4. The whole directory is
+  # mounted, so after an edit:  docker compose restart otel-collector
+  # No restart policy on purpose: a config it cannot parse should leave it
+  # visibly stopped (`docker compose ps -a`), not looping.
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.159.0
+    container_name: workshop-otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP — what the SDKs use today
+      - "8888:8888"     # the Collector's own metrics
+      - "13133:13133"   # health_check
+    volumes: ["./collector:/etc/otelcol-contrib:ro"]
+    depends_on: [victoriametrics, victorialogs, victoriatraces]
+
+  # --- The application's dependencies -------------------------------------
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: workshop-postgres
+    environment:
+      POSTGRES_USER: todo
+      POSTGRES_PASSWORD: todo
+      POSTGRES_DB: todo
+    ports: ["5432:5432"]
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      # Runs only when the volume is empty: creates the schema and seeds the todos.
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+
+  # notify-service — the downstream service your API calls. Pre-instrumented
+  # through its otel.env, and written in the OTHER language from your track so
+  # that Module 7.4's cross-language propagation works either way. Its source
+  # is mounted read-only; dependencies install inside the container on first
+  # start, so give it a minute.
+
+  notify-py:          # called by the JS track
+    profiles: [js]
+    image: python:3.12-slim
+    container_name: workshop-notify-py
+    env_file: ./services/notify-service-py/otel.env
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    volumes: ["./services/notify-service-py:/app:ro"]
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - >-
+        pip install -q --root-user-action=ignore -r requirements.txt
+        && opentelemetry-bootstrap -a install > /dev/null
+        && exec opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8083 app:app
+    ports: ["8083:8083"]
+    depends_on: [otel-collector]
+    restart: unless-stopped
+
+  notify-js:          # called by the Python track
+    profiles: [py]
+    image: node:22-slim
+    container_name: workshop-notify-js
+    env_file: ./services/notify-service-js/otel.env
+    volumes: ["./services/notify-service-js:/src:ro"]
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - >-
+        cp -R /src/. /app
+        && npm install --silent --no-fund --no-audit
+        && exec node --require @opentelemetry/auto-instrumentations-node/register server.js
+    ports: ["8084:8084"]
+    depends_on: [otel-collector]
+    restart: unless-stopped
+
+  # --- todo-api — the service you instrument -----------------------------
+  #
+  # Your source directory is mounted at /app and the server runs in watch
+  # mode, so saving a file restarts it inside the container. Dependencies are
+  # installed on every start into a Docker volume, not into your working tree.
+  #
+  # Anything that is not a source file — .env (from Module 3.1), package.json,
+  # requirements.txt, or the command below — needs the container recreated:
+  #   docker compose up -d --force-recreate todo-api-js   (or todo-api-py)
+
+  todo-api-js:
+    profiles: [js]
+    image: node:22-slim
+    container_name: workshop-todo-api-js
+    working_dir: /app
+    env_file:
+      - path: ./track-js/todo-api/.env   # created in Module 3.1
+        required: false
+    environment:
+      DATABASE_URL: postgres://todo:todo@postgres:5432/todo
+      NOTIFY_URL: http://notify-py:8083
+      PORT: "8081"
+    volumes:
+      - ./track-js/todo-api:/app
+      - todo-api-js-modules:/app/node_modules
+    # npm runs with NODE_OPTIONS emptied: it would otherwise try to preload the
+    # OpenTelemetry SDK that Module 3.1 puts in NODE_OPTIONS.
+    entrypoint:
+      - sh
+      - -c
+      - NODE_OPTIONS= npm install --no-package-lock --no-fund --no-audit --loglevel=error && exec "$$@"
+      - --
+    command: node --watch src/server.js
+    ports: ["8081:8081"]
+    depends_on: [postgres, notify-py, otel-collector]
+
+  todo-api-py:
+    profiles: [py]
+    image: python:3.12-slim
+    container_name: workshop-todo-api-py
+    working_dir: /app
+    env_file:
+      - path: ./track-py/todo-api/.env   # created in Module 3.1
+        required: false
+    environment:
+      DATABASE_URL: postgres://todo:todo@postgres:5432/todo
+      NOTIFY_URL: http://notify-js:8084
+      PYTHONUSERBASE: /deps
+      PATH: /deps/bin:/usr/local/bin:/usr/bin:/bin
+      PYTHONDONTWRITEBYTECODE: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    volumes:
+      - ./track-py/todo-api:/app
+      - todo-api-py-deps:/deps
+    # Once requirements.txt has opentelemetry-distro (Module 3.1),
+    # opentelemetry-bootstrap installs the instrumentation for every library
+    # it recognises. Before that it does not exist, and is skipped.
+    # watchmedo restarts the whole command when a .py file changes. (Not
+    # gunicorn --reload: under opentelemetry-instrument it silently stops logs
+    # from being exported.)
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        pip install --user -q --no-warn-script-location --root-user-action=ignore -r requirements.txt watchdog
+        && if command -v opentelemetry-bootstrap > /dev/null;
+        then opentelemetry-bootstrap -a requirements | pip install --user -q --no-warn-script-location --root-user-action=ignore -r /dev/stdin; fi
+        && exec watchmedo auto-restart --directory=/app --patterns="*.py" --recursive --signal=SIGTERM -- "$$@"
+      - --
+    command: gunicorn -w 2 -b 0.0.0.0:8082 app:app
+    ports: ["8082:8082"]
+    depends_on: [postgres, notify-js, otel-collector]
+
+  # --- The UI you use as a user -------------------------------------------
+
+  frontend:
+    image: nginx:alpine
+    container_name: workshop-frontend
+    ports: ["8080:80"]
+    volumes: ["./frontend:/usr/share/nginx/html:ro"]
+    restart: unless-stopped
+
+  # --- Grafana — not started until Module 3.2 -----------------------------
+  #
+  #   docker compose up -d grafana
+
+  grafana:
+    profiles: [grafana]
+    image: grafana/grafana:12.3.1
+    container_name: workshop-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: victoriametrics-metrics-datasource,victoriametrics-logs-datasource
+      GF_FEATURE_TOGGLES_ENABLE: correlations,traceToMetrics,traceqlEditor
+    ports: ["3000:3000"]
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on: [victoriametrics, victorialogs, victoriatraces]
+    restart: unless-stopped
+
+# Where the data lives. Docker keeps these outside the repository; list them
+# with `docker volume ls`. ./reset.sh wipes the three victoria-* volumes.
+volumes:
+  victoria-metrics:
+  victoria-logs:
+  victoria-traces:
+  postgres:
+  grafana:
+  todo-api-js-modules:
+  todo-api-py-deps:

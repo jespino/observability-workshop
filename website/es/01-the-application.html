@@ -118,59 +118,28 @@
     <div class="container">
         <article class="module-content">
             <h1>Módulo 1: La Aplicación que Vas a Instrumentar</h1>
-
-<p><strong>Duración:</strong> ~30 min · <strong>Los dos tracks, la misma aplicación</strong></p>
-
+<p><strong>Duración:</strong> ~15 min · <strong>Los dos tracks, la misma aplicación</strong></p>
 <p>No puedes instrumentar un sistema que no entiendes. Este módulo es un recorrido guiado por la app de tareas: qué piezas tiene, qué hace la API y — lo más importante — el puñado de funciones a las que vas a volver en todos los módulos siguientes. 🗺️</p>
-
 <h2>Objetivos de Aprendizaje</h2>
-
 <p>Al terminar este módulo, serás capaz de:</p>
-
 <ul>
 <li>Dibujar el sistema de memoria: qué servicio llama a cuál, y por dónde</li>
 <li>Enumerar todos los endpoints que expone la API y qué toca cada uno</li>
 <li>Conocer los cuatro ficheros de tu track que vas a editar todo el día, y qué vive en cada uno</li>
-<li>Haber seguido una petición por el código a mano — por la vía lenta, para que luego valores hacerlo por la rápida</li>
 </ul>
-
 <h2>Prerrequisitos</h2>
-
 <ul>
 <li>Módulo 0 completado, <code>./doctor.sh</code> en verde</li>
 <li>Tu track elegido, y el selector de track de arriba puesto en él</li>
 </ul>
-
 <h2>El sistema</h2>
-
-<pre><code>                    ┌─────────────┐
- navegador ────────▶│  frontend   │  ficheros estáticos, iguales en los dos tracks
-                    │   :8080     │
-                    └──────┬──────┘
-                           │ HTTP
-                    ┌──────▼───────────────┐
-                    │  todo-api            │  ◀── el código que editas
-                    │  js :8081 / py :8082 │      (un contenedor, en tu terminal)
-                    │  ┌────────────────┐  │
-                    │  │ caché          │  │  un simple map delante del
-                    │  │ en proceso     │  │  camino de lectura de listas
-                    │  └────────────────┘  │
-                    └───────┬───────┬──────┘
-                            │       │
-                  ┌─────────▼┐    ┌─▼─────────────┐
-                  │ Postgres │    │ notify-service│  pre-instrumentado,
-                  │  :5432   │    │  :8083 / :8084│  escrito en el *otro*
-                  └──────────┘    └───────────────┘  lenguaje a propósito
-</code></pre>
-
+<p><img src="../images/application.png" alt="La aplicación: tu navegador carga el frontend en :8080, que llama a todo-api (js :8081 / py :8082) por HTTP. todo-api — el código que editas, que se reinicia al guardar un fichero — tiene una caché en proceso delante del camino de lectura de listas, usa Postgres en :5432 como su única dependencia externa, y llama a notify-service en :8083 / :8084, que ya viene instrumentado y está escrito en el otro lenguaje a propósito."></p>
 <p>Cuatro cosas que merece la pena notar:</p>
-
 <ol>
 <li><strong><code>todo-api</code> es lo único que editas.</strong> Corre en un contenedor <code>node:22-slim</code> o
-<code>python:3.12-slim</code> de serie, en primer plano, en tu propia terminal, con el directorio
-de código de tu portátil montado dentro — así tu editor edita ficheros de verdad y un
-Ctrl-C más ↑ Enter es todo el ciclo de construir y desplegar. Todo lo demás es decorado
-fijo.</li>
+<code>python:3.12-slim</code> de serie, con el directorio de código de tu portátil montado dentro
+y el servidor en modo vigilancia — así tu editor edita ficheros de verdad, y guardar uno
+es todo el ciclo de construir y desplegar. Todo lo demás es decorado fijo.</li>
 <li><strong>Postgres es su única dependencia externa.</strong> La caché que hay delante del camino de
 lectura es un map en memoria, no Redis. Recuérdalo: nada en la red puede observarla, y
 eso resulta importar bastante más adelante.</li>
@@ -185,9 +154,7 @@ abstracto.</li>
 <li><strong><code>./loadgen.sh</code> mantiene el tráfico</strong>, así siempre hay algo que mirar. Ejecuta
 <code>./loadgen.sh 2m</code> cuando las gráficas se queden quietas.</li>
 </ol>
-
 <h2>La API</h2>
-
 <table>
 <thead>
 <tr>
@@ -197,7 +164,6 @@ abstracto.</li>
 <th>Toca</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td><code>GET</code></td>
@@ -205,49 +171,42 @@ abstracto.</li>
 <td>Sonda de vida</td>
 <td>nada</td>
 </tr>
-
 <tr>
 <td><code>GET</code></td>
 <td><code>/lists</code></td>
 <td>Todas las listas con sus contadores</td>
 <td>Postgres</td>
 </tr>
-
 <tr>
 <td><code>GET</code></td>
 <td><code>/todos?list=&lt;nombre&gt;</code></td>
 <td>Todos de una lista</td>
 <td>Postgres, caché</td>
 </tr>
-
 <tr>
 <td><code>GET</code></td>
 <td><code>/todos/:id</code></td>
 <td>Un todo</td>
 <td>Postgres</td>
 </tr>
-
 <tr>
 <td><code>POST</code></td>
 <td><code>/todos</code></td>
 <td>Crea un todo</td>
 <td>Postgres, <code>notify-service</code></td>
 </tr>
-
 <tr>
 <td><code>PATCH</code></td>
 <td><code>/todos/:id/complete</code></td>
 <td>Marca un todo como completado</td>
 <td>Postgres, caché</td>
 </tr>
-
 <tr>
 <td><code>DELETE</code></td>
 <td><code>/todos/:id</code></td>
 <td>Borra un todo</td>
 <td>Postgres, caché</td>
 </tr>
-
 <tr>
 <td><code>GET</code></td>
 <td><code>/stats</code></td>
@@ -257,7 +216,6 @@ abstracto.</li>
 </tbody>
 </table>
 <p>Un todo tiene esta pinta:</p>
-
 <pre><code class="language-json">{
   &quot;id&quot;: &quot;0f2c6b1e-8a7d-4f2b-9c31-0a5e6d7b8c90&quot;,
   &quot;title&quot;: &quot;Renovar el certificado TLS&quot;,
@@ -269,18 +227,13 @@ abstracto.</li>
   &quot;completed_at&quot;: null
 }
 </code></pre>
-
 <p>Dos comportamientos conviene saberlos desde ya, porque condicionan la telemetría:</p>
-
 <ul>
 <li><strong>Un todo con la etiqueta <code>urgent</code> dispara una llamada a <code>notify-service</code></strong> al crearse. Los que no la llevan, no.</li>
 <li><strong>Las lecturas de listas pasan primero por la caché en proceso</strong>, y caen a Postgres si fallan.</li>
 </ul>
-
 <h2>El código</h2>
-
 <div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
-
 <pre><code>track-js/todo-api/
 ├── package.json
 └── src/
@@ -292,11 +245,8 @@ abstracto.</li>
     ├── enrich.js         # lógica de negocio de etiquetas y prioridad
     └── log.js            # el logger pino
 </code></pre>
-
 <p>Los cuatro ficheros marcados con ◀ son donde ocurre prácticamente todo tu trabajo.</p>
-
 <p><strong><code>src/server.js</code></strong> — Express pelado, sin sorpresas. Fíjate en que no hay configuración de telemetría por ninguna parte. Ese es el punto de partida:</p>
-
 <pre><code class="language-js">const express = require('express');
 const { todosRouter } = require('./routes/todos.js');
 
@@ -307,9 +257,7 @@ app.use(todosRouter);
 
 app.listen(8081, () =&gt; log.info('todo-api listening on 8081'));
 </code></pre>
-
 <p><strong><code>src/routes/todos.js</code></strong> — los handlers. Estos dos son a los que vas a volver en los Módulos 5, 6 y 7:</p>
-
 <pre><code class="language-js">todosRouter.post('/todos', async (req, res) =&gt; {
   const todo = await createTodo(req.body);          // repo.js
   const enriched = await enrich(todo);              // enrich.js
@@ -327,11 +275,8 @@ todosRouter.patch('/todos/:id/complete', async (req, res) =&gt; {
   res.json(todo);
 });
 </code></pre>
-
 </div>
-
 <div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
-
 <pre><code>track-py/todo-api/
 ├── requirements.txt
 ├── app.py                # factoría flask, blueprints, arranque
@@ -343,11 +288,8 @@ todosRouter.patch('/todos/:id/complete', async (req, res) =&gt; {
     ├── enrich.py         # lógica de negocio de etiquetas y prioridad
     └── log.py            # el logger de la stdlib
 </code></pre>
-
 <p>Los cuatro ficheros marcados con ◀ son donde ocurre prácticamente todo tu trabajo.</p>
-
 <p><strong><code>app.py</code></strong> — Flask pelado, sin sorpresas. Fíjate en que no hay configuración de telemetría por ninguna parte. Ese es el punto de partida:</p>
-
 <pre><code class="language-python">from flask import Flask, jsonify
 from todo_api.routes import bp
 
@@ -363,9 +305,7 @@ def create_app():
 
 app = create_app()
 </code></pre>
-
 <p><strong><code>todo_api/routes.py</code></strong> — los handlers. Estos dos son a los que vas a volver en los Módulos 5, 6 y 7:</p>
-
 <pre><code class="language-python">@bp.post(&quot;/todos&quot;)
 def post_todo():
     todo = create_todo(request.get_json())        # repo.py
@@ -383,13 +323,9 @@ def patch_complete(todo_id):
     invalidate(todo.list)                         # cache.py
     return jsonify(todo)
 </code></pre>
-
 </div>
-
 <h3>Las funciones que nos importan</h3>
-
 <p>A lo largo de todo el taller, estas son las que salen una y otra vez. Apréndete los nombres ahora y los módulos siguientes se leerán mucho más rápido:</p>
-
 <table>
 <thead>
 <tr>
@@ -398,44 +334,37 @@ def patch_complete(todo_id):
 <th>Por qué importa</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td><code>createTodo</code> / <code>create_todo</code></td>
 <td>repo</td>
 <td>El evento de negocio. El counter del Módulo 5, el log estructurado del Módulo 6</td>
 </tr>
-
 <tr>
 <td><code>completeTodo</code> / <code>complete_todo</code></td>
 <td>repo</td>
 <td>Te da una duración genuinamente de negocio en el Módulo 5</td>
 </tr>
-
 <tr>
 <td><code>listTodos</code> / <code>list_todos</code></td>
 <td>repo</td>
 <td>El camino de lectura. Interesante por motivos que ya descubrirás</td>
 </tr>
-
 <tr>
 <td><code>readSummary</code> / <code>read_summary</code></td>
 <td>cache</td>
 <td>El único camino de lectura de caché de la app</td>
 </tr>
-
 <tr>
 <td><code>notifyUrgent</code> / <code>notify_urgent</code></td>
 <td>notify</td>
 <td>La frontera entre servicios. El ejercicio de propagación del Módulo 7</td>
 </tr>
-
 <tr>
 <td><code>enrich</code></td>
 <td>enrich</td>
 <td>Lógica de negocio pura, sin instrumentación de librería propia — el mejor candidato para tu primer span personalizado</td>
 </tr>
-
 <tr>
 <td><code>overdueCount</code> / <code>overdue_count</code></td>
 <td>repo</td>
@@ -443,143 +372,15 @@ def patch_complete(todo_id):
 </tr>
 </tbody>
 </table>
-
 <h3>Lo que deliberadamente no te enseñamos</h3>
-
 <p>Las <em>tripas</em> de los módulos de repo y caché — cómo se construyen las consultas, cómo se deriva la clave de caché — quedan para que las descubras tú. No porque sean un secreto, sino porque para el Módulo 9 deberías poder describir qué hacen sin abrirlos, solo a partir de la telemetría. Esa es toda la promesa de este taller, y es más divertido si puedes ponerla a prueba. 🔍</p>
-
-<h2>Ejercicio 1.1 — Sigue una petición a mano [~15 min]</h2>
-
-<p><strong>Deberías poder responder esto al terminar:</strong> <em>¿cuántas idas y vueltas de red hace un <code>POST /todos</code> con la etiqueta <code>urgent</code>?</em></p>
-
-<h3>Hazlo</h3>
-
-<ol>
-<li><p>Abre el fichero de rutas de tu track y sigue <code>POST /todos</code> hasta el fondo. Apunta en papel la secuencia de llamadas: cada consulta a base de datos, cada operación de caché, cada petición HTTP saliente.</p></li>
-
-<li><p>Haz lo mismo con <code>GET /todos?list=work</code>.</p></li>
-
-<li><p>Ahora comprueba tu respuesta de la única forma disponible por ahora:</p></li>
-</ol>
-
-<p>Mira la terminal en la que corre tu API. Luego, en otra terminal:</p>
-
-<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
-
-<pre><code class="language-bash">   curl -s -X POST localhost:8081/todos \
-     -H 'content-type: application/json' \
-     -d '{&quot;title&quot;:&quot;ship the thing&quot;,&quot;list&quot;:&quot;work&quot;,&quot;tags&quot;:[&quot;urgent&quot;],&quot;priority&quot;:1}'
-</code></pre>
-
-<p></div></p>
-
-<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
-
-<pre><code class="language-bash">   curl -s -X POST localhost:8082/todos \
-     -H 'content-type: application/json' \
-     -d '{&quot;title&quot;:&quot;ship the thing&quot;,&quot;list&quot;:&quot;work&quot;,&quot;tags&quot;:[&quot;urgent&quot;],&quot;priority&quot;:1}'
-</code></pre>
-
-<p></div></p>
-
-<ol>
-<li>Compara la salida del log con la secuencia que escribiste. ¿Cuánto de ello has podido confirmar de verdad?</li>
-</ol>
-
-<h3>Comprueba en la UI de Victoria</h3>
-
-<p>Todavía no hay nada que comprobar — y ese es el ejercicio. Fíjate en cuánto te ha costado el paso 3 comparado con el paso 1.</p>
-
-<h3>Comprueba en Grafana</h3>
-
-<p>Todavía nada.</p>
-
-<h3>Para pensar</h3>
-
-<p>Acabas de reconstruir el camino de una petición leyendo código fuente. Funciona porque el proyecto tiene 400 líneas y lo tienes abierto. ¿Cuál es el sistema más pequeño en el que eso deja de funcionar?</p>
-
-<h3>Si te atascas</h3>
-
-<ul>
-<li><strong>El <code>POST</code> devuelve 500.</strong> Revisa tu JSON — <code>title</code> tiene que ser una cadena no vacía. (Tenlo presente; vuelve en el Módulo 6.)</li>
-<li><strong><code>urgent</code> no parece llamar a notify-service.</strong> La comparación de la etiqueta es exacta y en minúsculas. <code>Urgent</code> no vale.</li>
-</ul>
-
-<h2>Ejercicio 1.2 — Rompe algo, e intenta averiguar por qué [~10 min]</h2>
-
-<p><strong>Deberías poder responder esto al terminar:</strong> <em>¿cuánto se tarda en diagnosticar un 500 sin telemetría?</em></p>
-
-<h3>Hazlo</h3>
-
-<ol>
-<li>Crea un todo con el título vacío:</li>
-</ol>
-
-<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
-
-<pre><code class="language-bash">   curl -i -s -X POST localhost:8081/todos \
-     -H 'content-type: application/json' \
-     -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;,&quot;tags&quot;:[]}'
-</code></pre>
-
-<p></div></p>
-
-<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
-
-<pre><code class="language-bash">   curl -i -s -X POST localhost:8082/todos \
-     -H 'content-type: application/json' \
-     -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;,&quot;tags&quot;:[]}'
-</code></pre>
-
-<p></div></p>
-
-<ol>
-<li><p>Te devuelve un 500. Ahora responde a estas tres preguntas <strong>sin abrir el código</strong>:</p>
-
-<ul>
-<li>¿Qué función lanzó el error?</li>
-<li>¿Se tocó la base de datos antes de fallar?</li>
-<li>¿Cuántos usuarios más se han topado con esto hoy?</li>
-</ul></li>
-
-<li><p>Ríndete a los cinco minutos. Ese es el resultado honesto, y es justo el objetivo.</p></li>
-</ol>
-
-<h3>Comprueba en la UI de Victoria</h3>
-
-<p>Sigue sin haber nada. Disfruta del último módulo en que eso es cierto. 😄</p>
-
-<h3>Comprueba en Grafana</h3>
-
-<p>Sigue sin haber nada.</p>
-
-<h3>Para pensar</h3>
-
-<p>De esas tres preguntas, ¿cuál es un problema de <em>logging</em>, cuál de <em>tracing</em> y cuál de <em>métricas</em>? Guarda tu respuesta — la retomamos al final del Módulo 2.</p>
-
-<h3>Si te atascas</h3>
-
-<ul>
-<li><strong>Recibes un 400 en vez de un 500.</strong> Estás en una build con checkpoint de un módulo posterior. Ejecuta <code>./checkpoint.sh 00</code> para volver al estado inicial.</li>
-</ul>
-
-<p>Este módulo no cambia código, así que no hay checkpoint que hacer. Si en algún
-momento quieres deshacer tus experimentos y volver al estado inicial impoluto:</p>
-
-<pre><code class="language-bash">./checkpoint.sh 00
-</code></pre>
-
 <h2>Lo Que Hemos Conseguido</h2>
-
 <ul>
 <li>Sabes dibujar el sistema, nombrar sus dependencias y listar sus endpoints</li>
 <li>Conoces los cuatro ficheros y las siete funciones sobre los que gira el resto del taller</li>
-<li>Has sentido, en concreto, lo que cuesta depurar esta app sin telemetría</li>
 </ul>
-
 <h2>Siguientes Pasos</h2>
-
-<p>Ahora que sabes qué vamos a instrumentar, pongámonos de acuerdo en qué significa &ldquo;instrumentar&rdquo;. Continúa con el <a href="02-what-observability-is.html">Módulo 2: Qué es Realmente la Observabilidad</a>.</p>
+<p>Ahora que sabes qué vamos a instrumentar, veamos qué datos produce instrumentarla. Continúa con el <a href="02-what-observability-is.html">Módulo 2: Las Tres Señales — Métricas, Logs y Trazas</a>.</p>
 
         </article>
 

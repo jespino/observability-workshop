@@ -1,6 +1,6 @@
 # Módulo 5: Métricas Manuales
 
-**Duración:** ~90 min · **Checkpoints: 52, 53, 54**
+**Duración:** ~90 min
 
 La auto-instrumentación te dio tasas de peticiones HTTP. A nadie le han dado nunca un aviso por una tasa de peticiones HTTP. Este módulo va de emitir los números que el negocio pregunta de verdad — y del único error que te va a costar dinero real si lo cometes a escala. 📊
 
@@ -37,7 +37,7 @@ Los dos modos de fallo son elegir un gauge cuando querías un counter (pierdes t
 
 **Temporalidad de agregación**, brevemente: cumulative significa "total desde que arrancó el proceso", delta significa "desde la última exportación". VictoriaMetrics quiere cumulative, los dos SDKs usan cumulative por defecto, así que estás bien — pero ahora conoces la palabra.
 
-## Ejercicio 5.2 — Tus primeras métricas de negocio [~30 min] [checkpoint: 52]
+## Ejercicio 5.2 — Tus primeras métricas de negocio [~30 min]
 
 **Deberías poder responder esto al terminar:** *¿cuántos todos se han creado en los últimos cinco minutos en la lista `work`?* — la pregunta que no pudiste responder en el Módulo 3.3.
 
@@ -174,9 +174,8 @@ meter.create_observable_gauge(
 
 <!-- /track -->
 
-4. Reinicia la API y genera carga. **Ctrl-C en la terminal de la API, y luego ↑ Enter** — el
-   contenedor monta tu directorio de código, así que el reinicio es todo lo que hace falta
-   para que recoja la edición. Después, en otra terminal:
+4. Guarda el fichero y genera carga. La API se reinicia sola en cuanto guardas — míralo en
+   la terminal de su log. Después, en otra terminal:
 
    <!-- track:js -->
 
@@ -232,11 +231,7 @@ Añadiste `source` como atributo de `todos.created`, rellenado desde una cabecer
 - **(JS) `metrics.getMeter` devuelve un no-op.** La API es un no-op salvo que haya un SDK registrado — asegúrate de que el flag `--require` del Módulo 3 sigue en el comando de arranque.
 - **(Python) El callback del observable gauge nunca se dispara.** Tiene que registrarse en tiempo de import, no dentro de un handler de petición.
 
-```bash
-./checkpoint.sh 52
-```
-
-## Ejercicio 5.3 — Views: moldear métricas sin cambiar código [~20 min] [checkpoint: 53]
+## Ejercicio 5.3 — Views: moldear métricas sin cambiar código [~20 min]
 
 **Deberías poder responder esto al terminar:** *¿cómo arreglas un histograma mal bucketizado dentro de una librería que no es tuya?*
 
@@ -351,11 +346,7 @@ Muy poca gente sabe que las Views existen. Dado que permiten a un equipo de plat
 - **Los buckets antiguos siguen ahí.** Las series viejas no desaparecen; estás mirando datos anteriores al reinicio. Reduce el rango de tiempo a los últimos dos minutos.
 - **El renombrado produjo los dos nombres.** Lo mismo — series históricas. Es lo esperado.
 
-```bash
-./checkpoint.sh 53
-```
-
-## Ejercicio 5.4 — El laboratorio de cardinalidad [~25 min] [checkpoint: 54] *(recortable — pero es el mejor ejercicio del módulo)*
+## Ejercicio 5.4 — El laboratorio de cardinalidad [~25 min] *(recortable — pero es el mejor ejercicio del módulo)*
 
 **Deberías poder responder esto al terminar:** *¿qué regla te dice si un valor es seguro como atributo de métrica?*
 
@@ -429,9 +420,10 @@ Deberías ver: número de series y memoria subiendo de forma sostenida, y siguie
    ```
 
    No hay API de borrado por consulta para logs, así que limpiar un backend significa
-   pararlo, borrar su directorio de almacenamiento y arrancarlo otra vez — que es todo lo
-   que hace `reset.sh`, con las mismas tres líneas de comando que escribiste en el
-   Módulo 0.1. Al Collector no lo toca, así que reinícialo tú: **Ctrl-C, y luego ↑ Enter**.
+   pararlo, borrar su almacenamiento y arrancarlo otra vez — que es todo lo que hace
+   `reset.sh`: borra los tres contenedores de almacenamiento y sus volúmenes de Docker, los
+   arranca otra vez vacíos, y reinicia el Collector para que sus colas empiecen limpias. El
+   volumen `workshop_postgres`, con tus todos, no se toca.
 
 ### Comprueba en Grafana
 
@@ -450,11 +442,7 @@ Quédate con eso. Es la motivación más limpia posible para los dos módulos si
 ### Si te atascas
 
 - **La cardinalidad no parece crecer.** Puede que el loadgen esté reutilizando un conjunto fijo de todos. Usa `--rps 50` y asegúrate de que está creando, no solo leyendo.
-- **VictoriaMetrics se pone lenta o no responde.** Enhorabuena, has reproducido un incidente de producción real. Ejecuta `./reset.sh`, y después reinicia el Collector en su terminal, como te dice el propio script.
-
-```bash
-./checkpoint.sh 54
-```
+- **VictoriaMetrics se pone lenta o no responde.** Enhorabuena, has reproducido un incidente de producción real. Ejecuta `./reset.sh`.
 
 ## Ejercicio 5.5 — Grafana [~15 min]
 

@@ -9,12 +9,14 @@ const port = Number(process.env.PORT ?? 8081);
 
 app.use(express.json());
 
-// The frontend is served from a different origin. `traceparent` is allowed
-// so that the browser-instrumentation bonus in Module 7.4 works.
+// The frontend is served from a different origin, so allow any origin, method
+// and header — including `traceparent`, for the browser-instrumentation bonus in
+// Module 7.4.
 app.use((req, res, next) => {
   res.set('access-control-allow-origin', '*');
-  res.set('access-control-allow-headers', 'content-type,traceparent,tracestate,x-client');
-  res.set('access-control-allow-methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+  res.set('access-control-allow-headers', '*');
+  res.set('access-control-allow-methods', '*');
+  res.set('access-control-max-age', '600');
   if (req.method === 'OPTIONS') return res.status(204).end();
   next();
 });
@@ -27,6 +29,12 @@ app.use((err, _req, res, _next) => {
   log.error('request failed: ' + err.message);
   res.status(500).json({ error: 'internal' });
 });
+
+// Exit promptly when asked to stop — which `node --watch` does on every file
+// save. Once the OpenTelemetry SDK is loaded it registers a SIGTERM handler of
+// its own to flush telemetry, and that stops Node from exiting by itself; the
+// half second here is the SDK's window to flush.
+process.on('SIGTERM', () => setTimeout(() => process.exit(0), 500));
 
 waitForDependencies().then(() => {
   app.listen(port, () => log.info(`todo-api listening on ${port}`));

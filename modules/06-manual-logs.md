@@ -1,6 +1,6 @@
 # Module 6: Manual Logs
 
-**Duration:** ~75 min · **Checkpoints: 62**
+**Duration:** ~75 min
 
 Right now your logs are text. Text is what you grep at 3am while wishing you had something better. This module turns them into records you can filter, aggregate and — the important part — join to a trace. 🪵
 
@@ -16,7 +16,7 @@ By the end of this module, you will:
 
 ## Prerequisites
 
-- Module 5 completed and checkpointed
+- Module 5 completed
 
 ## 6.1 — Concepts [~10 min]
 
@@ -47,7 +47,7 @@ Rock solid, works for any language and any third-party container, no experimenta
 
 We'll build A and demo B in 6.4.
 
-## Exercise 6.2 — Structured logging with trace context [~25 min] [checkpoint: 62]
+## Exercise 6.2 — Structured logging with trace context [~25 min]
 
 **You should be able to answer this by the end:** *given an error log line, how do you get to the trace of the request that produced it?*
 
@@ -133,7 +133,7 @@ log.info("todo created", extra={"list": todo.list, "todo_id": todo.id})
    - the complete path (`todo completed`)
    - the cache path in `cache.js` / `cache.py` — log the key you looked up and whether it hit
 
-3. **Log the error path properly.** Find the handler that returns a 500 when the title is empty (you met it in Module 1.2) and make it produce something actionable:
+3. **Log the error path properly.** Find the handler that returns a 500 when the title is empty and make it produce something actionable:
 
 <!-- track:js -->
 
@@ -171,11 +171,11 @@ except Exception:
 
 Note what's in there: severity, the exception, and **the attributes a colleague would need to reproduce it**. `title_length` rather than `title`, because the title might contain something you shouldn't be storing — a habit worth forming now, and one we'll come back to in Module 10.
 
-4. Rebuild, then create a failing todo to generate one of these:
+4. Save the file, then create a failing todo to generate one of these:
 
    <!-- track:js -->
 
-   Restart the API — Ctrl-C in its terminal, then ↑ Enter — and in another terminal:
+   Once the API has restarted (watch its log terminal), in another terminal:
 
    ```bash
    curl -s -X POST localhost:8081/todos -H 'content-type: application/json' -d '{"title":"","list":"work"}'
@@ -186,7 +186,7 @@ Note what's in there: severity, the exception, and **the attributes a colleague 
 
    <!-- track:python -->
 
-   Restart the API — Ctrl-C in its terminal, then ↑ Enter — and in another terminal:
+   Once the API has restarted (watch its log terminal), in another terminal:
 
    ```bash
    curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{"title":"","list":"work"}'
@@ -242,10 +242,6 @@ Same value. Opposite verdict. Why? Say the reason out loud — if you can articu
 - **Logs arrive but have no attributes.** You're probably still interpolating into the message. `log.info("created " + id)` produces a body and nothing else.
 - **(JS) No `trace_id` anywhere.** The pino instrumentation only patches pino instances created *after* the SDK loaded, and it only patches CommonJS `require()` calls. Check that the `--require` flag is still on the start command and that you did not turn `src/log.js` into an ES module.
 - **(Python) Nothing reaches VictoriaLogs.** Check `OTEL_LOGS_EXPORTER=otlp` is still set, and that you attached the handler to the root logger rather than a child.
-
-```bash
-./checkpoint.sh 62
-```
 
 ## Exercise 6.3 — Streams and LogsQL [~25 min]
 
@@ -357,7 +353,7 @@ You just learned a query language. In Module 7 you'll query **spans** with the s
 
    Note the `trace_parser` operator: with this architecture you are responsible for getting `trace_id` into your JSON yourself, and then telling the Collector where to find it.
 
-3. Discuss when you'd choose it:
+3. When would you choose it?
    - Third-party services you can't add an SDK to
    - Languages where the logs SDK isn't ready
    - Organisations that won't ship an experimental package to production

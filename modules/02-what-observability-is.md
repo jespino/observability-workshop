@@ -1,146 +1,167 @@
-# Module 2: What Observability Actually Is
+# Module 2: The Three Signals — Metrics, Logs and Traces
 
-**Duration:** ~30 min · **Talk and demo — laptops mostly closed**
+**Duration:** ~20 min · **Talk — no code to write**
 
-This is the only module with no code to write. It exists so that everything after it lands in a shared vocabulary instead of a fog of buzzwords. 🧠
+OpenTelemetry describes what a running system is doing with three kinds of data, called
+**signals**: metrics, logs and traces. This module explains each one with an example taken
+from the application you'll instrument, so that the rest of the workshop builds on a shared
+vocabulary. 🧠
 
 ## Learning Objectives
 
 By the end of this module, you will:
 
-- Be able to explain the OpenTelemetry data model — resource, scope, signal, attributes, context — without saying "three pillars"
-- Know the difference between the API, the SDK, an instrumentation library, an exporter, and the Collector, and why that distinction resolves most confusion later
-- Understand why there's a Collector in the middle of our architecture
-- Know which parts of the OpenTelemetry ecosystem are stable and which are still moving
+- Know what a metric, a log record and a trace are
+- Be able to read an example of each one and say what every part of it means
+- Know where each signal is stored in this workshop
 
 ## Prerequisites
 
 - Module 1 completed — you should be able to describe the app
 
-## 2.1 — We start with a failure, not a definition
+## 2.1 — Metrics
 
-Your facilitator will show you two recordings of the same investigation:
+A **metric** is a number measured over time. Instead of recording every event, the
+application keeps aggregated values — a count, a sum, a distribution — and exports them
+periodically, by default every 60 seconds (every 10 in this workshop). Each combination of
+a metric name and a set of attributes is a separate **time series**.
 
-1. **With the finished stack.** A user complains the app is slow. Ninety seconds later, someone is pointing at the exact line of code.
-2. **With `docker logs | grep`.** The same investigation. It does not finish.
+OpenTelemetry has a few metric types. The three you'll use most are:
 
-Don't worry about *how* the first one works yet. Just note where we're going — you'll build every piece of it yourself.
-
-## 2.2 — Why "three pillars" is a misleading framing
-
-You've probably seen observability described as three pillars: metrics, logs, traces. The picture is a bad one, because pillars stand apart, and separateness is precisely what you don't want.
-
-What actually makes observability work is that a log line, a metric point and a span all carry:
-
-- **the same resource** — they agree on who emitted them, and
-- **the same trace context** — they can be stitched into one story about one request.
-
-> **Correlation is the product. The signals are the raw material.** 🔗
-
-Everything in Modules 5 through 8 is in service of that sentence. When we get to Module 8 you'll click from a graph to a log line to a trace to a line of code, and that only works because of decisions made in the modules before it.
-
-## 2.3 — The OpenTelemetry data model
-
-Five concepts. That's the whole thing.
-
-**Resource** — *who* is emitting. Set once at startup, attached to everything the process produces.
-
-```
-service.name          = todo-api
-service.version       = 1.0.0
-deployment.environment = workshop
-```
-
-`service.name` is the single most important attribute in the entire system. Get it wrong and nothing correlates.
-
-**Instrumentation scope** — *which library* produced this piece of telemetry. Lets you tell "the HTTP instrumentation said this" apart from "the application said this".
-
-**The signal payload** — a metric point, a log record, or a span. This is the only part that differs per signal.
-
-**Attributes** — key/value pairs on the payload. The dimension you slice by. `http.route`, `todo.list`, `error.type`.
-
-> ⚠️ Attributes are also where costs hide. Every distinct combination of attribute values on a metric is a new time series. Remember this sentence; you'll pay for it in Module 5.4.
-
-**Context and propagation** — the mechanism that carries the current trace and span id along with a request, including across process boundaries via the W3C `traceparent` header:
-
-```
-traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
-             ^  ^                                ^                ^
-             |  trace id                         parent span id   flags
-             version
-```
-
-If you understand nothing else today, understand that when someone says "the trace broke at this boundary", they nearly always mean *that header did not make it across*.
-
-## 2.4 — API vs SDK vs instrumentation vs exporter vs Collector
-
-This is the distinction that resolves half of the questions people ask later. Your facilitator will draw it; here it is in words:
-
-| Piece | What it is | Who ships it |
+| Type | What it records | Example |
 |---|---|---|
-| **API** | The interface your code calls: `counter.add()`, `tracer.startSpan()`. Does nothing on its own — it's a no-op unless an SDK is registered. | OpenTelemetry |
-| **SDK** | The implementation. Batching, sampling, views, resource detection. Configured once at process start. | OpenTelemetry |
-| **Instrumentation library** | Code that calls the API *on your behalf* by hooking a framework — Express, Flask, `pg`, `psycopg`. This is what "auto-instrumentation" is made of. | OpenTelemetry / community |
-| **Exporter** | Turns SDK data into a wire format and ships it. We'll use OTLP over HTTP. | OpenTelemetry |
-| **Collector** | A separate process that receives, processes and re-exports telemetry. Optional, but see below. | OpenTelemetry |
+| **Counter** | A total that only goes up | todos created |
+| **Histogram** | The distribution of measured values | request duration |
+| **Gauge** | A value at a point in time | todos currently open |
 
-The practical consequence: **a library that only uses the API adds no dependency on any backend.** That's the design goal, and it's why instrumenting a library you maintain is a much smaller commitment than people assume.
+### Example
 
-## 2.5 — Why there's a Collector in our architecture
+This is a counter you'll create in Module 5, as VictoriaMetrics stores it:
 
-A reasonable question at this point is: our three backends all speak OTLP, so why not export straight to them?
+```
+todos_created_total{service_name="todo-api", list="work"}   1287
+todos_created_total{service_name="todo-api", list="home"}    342
+```
 
-Because they don't all speak it *at the same address*:
+- `todos_created_total` is the metric name. In the code it is called `todos.created`; the
+  storage adds `_total` because it is a counter, and replaces the dots with underscores.
+- `service_name="todo-api"` says which service emitted it. It comes from the service's
+  configuration, not from the code that increments the counter.
+- `list="work"` is an **attribute** added when the counter is incremented. Each value of
+  `list` produces its own time series, which is why there are two lines.
+- `1287` is the value: the number of todos created in the `work` list since the service
+  started. On its own it says little; what you query is how fast it grows, for example
+  "todos created per second, per list".
 
-| Signal | Endpoint |
-|---|---|
-| Metrics | `http://victoriametrics:8428/opentelemetry/v1/metrics` |
-| Logs | `http://victorialogs:9428/insert/opentelemetry/v1/logs` |
-| Traces | `http://victoriatraces:10428/insert/opentelemetry/v1/traces` |
+## 2.2 — Logs
 
-Three hosts, three paths. The Collector gives your application **one** `OTEL_EXPORTER_OTLP_ENDPOINT` and does the fan-out itself.
+A **log record** describes one event that happened at a specific moment: a request failed,
+a todo was created, a connection was retried. Unlike a metric, every event produces its
+own record. In OpenTelemetry a log record has a body (the message), a severity, a timestamp
+and attributes, and if it was emitted while handling a request, the identifiers of that
+request's trace.
 
-That's the immediate reason. The lasting reasons show up later:
+### Example
 
-- It's where you put **sampling** without redeploying the app (Module 7.5)
-- It's where you **redact** PII centrally instead of in twelve services (Module 10)
-- It's where you generate **metrics from spans** for free (Module 8.1)
-- It **buffers and retries** when a backend is down, so your app doesn't have to
+A log record you'll produce in Module 6, when a todo is created:
 
-There's an optional appendix exercise later that has you export directly to the backends and then take stock of what you lost. Recommended if you're the kind of person who suspects the Collector is ceremony.
+```
+timestamp:      2026-10-13T09:15:02.123Z
+severity_text:  INFO
+body:           todo created
+attributes:
+  list:         work
+  todo_id:      5a082413-27bb-495a-8010-7bd006c20252
+resource:
+  service.name: todo-api
+trace_id:       4bf92f3577b34da6a3ce929d0e0e4736
+span_id:        00f067aa0ba902b7
+```
 
-## 2.6 — The stack we're using, and one genuinely nice property
+- `timestamp` is when the event happened, and `severity_text` how important it is
+  (`DEBUG`, `INFO`, `WARN`, `ERROR`).
+- `body` is the message. It is the same text for every todo created, so you can count and
+  group these records.
+- `attributes` carry the details that vary from one event to another: which list, which
+  todo.
+- `resource` describes who emitted the record: the same `service.name` the metric carries.
+- `trace_id` and `span_id` identify the request that was being handled when the record was
+  written. They are what will let you jump from this log line to the full trace of that
+  request in Module 8.
 
-- **VictoriaMetrics** stores metrics and speaks **MetricsQL**, a superset of PromQL. If you know PromQL you already know it.
-- **VictoriaLogs** stores logs and speaks **LogsQL**.
-- **VictoriaTraces** stores traces and speaks... **LogsQL** as well.
+## 2.3 — Traces
 
-That last point is worth stopping on. **Learning one query language gets you two of the three signals.** In Module 7 you'll query spans with the same syntax you learned for logs in Module 6, and it will feel like cheating. Compared with learning PromQL *and* LogQL *and* TraceQL, that's a real saving.
+A **trace** follows one request through the system. It is made of **spans**: each span is
+one operation with a start time, a duration and attributes — handling an HTTP request,
+running a database query, calling another service. Spans have parents, so together they
+form a tree showing what happened, in what order, and how long each step took. When a
+request goes from one service to another, the trace id travels with it in an HTTP header
+(`traceparent`), so the spans of both services end up in the same trace.
 
-VictoriaTraces also implements the **Jaeger query API**, which means Grafana's built-in Jaeger datasource works against it with no plugin, and you get the familiar waterfall view for free.
+### Example
 
-## 2.7 — Signal maturity, honestly
+The trace of one `POST /todos`, simplified and drawn as a tree (the exact span names vary a
+little between the JavaScript and Python libraries):
 
-Not everything here is equally finished, and you should hear that from us rather than discover it at 2am:
+```
+trace 4bf92f3577b34da6a3ce929d0e0e4736
 
-- **Traces and metrics** are stable in both SDKs. Use them with confidence.
-- **The logs signal** is still moving. The SDK packages are marked experimental in both JavaScript and Python. We're going to use them anyway, because they're the cleanest way to teach the correlation story — but pin your versions, and in Module 6.4 we'll show you the rock-solid alternative (stdout JSON plus a Collector `filelog` receiver) that you might reasonably prefer in production.
-- **Some semantic conventions** are still experimental and can change between releases. That's a genuine cost; we'll name it again in Module 7.3.
-- **VictoriaMetrics has no exemplar support.** That removes one specific correlation flow that a Prometheus+Tempo stack would give you. We'll show you the workaround in Module 8.2 and be explicit about the trade-off.
+POST /todos                       todo-api   ██████████████████████  24 ms
+├─ pg.connect                     todo-api   ██                       2 ms
+└─ INSERT INTO todos              todo-api       ███████              8 ms
+```
 
-## Discussion (5 min, in pairs)
+And the top span in detail:
 
-> Think of the last production incident you were involved in. **Which signal would have shortened it, and did you have it?**
+```
+name:            POST /todos
+trace_id:        4bf92f3577b34da6a3ce929d0e0e4736
+span_id:         00f067aa0ba902b7
+parent_span_id:  (none — this is the root span)
+start:           2026-10-13T09:15:02.101Z
+duration:        24 ms
+status:          OK
+attributes:
+  http.method:      POST
+  http.route:       /todos
+  http.status_code: 201
+resource:
+  service.name:     todo-api
+```
 
-Two or three pairs share. Keep your answer somewhere — in Module 9 you'll find out whether you were right.
+- Every span in the tree shares the same `trace_id`: that is what makes them one trace.
+- The root span, `POST /todos`, has no parent. It covers the whole request, from the
+  moment it arrived to the moment the response was sent.
+- `pg.connect` and `INSERT INTO todos` are its children: they have `parent_span_id` set to
+  the root's `span_id`, and they happened inside it. The bars show when each one started
+  and how long it lasted.
+- `attributes` describe the operation: which HTTP method and route, what status code was
+  returned. A database span would carry the query instead.
+- `status` says whether the operation succeeded. A failed request would show `ERROR`.
+- The `span_id` of the root span is the same one the log record in 2.2 carries. That log
+  line was written while this span was active.
+
+## 2.4 — Where each signal goes in this workshop
+
+Your application sends all three signals to the OpenTelemetry Collector, which forwards
+each one to its own storage:
+
+| Signal | Stored in | Queried with |
+|---|---|---|
+| Metrics | VictoriaMetrics | MetricsQL (PromQL-compatible) |
+| Logs | VictoriaLogs | LogsQL |
+| Traces | VictoriaTraces | LogsQL |
+
+Logs and traces share a query language: what you learn to query logs in Module 6 also
+works for traces in Module 7.
 
 ## What We Accomplished
 
-- A shared vocabulary: resource, scope, signal, attributes, context
-- A clear map of API vs SDK vs instrumentation vs exporter vs Collector
-- A concrete reason for every box in the architecture diagram
-- An honest picture of which bits of this ecosystem are still moving
+- You know what a metric, a log record and a trace are
+- You can read an example of each and say what every field means
+- You know how the three are connected — the same `service.name`, and the same `trace_id`
+  on logs and spans — and where each one is stored
 
 ## Next Steps
 
-Enough talking. Continue with [Module 3: The Easy Path — Zero-Code Auto-Instrumentation](./03-auto-instrumentation.md), where the app starts emitting all three signals without you changing a single line of it.
+Continue with [Module 3: The Easy Path — Zero-Code Auto-Instrumentation](./03-auto-instrumentation.md), where the app starts emitting all three signals without you changing a single line of it.

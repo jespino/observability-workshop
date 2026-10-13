@@ -14,7 +14,7 @@ By the end of this module, you will:
 
 ## Prerequisites
 
-- Modules 0–8 completed, all checkpoints applied
+- Modules 0–8 completed
 - Your dashboard, your logs panel and your four Grafana jumps working
 
 ## The setup

@@ -90,6 +90,10 @@ func (s *devServer) rebuild() error {
 		return err
 	}
 
+	if err := copyImages(s.modulesDir, s.outputDir); err != nil {
+		return err
+	}
+
 	fmt.Println("✅ Rebuild complete")
 	return nil
 }
@@ -139,7 +143,8 @@ func (s *devServer) scanModTimes(out map[string]time.Time) {
 		if err != nil {
 			return nil
 		}
-		if !info.IsDir() && filepath.Ext(path) == ".md" {
+		// Handouts and the images they reference
+		if !info.IsDir() && (filepath.Ext(path) == ".md" || filepath.Base(filepath.Dir(path)) == "images") {
 			out[path] = info.ModTime()
 		}
 		return nil

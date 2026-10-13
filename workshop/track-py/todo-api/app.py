@@ -12,17 +12,15 @@ def create_app() -> Flask:
     def healthz():
         return jsonify(ok=True)
 
-    # The frontend is served from a different origin. `traceparent` is allowed
-    # so that the browser-instrumentation bonus in Module 7.4 works.
+    # The frontend is served from a different origin, so allow any origin,
+    # method and header — including `traceparent`, for the browser-
+    # instrumentation bonus in Module 7.4.
     @app.after_request
     def cors(response):
         response.headers["access-control-allow-origin"] = "*"
-        response.headers["access-control-allow-headers"] = (
-            "content-type,traceparent,tracestate,x-client"
-        )
-        response.headers["access-control-allow-methods"] = (
-            "GET,POST,PATCH,DELETE,OPTIONS"
-        )
+        response.headers["access-control-allow-headers"] = "*"
+        response.headers["access-control-allow-methods"] = "*"
+        response.headers["access-control-max-age"] = "600"
         return response
 
     return app

@@ -1,15 +1,15 @@
 apiVersion: 1
 
-# Grafana runs in a container, so it reaches the three Victoria backends —
-# which run natively on your laptop — as host.docker.internal, not localhost.
-# Inside the container, localhost is the container.
+# Grafana runs in the same Docker Compose project as the three Victoria
+# backends, so it reaches them by service name, not localhost. Inside the
+# container, localhost is the container.
 
 datasources:
   - name: VictoriaMetrics
     type: victoriametrics-metrics-datasource
     uid: victoriametrics
     access: proxy
-    url: http://host.docker.internal:8428
+    url: http://victoriametrics:8428
     isDefault: true
     jsonData:
       httpMethod: POST
@@ -18,7 +18,7 @@ datasources:
     type: victoriametrics-logs-datasource
     uid: victorialogs
     access: proxy
-    url: http://host.docker.internal:9428
+    url: http://victorialogs:9428
     jsonData:
       # Module 8.2 replaces this with a real derived field pointing at the
       # Jaeger datasource. Left empty on purpose so there is something to do.
@@ -30,11 +30,11 @@ datasources:
     type: jaeger
     uid: victoriatraces-jaeger
     access: proxy
-    url: http://host.docker.internal:10428/select/jaeger
+    url: http://victoriatraces:10428/select/jaeger
 
   # The Tempo API is experimental, but it unlocks Traces Drilldown.
   - name: VictoriaTraces (Tempo)
     type: tempo
     uid: victoriatraces-tempo
     access: proxy
-    url: http://host.docker.internal:10428/select/tempo
+    url: http://victoriatraces:10428/select/tempo

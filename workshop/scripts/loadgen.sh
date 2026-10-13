@@ -39,7 +39,10 @@ esac
 LISTS="work home reading shopping someday inbox"
 TITLES="Renew the certificate|Review the RFC|Book the venue|Buy coffee|Fix the flaky test|Answer the email|Update the runbook"
 
-rand() { RANDOM_N=$(( (RANDOM_N * 1103515245 + 12345) % 2147483648 )); echo $(( RANDOM_N % $1 )); }
+# Sets R to a pseudo-random number in [0, $1). It assigns rather than echoes:
+# called as $(rand …) it would run in a subshell, the seed would never
+# advance, and every iteration would make exactly the same choices.
+rand() { RANDOM_N=$(( (RANDOM_N * 1103515245 + 12345) % 2147483648 )); R=$(( RANDOM_N % $1 )); }
 
 RANDOM_N=$$
 started=$(date +%s)
@@ -57,7 +60,7 @@ while :; do
     break
   fi
 
-  idx=$(rand 6)
+  rand 6; idx=$R
   if [ "$BIG_LISTS" = 1 ]; then
     list=work
   else
@@ -67,18 +70,20 @@ while :; do
   get "/todos?list=$list"
   get "/lists"
 
-  roll=$(rand 10)
+  rand 10; roll=$R
   if [ "$roll" -lt 3 ]; then
-    t=$(echo "$TITLES" | cut -d'|' -f$(( $(rand 7) + 1 )))
-    if [ "$(rand 4)" -eq 0 ]; then tags='["urgent"]'; else tags='[]'; fi
-    post "/todos" "{\"title\":\"$t\",\"list\":\"$list\",\"tags\":$tags,\"priority\":$(( $(rand 3) + 1 ))}"
+    rand 7; t=$(echo "$TITLES" | cut -d'|' -f$(( R + 1 )))
+    rand 4; if [ "$R" -eq 0 ]; then tags='["urgent"]'; else tags='[]'; fi
+    rand 3; priority=$(( R + 1 ))
+    post "/todos" "{\"title\":\"$t\",\"list\":\"$list\",\"tags\":$tags,\"priority\":$priority}"
   fi
 
   if [ "$roll" -eq 9 ]; then
     get "/stats"
   fi
 
-  if [ "$ERRORS" = 1 ] && [ "$(rand 8)" -eq 0 ]; then
+  rand 8
+  if [ "$ERRORS" = 1 ] && [ "$R" -eq 0 ]; then
     post "/todos" "{\"title\":\"\",\"list\":\"$list\",\"tags\":[]}"
   fi
 

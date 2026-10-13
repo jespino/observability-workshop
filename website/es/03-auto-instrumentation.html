@@ -118,88 +118,63 @@
     <div class="container">
         <article class="module-content">
             <h1>Módulo 3: El Camino Fácil — Auto-instrumentación Sin Código</h1>
-
-<p><strong>Duración:</strong> ~60 min · <strong>Checkpoints: 31</strong></p>
-
+<p><strong>Duración:</strong> ~60 min</p>
 <p>En este módulo la aplicación empieza a emitir métricas, logs y trazas. No vas a cambiar ni una línea de código de aplicación para conseguirlo. Después miraremos con lupa qué te da eso — y qué no. ⚡</p>
-
 <h2>Objetivos de Aprendizaje</h2>
-
 <p>Al terminar este módulo, serás capaz de:</p>
-
 <ul>
 <li>Tener las tres señales llegando desde <code>todo-api</code> a los backends de Victoria, configurado enteramente con variables de entorno</li>
 <li>Leer una traza distribuida e identificar los atributos de convención semántica de un span</li>
 <li>Moverte con soltura por las tres UIs de Victoria y por el modo Explore de Grafana</li>
 <li>Enunciar con precisión qué no puede contarte la auto-instrumentación, y por qué</li>
 </ul>
-
 <h2>Prerrequisitos</h2>
-
 <ul>
 <li>Módulos 0–2 completados</li>
 <li>Stack funcionando, <code>./doctor.sh</code> en verde</li>
 </ul>
-
-<h2>Ejercicio 3.1 — Enciéndelo [~20 min] [checkpoint: 31]</h2>
-
+<h2>Ejercicio 3.1 — Enciéndelo [~20 min]</h2>
 <p><strong>Deberías poder responder esto al terminar:</strong> <em>¿qué fichero has tenido que editar para tener telemetría, y cuál no?</em></p>
-
 <h3>Hazlo</h3>
-
 <div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
-
 <ol>
-<li>Añade los dos paquetes. La misma forma que la instalación del Módulo 0.2 — un
-contenedor de un solo uso escribiendo en tu directorio de código montado:</li>
-</ol>
-
-<pre><code class="language-bash">   docker run --rm \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-js/todo-api:/app&quot; -w /app \
-     node:22-slim npm install @opentelemetry/api @opentelemetry/auto-instrumentations-node
+<li>
+<p>Añade los dos paquetes a las <code>dependencies</code> de <code>track-js/todo-api/package.json</code>:</p>
+<pre><code class="language-json">&quot;dependencies&quot;: {
+  &quot;@opentelemetry/api&quot;: &quot;latest&quot;,
+  &quot;@opentelemetry/auto-instrumentations-node&quot;: &quot;latest&quot;,
+  &quot;express&quot;: &quot;^4.21.2&quot;,
+  ...
+}
 </code></pre>
-
-<p><code>package.json</code> y <code>node_modules/</code> de tu portátil han cambiado los dos. No se ha metido
-   nada en ninguna imagen, y no se ha reconstruido ninguna imagen.</p>
-
-<ol>
-<li>Crea <code>track-js/todo-api/.env</code>. <strong>Es el único fichero que creas, y la aplicación no lo
-lee nunca</strong> — se lo pasas al contenedor con <code>--env-file</code>, exactamente igual que una
-plataforma de despliegue le entregaría el entorno a un proceso:</li>
-</ol>
-
-<pre><code class="language-bash">   OTEL_SERVICE_NAME=todo-api
-   OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
-   OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318
-   OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-   OTEL_TRACES_EXPORTER=otlp
-   OTEL_METRICS_EXPORTER=otlp
-   OTEL_LOGS_EXPORTER=otlp
-   OTEL_METRIC_EXPORT_INTERVAL=10000
-   OTEL_METRIC_EXPORT_TIMEOUT=5000
-   NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register
+<p>El contenedor de tu API ejecuta <code>npm install</code> cada vez que arranca, así que no hay nada
+que instalar a mano. No se mete nada en ninguna imagen, y no se reconstruye ninguna
+imagen.</p>
+</li>
+<li>
+<p>Crea <code>track-js/todo-api/.env</code>. <strong>Es el único fichero que creas, y la aplicación no lo
+lee nunca</strong> — <code>docker-compose.yml</code> ya se lo pasa al contenedor como entorno
+(<code>env_file:</code>), exactamente igual que una plataforma de despliegue le entregaría el
+entorno a un proceso:</p>
+<pre><code class="language-bash">OTEL_SERVICE_NAME=todo-api
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_TRACES_EXPORTER=otlp
+OTEL_METRICS_EXPORTER=otlp
+OTEL_LOGS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=10000
+OTEL_METRIC_EXPORT_TIMEOUT=5000
+NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register
 </code></pre>
-
-<blockquote>
-<p>🚨 <strong>Dos cosas de ese fichero te van a morder si las cambias.</strong></p>
-
-<p><strong>No pongas comillas alrededor del valor de <code>NODE_OPTIONS</code>.</strong> El <code>--env-file</code> de Docker
-se toma literalmente el resto de la línea, comillas incluidas, así que
-<code>NODE_OPTIONS=&quot;--require …&quot;</code> llega con las comillas pegadas y Node ignora todo el
-valor. Tu shell no se comporta así, y es la razón de que el fichero no tenga comillas
-en ninguna parte.</p>
-
-<p><strong>El endpoint es <code>host.docker.internal</code>, no <code>localhost</code>.</strong> Tu API está en un
-contenedor; el Collector no. Dentro del contenedor, <code>localhost</code> es el contenedor, y el
-SDK se pasará todo el día fallando al exportar a la nada.</p>
-</blockquote>
-
 <p>Esa última línea es la que de verdad enciende el SDK. Es la forma canónica:</p>
-
-<pre><code>   node --require @opentelemetry/auto-instrumentations-node/register src/server.js
+<pre><code>node --require @opentelemetry/auto-instrumentations-node/register src/server.js
 </code></pre>
-
+<blockquote>
+<p>🚨 <strong>El endpoint es <code>otel-collector</code>, no <code>localhost</code>.</strong> Es el nombre de servicio del
+Collector en <code>docker-compose.yml</code>. Dentro del contenedor de tu API, <code>localhost</code> es el
+contenedor, y el SDK se pasaría todo el día fallando al exportar a la nada.</p>
+</blockquote>
 <blockquote>
 <p>⚠️ El <code>--require</code> tiene que cargarse <strong>antes</strong> que el código de tu aplicación, o la
 instrumentación no tendrá nada a lo que engancharse. Además solo parchea llamadas
@@ -207,210 +182,141 @@ instrumentación no tendrá nada a lo que engancharse. Además solo parchea llam
 tendrías spans de HTTP y perderías en silencio la instrumentación de Express, de base
 de datos y de logging — un modo de fallo especialmente feo, porque parece que funciona.</p>
 </blockquote>
-
+</li>
+</ol>
 </div>
-
 <div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
-
 <ol>
-<li>Añade los paquetes a <code>track-py/todo-api/requirements.txt</code>:
-<code>
-opentelemetry-distro
+<li>
+<p>Añade los paquetes a <code>track-py/todo-api/requirements.txt</code>:</p>
+<pre><code>opentelemetry-distro
 opentelemetry-exporter-otlp
-</code></li>
-</ol>
-
-<p>Y luego instálalos, igual que en el Módulo 0.2 — más un comando extra:</p>
-
-<pre><code class="language-bash">   docker run --rm \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-py/todo-api:/app&quot; -w /app \
-     -e PYTHONUSERBASE=/app/.pylibs \
-     -e PATH=/app/.pylibs/bin:/usr/local/bin:/usr/bin:/bin \
-     python:3.12-slim \
-     sh -c 'pip install --user --no-warn-script-location -r requirements.txt \
-            &amp;&amp; opentelemetry-bootstrap -a install'
 </code></pre>
-
+<p>El contenedor de tu API ejecuta <code>pip install</code> cada vez que arranca, así que no hay nada
+que instalar a mano.</p>
 <blockquote>
-<p>ℹ️ <code>opentelemetry-distro</code> trae <code>opentelemetry-bootstrap</code>, y ese segundo comando es lo
-que marca la diferencia entre &ldquo;solo trazas&rdquo; y las tres señales. Escanea tus
-dependencias instaladas e instala una librería de instrumentación por cada framework
-que reconoce — Flask, psycopg, requests, logging. Sáltatelo y te preguntarás dónde
-están tus spans de base de datos.</p>
+<p>ℹ️ <code>opentelemetry-distro</code> trae <code>opentelemetry-bootstrap</code>, que el contenedor también
+ejecuta al arrancar en cuanto existe. Es lo que marca la diferencia entre &ldquo;solo
+trazas&rdquo; y las tres señales: escanea tus dependencias instaladas e instala una librería
+de instrumentación por cada framework que reconoce — Flask, psycopg, requests, logging.
+Sin él te preguntarías dónde están tus spans de base de datos.</p>
 </blockquote>
-
-<ol>
-<li>Crea <code>track-py/todo-api/.env</code>. <strong>Es el único fichero que creas, y la aplicación no lo lee
-nunca</strong> — se lo pasas al contenedor con <code>--env-file</code>, exactamente igual que una
-plataforma de despliegue le entregaría el entorno a un proceso:</li>
-</ol>
-
-<pre><code class="language-bash">   OTEL_SERVICE_NAME=todo-api
-   OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
-   OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318
-   OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-   OTEL_TRACES_EXPORTER=otlp
-   OTEL_METRICS_EXPORTER=otlp
-   OTEL_LOGS_EXPORTER=otlp
-   OTEL_METRIC_EXPORT_INTERVAL=10000
-   OTEL_METRIC_EXPORT_TIMEOUT=5000
-   OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
-   OTEL_PYTHON_LOG_CORRELATION=true
+</li>
+<li>
+<p>Crea <code>track-py/todo-api/.env</code>. <strong>Es el único fichero que creas, y la aplicación no lo lee
+nunca</strong> — <code>docker-compose.yml</code> ya se lo pasa al contenedor como entorno (<code>env_file:</code>),
+exactamente igual que una plataforma de despliegue le entregaría el entorno a un proceso:</p>
+<pre><code class="language-bash">OTEL_SERVICE_NAME=todo-api
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_TRACES_EXPORTER=otlp
+OTEL_METRICS_EXPORTER=otlp
+OTEL_LOGS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=10000
+OTEL_METRIC_EXPORT_TIMEOUT=5000
+OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
+OTEL_PYTHON_LOG_CORRELATION=true
 </code></pre>
-
 <blockquote>
-<p>🚨 <strong>El endpoint es <code>host.docker.internal</code>, no <code>localhost</code>.</strong> Tu API está en un
-contenedor; el Collector no. Dentro del contenedor, <code>localhost</code> es el contenedor, y el
-SDK se pasará todo el día fallando al exportar a la nada. Fíjate además en que no hay
-comillas en ninguna parte del fichero: el <code>--env-file</code> de Docker se toma literalmente
-el resto de cada línea, comillas incluidas.</p>
+<p>🚨 <strong>El endpoint es <code>otel-collector</code>, no <code>localhost</code>.</strong> Es el nombre de servicio del
+Collector en <code>docker-compose.yml</code>. Dentro del contenedor de tu API, <code>localhost</code> es el
+contenedor, y el SDK se pasaría todo el día fallando al exportar a la nada.</p>
 </blockquote>
-
 <p>A diferencia del track de JavaScript, ninguna variable de entorno puede encender el SDK
-   de Python. Lo que cambias es el <strong>comando</strong>, en el paso siguiente, y eso te da la forma
-   canónica:</p>
-
-<pre><code>   opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
+de Python. Lo que cambias es el <strong>comando</strong>. En <code>docker-compose.yml</code>, busca el servicio
+<code>todo-api-py</code> y pon <code>opentelemetry-instrument</code> delante de <code>gunicorn</code>:</p>
+<pre><code class="language-yaml">    command: opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
 </code></pre>
-
-</div>
-
-<ol>
-<li>Reinicia tu API. Ctrl-C en su terminal — y esta vez el comando cambia, así que no le
-des solo a ↑. Dos añadidos al comando del Módulo 0.2:</li>
-</ol>
-
-<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
-
-<pre><code class="language-bash">   docker run --rm -it --name workshop-todo-api \
-     -p 8081:8081 \
-     --add-host=host.docker.internal:host-gateway \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-js/todo-api:/app&quot; -w /app \
-     --env-file track-js/todo-api/.env \
-     -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-     -e NOTIFY_URL=http://host.docker.internal:8083 \
-     -e PORT=8081 \
-     node:22-slim node src/server.js
-</code></pre>
-
-<p>Lo único nuevo es <code>--env-file track-js/todo-api/.env</code>. La imagen es la misma, el comando
-   es el mismo, tu código es el mismo. <strong>Este</strong> es el comando al que le das ↑ de aquí en
-   adelante.</p>
-
-<p></div></p>
-
-<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
-
-<pre><code class="language-bash">   docker run --rm -it --name workshop-todo-api \
-     -p 8082:8082 \
-     --add-host=host.docker.internal:host-gateway \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-py/todo-api:/app&quot; -w /app \
-     --env-file track-py/todo-api/.env \
-     -e PYTHONUSERBASE=/app/.pylibs \
-     -e PATH=/app/.pylibs/bin:/usr/local/bin:/usr/bin:/bin \
-     -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-     -e NOTIFY_URL=http://host.docker.internal:8084 \
-     python:3.12-slim opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
-</code></pre>
-
-<p>Dos cosas nuevas: <code>--env-file track-py/todo-api/.env</code>, y <code>opentelemetry-instrument</code>
-   delante de <code>gunicorn</code>. La imagen es la misma y tu código no ha cambiado. <strong>Este</strong> es el
-   comando al que le das ↑ de aquí en adelante.</p>
-
+<p>Esa es la forma canónica. No añadas el <code>--reload</code> de gunicorn: el contenedor ya reinicia
+todo el comando cuando cambia un fichero, y bajo <code>opentelemetry-instrument</code> el recargador
+propio de gunicorn hace que los logs dejen de exportarse sin decir nada.</p>
 <blockquote>
-<p>⚠️ <strong>No</strong> añadas <code>--preload</code> a gunicorn. Con <code>--preload</code>, el SDK se inicializa antes
+<p>⚠️ Tampoco añadas <code>--preload</code> a gunicorn. Con <code>--preload</code>, el SDK se inicializa antes
 del fork y los workers no emiten absolutamente nada. Si tienes que precargar,
 inicializa el SDK en un hook <code>post_fork</code>.</p>
 </blockquote>
-
-<p></div></p>
-
-<ol>
-<li>Genera tráfico en otra terminal:</li>
+</li>
 </ol>
-
-<pre><code class="language-bash">   ./loadgen.sh 2m
+</div>
+<ol start="3">
+<li>
+<p>Recrea el contenedor de tu API, para que coja el entorno nuevo e instale las
+dependencias nuevas. Esta vez no basta con guardar un fichero — lo que ha cambiado es la
+configuración del contenedor, no tu código:</p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-js
 </code></pre>
-
+<p>Después abre una segunda terminal y sigue en ella el log de tu API. Déjala abierta el
+resto del día — los guiones la llaman la <em>terminal del log</em>:</p>
+<pre><code class="language-bash">docker compose logs -f todo-api-js
+</code></pre>
+<p>Espera a ver <code>OpenTelemetry automatic instrumentation started successfully</code>. La imagen es la misma, el comando es el mismo, tu código es el mismo. Lo
+único nuevo es el entorno.</p>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-py
+</code></pre>
+<p>Después abre una segunda terminal y sigue en ella el log de tu API. Déjala abierta el
+resto del día — los guiones la llaman la <em>terminal del log</em>:</p>
+<pre><code class="language-bash">docker compose logs -f todo-api-py
+</code></pre>
+<p>Muestra cómo se instalan los paquetes nuevos y luego cómo arranca
+gunicorn. La imagen es la misma y tu código no ha cambiado. Lo nuevo es el entorno y una
+palabra delante del comando.</p>
+</div>
+</li>
+<li>
+<p>Genera tráfico en otra terminal:</p>
+<pre><code class="language-bash">./loadgen.sh 2m
+</code></pre>
+</li>
+</ol>
 <p>Dos ajustes de ese bloque merecen explicación en vez de copiar y pegar:</p>
-
 <ul>
 <li><strong><code>OTEL_METRIC_EXPORT_INTERVAL: 10000</code>.</strong> El valor por defecto es 60 segundos. En un taller, sesenta segundos de nada se leen como &ldquo;está roto&rdquo;. Diez segundos mantienen la sala cuerda. En producción lo dejarías por defecto — cada exportación se paga.</li>
 <li><strong><code>OTEL_METRIC_EXPORT_TIMEOUT: 5000</code>.</strong> Tiene que ser menor que el intervalo, y su valor por defecto es 30 segundos. Baja el intervalo sin bajar esto y el SDK de JavaScript se niega a inicializarse: una línea en stderr, y después ninguna telemetría de ningún tipo. Merece la pena ver una vez un error de configuración que lo desactiva todo.</li>
-<li><strong><code>-search.latencyOffset=1s</code> en VictoriaMetrics</strong> — uno de los flags que escribiste tú en el Módulo 0.1. Por defecto VM oculta los últimos 30 segundos de datos, para que un intervalo escrito a medias nunca produzca una gráfica engañosa. Es el comportamiento correcto y es el equivocado para un aula. Fíjate en que <em>corrección</em> y <em>frescura</em> están aquí en tensión real.</li>
+<li><strong><code>-search.latencyOffset=1s</code> en VictoriaMetrics</strong> — puesto en <code>docker-compose.yml</code>. Por defecto VM oculta los últimos 30 segundos de datos, para que un intervalo escrito a medias nunca produzca una gráfica engañosa. Es el comportamiento correcto y es el equivocado para un aula. Fíjate en que <em>corrección</em> y <em>frescura</em> están aquí en tensión real.</li>
 </ul>
-
 <h3>Comprueba en la UI de Victoria</h3>
-
 <p><strong>Trazas</strong> — <code>http://localhost:10428/select/vmui</code>, pega:</p>
-
 <pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api
 </code></pre>
-
 <p>Deberías ver: spans llegando en unos 10 segundos. Abre uno de <code>POST /todos</code> y despliégalo.</p>
-
 <p><strong>Métricas</strong> — <code>http://localhost:8428/vmui</code>, pega:</p>
-
 <pre><code>{__name__=~&quot;http.*&quot;}
 </code></pre>
-
 <p>Deberías ver: un puñado de series HTTP de servidor que no existían en el Módulo 0.</p>
-
 <p><strong>Logs</strong> — <code>http://localhost:9428/select/vmui</code>, pega:</p>
-
 <pre><code>service.name:todo-api
 </code></pre>
-
 <p>Deberías ver: la salida de <code>console.log</code> / <code>logging.info</code> que ya tenía tu app, ahora almacenada y buscable — pero llegando como texto sin estructura en el cuerpo del mensaje.</p>
-
 <h3>Comprueba en Grafana</h3>
-
 <p>Grafana → <strong>Explore</strong> → datasource <strong>VictoriaMetrics</strong> → ejecuta:</p>
-
 <pre><code>rate(http_server_duration_milliseconds_count[1m])
 </code></pre>
-
 <p>Deberías ver una línea que responde cuando lanzas el loadgen.</p>
-
 <h3>Para pensar</h3>
-
 <p>Has cambiado un comando de arranque y unas variables de entorno. No has tocado la aplicación. ¿Para qué tipo de problema convierte eso a la auto-instrumentación en la herramienta correcta — y qué implica para desplegarla en cincuenta servicios el lunes?</p>
-
 <h3>Si te atascas</h3>
-
 <ul>
-<li><strong>No llega ningún dato después de 60 segundos.</strong> Lee la terminal del Collector — está ahí mismo, en primer plano. Una conexión rechazada significa que la variable de endpoint o de protocolo está mal. Ojo: <code>http/protobuf</code> va al puerto <strong>4318</strong>, gRPC al <strong>4317</strong> — confundirlos es el error más común de todos.</li>
-<li><strong>No llega nada, y la terminal del Collector está en silencio.</strong> Entonces nunca llegó nada hasta él. Por orden: ¿el endpoint es <code>host.docker.internal</code> y no <code>localhost</code>? ¿<code>docker exec workshop-todo-api env | grep OTEL</code> muestra tus variables? ¿<code>grep -n '\&quot;' track-*/todo-api/.env</code> encuentra alguna comilla suelta?</li>
+<li><strong>No llega ningún dato después de 60 segundos.</strong> Lee el log del Collector — <code>docker compose logs -f otel-collector</code>. Una conexión rechazada significa que la variable de endpoint o de protocolo está mal. Ojo: <code>http/protobuf</code> va al puerto <strong>4318</strong>, gRPC al <strong>4317</strong> — confundirlos es el error más común de todos.</li>
+<li><strong>No llega nada, y el log del Collector está en silencio.</strong> Entonces nunca llegó nada hasta él. Por orden: ¿el endpoint es <code>otel-collector</code> y no <code>localhost</code>? ¿Recreaste el contenedor después de crear el <code>.env</code>? ¿<code>docker compose exec todo-api-js env | grep OTEL</code> (o <code>todo-api-py</code>) muestra tus variables?</li>
 <li><strong>(JS) Una línea de error al arrancar, después logs normales y ninguna telemetría.</strong> Lee esa línea. <code>exportIntervalMillis must be greater than or equal to exportTimeoutMillis</code> significa que falta <code>OTEL_METRIC_EXPORT_TIMEOUT=5000</code> en tu <code>.env</code>.</li>
-<li><strong>(Python) Aparecen trazas pero nada más.</strong> No se ejecutó <code>opentelemetry-bootstrap -a install</code>, o falta <code>OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true</code> en tu <code>.env</code>. Para empezar de cero limpio: <code>rm -rf track-py/todo-api/.pylibs</code>, y repite el paso 1.</li>
+<li><strong>(Python) Aparecen trazas pero nada más.</strong> No se ejecutó <code>opentelemetry-bootstrap</code>, o falta <code>OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true</code> en tu <code>.env</code>. Lee el principio de <code>docker compose logs todo-api-py</code>: el paso de bootstrap se ejecuta ahí, antes de que arranque gunicorn.</li>
 </ul>
-
-<pre><code class="language-bash">./checkpoint.sh 31
-</code></pre>
-
 <h2>Ejercicio 3.2 — Explora lo que ha llegado [~25 min]</h2>
-
 <p><strong>Deberías poder responder esto al terminar:</strong> <em>¿qué ha aprendido el SDK sobre tu aplicación sin que nadie se lo cuente?</em></p>
-
 <h3>Hazlo</h3>
-
 <ol>
 <li>Asegúrate de que hay tráfico: <code>./loadgen.sh 2m</code>.</li>
 <li>Recorre cada una de las cuatro UIs de abajo. No las mires por encima — vas a vivir en ellas el resto del día.</li>
 </ol>
-
 <h3>Comprueba en la UI de Victoria</h3>
-
 <p><strong>VictoriaTraces</strong> (<code>http://localhost:10428/select/vmui</code>) — busca una traza de creación:</p>
-
 <pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api name:=&quot;POST /todos&quot;
 </code></pre>
-
 <p>Abre una y mira el árbol de spans que has conseguido gratis:</p>
-
 <pre><code>POST /todos                          ← span de servidor HTTP, nombrado por la ruta
 ├── middleware - jsonParser          ← las capas del propio framework web
 ├── middleware - query
@@ -420,12 +326,10 @@ inicializa el SDK en un hook <code>post_fork</code>.</p>
 └── POST                             ← HTTP saliente a notify-service
     └── POST /notify                 ← y el span del *otro servicio*, misma traza
 </code></pre>
-
 <p>Nadie ha escrito nada de eso. Fíjate sobre todo en las dos últimas líneas: la traza ya
 cruza una frontera de servicio <strong>y</strong> una de lenguaje, porque la instrumentación del
 cliente HTTP inyectó una cabecera <code>traceparent</code> a la salida y la del servidor HTTP del
 otro servicio la leyó a la entrada. En el Módulo 7.4 romperás y repararás exactamente eso.</p>
-
 <blockquote>
 <p>🔑 <strong>Nombres de campo en VictoriaTraces.</strong> Los atributos de resource se guardan con el
 prefijo <code>resource_attr:</code> y los de span con <code>span_attr:</code>, así que el nombre del campo
@@ -434,56 +338,41 @@ lleva dos puntos y hay que entrecomillarlo:
 <code>:=</code> es coincidencia exacta. Los campos sin prefijo son <code>name</code>, <code>kind</code>, <code>duration</code>,
 <code>status_code</code>, <code>trace_id</code>, <code>span_id</code> y <code>parent_span_id</code>.</p>
 </blockquote>
-
 <p>Haz clic en un span suelto y lee sus atributos. Busca estos tres, que son <strong>convenciones semánticas</strong> — nombres estándar que usa cualquier servicio instrumentado con OTel del mundo:</p>
-
 <ul>
 <li><code>span_attr:http.method</code></li>
 <li><code>span_attr:http.target</code></li>
 <li><code>span_attr:db.system</code></li>
 </ul>
-
 <blockquote>
 <p>⚠️ <strong>Compara notas con el otro track ahora — son los cinco minutos más útiles del módulo.</strong></p>
-
 <p>Ejecuta <code>count by (service_name, __name__) ({__name__=~&quot;http.*&quot;})</code> en vmui. Verás que:</p>
-
 <ul>
 <li>El <code>todo-api</code> del <strong>track de Python</strong> emite <code>http_server_duration_milliseconds_{count,sum,bucket}</code>.</li>
 <li>El <code>todo-api</code> del <strong>track de JavaScript</strong> <strong>no emite ninguna métrica HTTP.</strong> No es que
 se llamen distinto: no hay ninguna.</li>
 </ul>
-
 <p>No es un fallo del taller. <code>@opentelemetry/instrumentation-http</code> no registra métricas de
 duración de servidor, y <code>opentelemetry-instrumentation-flask</code> sí. Los dos tracks
 obtienen <em>trazas</em> idénticas y <em>logs</em> idénticos; donde divergen es en la señal de métricas.</p>
-
 <p>Piensa en lo que eso implica. &ldquo;Hemos auto-instrumentado todo, así que tenemos métricas&rdquo;
 es una frase que puede ser falsa en un lenguaje y verdadera en otro, dentro de la misma
 flota, sin que nadie se entere hasta que un dashboard aparece vacío en mitad de un
 incidente. Lo arreglarás para el track de JS en el Módulo 8.1, generando las métricas a
 partir de los spans — que es la respuesta general a toda esta familia de problemas.</p>
 </blockquote>
-
 <p><strong>VictoriaMetrics</strong> (<code>http://localhost:8428/vmui</code>) — mira qué ha aparecido:</p>
-
 <pre><code>{__name__=~&quot;http.*&quot;}
 </code></pre>
-
 <p>y luego</p>
-
 <pre><code>rate(http_server_duration_milliseconds_count[1m])
 </code></pre>
-
 <p><strong>VictoriaLogs</strong> (<code>http://localhost:9428/select/vmui</code>):</p>
-
 <pre><code>service.name:todo-api
 </code></pre>
-
 <p>Fíjate en la forma de lo que ha llegado. El mensaje es un bloque de texto en <code>_msg</code>. No
 hay campo <code>list</code>, no hay campo <code>todo_id</code>, no hay nada por lo que filtrar o agregar.
 Arreglar eso es el Módulo 6.</p>
-
 <blockquote>
 <p>🔑 <strong>Nombres de campo en VictoriaLogs</strong>, para contrastar con el recuadro de trazas de
 arriba: el mensaje es <code>_msg</code>, el nivel es <code>severity_text</code>, y los atributos de resource
@@ -491,29 +380,16 @@ son campos normales — <code>service.name:todo-api</code>, sin prefijo y sin co
 lenguaje de consulta, dos esquemas distintos. Mejor darse cuenta ahora que en mitad de
 un incidente.</p>
 </blockquote>
-
 <h3>Comprueba en Grafana</h3>
-
-<p>Grafana es la novena cosa que arrancas hoy, y la última. La dejamos para ahora porque
-hasta ahora no había nada que mirar:</p>
-
-<pre><code class="language-bash">docker run -d --name workshop-grafana \
-  -p 3000:3000 \
-  --add-host=host.docker.internal:host-gateway \
-  -e GF_SECURITY_ADMIN_USER=admin \
-  -e GF_SECURITY_ADMIN_PASSWORD=admin \
-  -e GF_INSTALL_PLUGINS=victoriametrics-metrics-datasource,victoriametrics-logs-datasource \
-  -e GF_FEATURE_TOGGLES_ENABLE=correlations,traceToMetrics,traceqlEditor \
-  -v &quot;$PWD/grafana/provisioning:/etc/grafana/provisioning:ro&quot; \
-  grafana/grafana:12.3.1
+<p>Grafana es lo último que arrancas hoy. Lleva en <code>docker-compose.yml</code> desde el Módulo 0,
+detrás de su propio profile; la dejamos para ahora porque hasta ahora no había nada que
+mirar. Basta con nombrar el servicio para arrancarlo:</p>
+<pre><code class="language-bash">docker compose up -d grafana
 </code></pre>
-
 <p>El primer arranque tarda un minuto — instala los dos plugins de VictoriaMetrics. Míralo con
-<code>docker logs -f workshop-grafana</code>, y después abre <a href="http://localhost:3000">http://localhost:3000</a> y entra con
+<code>docker compose logs -f grafana</code>, y después abre <a href="http://localhost:3000">http://localhost:3000</a> y entra con
 <code>admin</code> / <code>admin</code>.</p>
-
 <p><strong>Connections → Data sources.</strong> Hay cuatro pre-provisionados desde <code>grafana/provisioning</code>:</p>
-
 <table>
 <thead>
 <tr>
@@ -522,133 +398,102 @@ hasta ahora no había nada que mirar:</p>
 <th>Apunta a</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td>VictoriaMetrics</td>
 <td><code>victoriametrics-metrics-datasource</code></td>
-<td><code>host.docker.internal:8428</code></td>
+<td><code>victoriametrics:8428</code></td>
 </tr>
-
 <tr>
 <td>VictoriaLogs</td>
 <td><code>victoriametrics-logs-datasource</code></td>
-<td><code>host.docker.internal:9428</code></td>
+<td><code>victorialogs:9428</code></td>
 </tr>
-
 <tr>
 <td>VictoriaTraces (Jaeger)</td>
 <td><code>jaeger</code> (core, sin plugin)</td>
-<td><code>host.docker.internal:10428/select/jaeger</code></td>
+<td><code>victoriatraces:10428/select/jaeger</code></td>
 </tr>
-
 <tr>
 <td>VictoriaTraces (Tempo)</td>
 <td><code>tempo</code> (core, sin plugin)</td>
-<td><code>host.docker.internal:10428/select/tempo</code></td>
+<td><code>victoriatraces:10428/select/tempo</code></td>
 </tr>
 </tbody>
 </table>
 <p>Entra en cada uno y pulsa <strong>Save &amp; test</strong>. Los cuatro tienen que ponerse verdes.</p>
-
 <p>Fíjate en el host de esa última columna, y fíjate en que <em>no</em> es lo que escribes tú en tu
-propio navegador. Grafana está en un contenedor y los tres backends no, así que desde el
-punto de vista de Grafana viven en <code>host.docker.internal</code> — la misma razón por la que lo
-dice el <code>.env</code> de tu API. Tú llegas a esos mismísimos procesos en <code>localhost</code>, porque tú no
-estás en un contenedor.</p>
-
+propio navegador. Grafana está en el mismo proyecto de Compose que los tres backends, así
+que llega a ellos por nombre de servicio, igual que el Collector, e igual que tu API llega
+a <code>otel-collector</code>. Tú llegas a esos mismísimos contenedores en <code>localhost</code>, a través de
+los puertos que Compose publicó en tu portátil, porque tú no estás en un contenedor.</p>
 <p>Después:</p>
-
 <ol>
 <li><strong>Explore → VictoriaMetrics</strong> — la misma consulta de antes, mejor gráfica.</li>
 <li><strong>Explore → VictoriaTraces (Jaeger)</strong> — busca por servicio <code>todo-api</code>. Obtienes la vista de cascada de siempre. Funciona porque VictoriaTraces implementa la API de consulta de Jaeger; no hay ningún plugin de por medio.</li>
 <li><strong>Explore → VictoriaLogs</strong> — la misma consulta de antes, con un constructor visual de consultas junto a la caja de LogsQL en crudo.</li>
 <li><strong>Demo (mira, no construyas):</strong> el datasource <strong>VictoriaTraces (Tempo)</strong> apunta a <code>/select/tempo</code> y desbloquea la app <strong>Traces Drilldown</strong> de Grafana — paneles RED generados a partir de tus spans sin ningún dashboard que construir. Es experimental; trátalo como una vista previa, no como algo de lo que depender.</li>
 </ol>
-
 <h3>Para pensar</h3>
-
 <p>Vuelve a mirar el árbol de la traza. ¿Cuáles de esos spans vienen de una librería que mantiene el proyecto OpenTelemetry, y cuáles de tu lógica de negocio? Cuéntalos.</p>
-
 <h3>Si te atascas</h3>
-
 <ul>
-<li><strong>Las trazas solo muestran el span HTTP, sin hijos.</strong> Las instrumentaciones de base de datos y del framework se cargan con el SDK. Comprueba qué recibió de verdad el contenedor: <code>docker exec workshop-todo-api env | grep -E 'NODE_OPTIONS|OTEL'</code>. En el track de Python, comprueba que se ejecutó <code>opentelemetry-bootstrap -a install</code>.</li>
-<li><strong>El datasource Jaeger de Grafana no devuelve nada pero vmui sí tiene datos.</strong> Revisa la URL del datasource — tiene que ser <code>http://host.docker.internal:10428/select/jaeger</code>, con <code>/select/jaeger</code> al final.</li>
-<li><strong>Grafana no llega a ningún datasource.</strong> Lo arrancaste sin <code>--add-host=host.docker.internal:host-gateway</code>. <code>docker rm -f workshop-grafana</code> y vuelve a ejecutar el comando.</li>
+<li><strong>Las trazas solo muestran el span HTTP, sin hijos.</strong> Las instrumentaciones de base de datos y del framework se cargan con el SDK. Comprueba qué recibió de verdad el contenedor: <code>docker compose exec todo-api-js env | grep -E 'NODE_OPTIONS|OTEL'</code>. En el track de Python, busca el paso de bootstrap al principio de <code>docker compose logs todo-api-py</code>.</li>
+<li><strong>El datasource Jaeger de Grafana no devuelve nada pero vmui sí tiene datos.</strong> Revisa la URL del datasource — tiene que ser <code>http://victoriatraces:10428/select/jaeger</code>, con <code>/select/jaeger</code> al final.</li>
+<li><strong>Grafana no llega a ningún datasource.</strong> Comprueba que los tres backends están arriba (<code>docker compose ps</code>) y que arrancaste Grafana a través de Compose, no con un <code>docker run</code> aparte — solo los contenedores del proyecto de Compose pueden resolver <code>victoriametrics</code>, <code>victorialogs</code> y <code>victoriatraces</code>.</li>
 </ul>
-
 <h2>Ejercicio 3.3 — Encuentra el techo [~15 min]</h2>
-
 <p><strong>Deberías poder responder esto al terminar:</strong> <em>¿qué es estructuralmente incapaz de contarte la auto-instrumentación?</em></p>
-
 <h3>Hazlo</h3>
-
 <p>Aquí tienes tres preguntas que un product owner o alguien de guardia harían de verdad. Intenta responder cada una con la telemetría que tienes ahora. <strong>Se espera que falles en las tres.</strong> Dedica cinco minutos a intentarlo igualmente — el fracaso es la lección.</p>
-
 <ol>
-<li><p><strong>&ldquo;¿Cuántos todos se crearon hoy, desglosados por lista?&rdquo;</strong>
-Prueba: vmui de VictoriaMetrics, busca cualquier cosa que se parezca a un evento de negocio.</p></li>
-
-<li><p><strong>&ldquo;¿Qué usuario se topó con ese error?&rdquo;</strong>
-Prueba: VictoriaLogs, <code>service.name:todo-api AND _time:1h</code>, e intenta filtrar por usuario.</p></li>
-
-<li><p><strong>&ldquo;¿Por qué fue lenta <em>esta</em> petición en concreto?&rdquo;</strong>
-Prueba: encuentra una traza lenta en VictoriaTraces. Verás un span <code>pg</code> lento. Ahora di <em>qué decisión de la aplicación</em> produjo esa consulta.</p></li>
+<li>
+<p><strong>&quot;¿Cuántos todos se crearon hoy, desglosados por lista?&quot;</strong>
+Prueba: vmui de VictoriaMetrics, busca cualquier cosa que se parezca a un evento de negocio.</p>
+</li>
+<li>
+<p><strong>&quot;¿Qué usuario se topó con ese error?&quot;</strong>
+Prueba: VictoriaLogs, <code>service.name:todo-api AND _time:1h</code>, e intenta filtrar por usuario.</p>
+</li>
+<li>
+<p><strong>&quot;¿Por qué fue lenta <em>esta</em> petición en concreto?&quot;</strong>
+Prueba: encuentra una traza lenta en VictoriaTraces. Verás un span <code>pg</code> lento. Ahora di <em>qué decisión de la aplicación</em> produjo esa consulta.</p>
+</li>
 </ol>
-
 <h3>Comprueba en la UI de Victoria</h3>
-
 <p>Para la pregunta 1, esto es lo más cerca que puedes llegar — y solo en el track de Python,
 según la nota de arriba:</p>
-
 <pre><code>sum(rate(http_server_duration_milliseconds_count{http_method=&quot;POST&quot;, http_target=&quot;/todos&quot;}[5m]))
 </code></pre>
-
 <p>Eso es una tasa de peticiones HTTP. Cuenta creaciones fallidas, reintentos y health checks
 de tu generador de carga. <em>No</em> es el número de todos creados, y ninguna astucia en la
 consulta lo va a convertir en eso. En el track de JavaScript ni siquiera puedes llegar
 hasta aquí.</p>
-
 <h3>Comprueba en Grafana</h3>
-
 <p>Intenta construir un panel titulado &ldquo;Todos creados por lista&rdquo;. Llega tan lejos como puedas. Fíjate exactamente en dónde te paras.</p>
-
 <h3>Para pensar</h3>
-
-<p>Vuelve a las tres preguntas que clasificaste en el Módulo 1.2 — cuál era de logging, cuál de tracing, cuál de métricas. ¿Acertaste?</p>
-
+<p>Un todo con el título vacío devuelve un 500. Tres preguntas sobre él: <em>¿qué función lanzó el error?</em>, <em>¿se tocó la base de datos antes de fallar?</em>, <em>¿cuántos usuarios se lo han encontrado hoy?</em> ¿Cuál es un problema de logging, cuál de tracing y cuál de métricas — y cuáles puedes responder ahora mismo, solo con auto-instrumentación?</p>
 <h3>Si te atascas</h3>
-
 <p>Se supone que estás atascado. Ese es el ejercicio. 🙂</p>
-
 <h2>La conclusión</h2>
-
 <blockquote>
 <p><strong>La auto-instrumentación te da la fontanería, no el significado.</strong></p>
 </blockquote>
-
 <p>Sabe de HTTP, de Express o Flask y de Postgres, porque son estándar, populares y alguien escribió una librería de instrumentación para ellos. No sabe nada de todos, listas, urgencias ni usuarios — y absolutamente nada de esa caché en proceso, porque ahí no intervino ninguna librería. Nadie ha visto nunca tu dominio.</p>
-
 <p>Todo lo que viene ahora consiste en añadir el significado:</p>
-
 <ul>
 <li>El Módulo 5 añade <strong>métricas de negocio</strong> — los números que pide tu product owner</li>
 <li>El Módulo 6 añade <strong>logs estructurados</strong> — los campos por los que filtras un incidente</li>
 <li>El Módulo 7 añade <strong>spans de dominio</strong> — la &ldquo;qué decisión de la aplicación&rdquo; que necesitaba la pregunta 3</li>
 </ul>
-
 <h2>Lo Que Hemos Conseguido</h2>
-
 <ul>
 <li>Las tres señales fluyendo, sin cambiar código de aplicación</li>
 <li>Una traza que atraviesa dos servicios y dos lenguajes, obtenida gratis</li>
 <li>Familiaridad con las cuatro UIs</li>
 <li>Una comprensión precisa y práctica de dónde se acaba el camino fácil</li>
 </ul>
-
 <h2>Siguientes Pasos</h2>
-
 <p>Antes de añadir significado, desmitifiquemos la caja del medio. Continúa con el <a href="04-the-collector.html">Módulo 4: El Collector, y Dónde Acaban los Datos</a>.</p>
 
         </article>

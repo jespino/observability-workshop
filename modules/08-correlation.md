@@ -1,6 +1,6 @@
 # Module 8: Correlation — Making the Three Signals One Thing
 
-**Duration:** ~45 min · **Checkpoints: 81, 82** · **Mostly the same for both tracks**
+**Duration:** ~45 min · **Mostly the same for both tracks**
 
 This is the payoff module. Everything you've built so far has been raw material; here you wire it together so that you can move from a graph to a log line to a trace to a line of code without ever typing a query. 🔗
 
@@ -15,10 +15,10 @@ By the end of this module, you will:
 
 ## Prerequisites
 
-- Module 7 completed and checkpointed
+- Module 7 completed
 - The dashboard from Module 5.5, with the logs panel added in Module 6.4
 
-## Exercise 8.1 — Metrics from spans with the spanmetrics connector [~20 min] [checkpoint: 81] *(cuttable)*
+## Exercise 8.1 — Metrics from spans with the spanmetrics connector [~20 min] *(cuttable)*
 
 **You should be able to answer this by the end:** *you now have two sources of truth for request latency. Which do you trust?*
 
@@ -54,7 +54,7 @@ A **connector** in the Collector is an exporter on one pipeline and a receiver o
          exporters: [otlphttp/victoriametrics]
    ```
 
-3. Restart the Collector and run the loadgen for two minutes.
+3. Restart the Collector (`docker compose restart otel-collector`) and run the loadgen for two minutes.
 
 Note the `dimensions` list. `http.route` is a semantic convention you got for free; `todo.list` is the attribute *you* put on your spans in Module 7.2. Standard names and your own domain names, promoted to metric labels side by side.
 
@@ -113,11 +113,7 @@ This is a subtle, real, and rarely-taught point, and being able to explain it wi
 - **No `traces_span_metrics_*` at all.** The most common cause is adding the connector under `processors:` instead of the top-level `connectors:` block.
 - **The metric exists but has no `todo_list` label.** Dimensions only appear if the attribute is actually present on the span. Check a span in vmui first.
 
-```bash
-./checkpoint.sh 81
-```
-
-## Exercise 8.2 — Wiring the jumps in Grafana [~25 min] [checkpoint: 82]
+## Exercise 8.2 — Wiring the jumps in Grafana [~25 min]
 
 **You should be able to answer this by the end:** *starting from a spike on a dashboard, how many clicks to the line of code?*
 
@@ -214,10 +210,6 @@ You just built four jumps by hand. In a fifty-service organisation, who owns thi
 - **The derived field doesn't appear.** It only applies to fields Grafana can see in the log record; confirm `trace_id` shows in the Explore table first.
 - **"Trace to logs" returns nothing.** The tag mapping is usually the culprit: Grafana sends `service.name` and your logs must have a matching field with exactly that name.
 - **Correlations menu is missing.** It may be behind a feature toggle depending on your Grafana version — your facilitator has the flag.
-
-```bash
-./checkpoint.sh 82
-```
 
 ## What We Accomplished
 

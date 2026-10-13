@@ -64,7 +64,7 @@
     <div class="container">
         <header class="hero">
             <h1>Instrumenting your application with OpenTelemetry</h1>
-            <p class="lead">Welcome to a hands-on workshop where you&#39;ll instrument a real multi-service application from scratch with OpenTelemetry, and ship metrics, logs and traces into the VictoriaMetrics stack. Roughly 25% talk, 75% keyboard.</p>
+            <p class="lead">Welcome to a hands-on workshop where you&#39;ll instrument a multi-service application from scratch with OpenTelemetry, and ship metrics, logs and traces into the VictoriaMetrics stack. Roughly 25% talk, 75% keyboard.</p>
             <p class="hero-note"><strong>Two parallel tracks: Node.js/Express and Python/Flask.</strong> Same system, same backend, same exercises — only the SDK surface differs.</p>
         </header>
 
@@ -91,7 +91,7 @@
                     <div class="module-card">
                         <div class="module-number">Module 0</div>
                         <h3>Setup and Sanity Check</h3>
-                        <p>Download and start every piece of the stack yourself — four telemetry binaries and four containers — then run the doctor script and bookmark the UIs.</p>
+                        <p>Start the whole stack, your API included, with one Docker Compose command, and check with the doctor script that everything is up and running.</p>
                     </div>
                 </a>
                 
@@ -106,8 +106,8 @@
                 <a href="02-what-observability-is.html" class="module-card-link">
                     <div class="module-card">
                         <div class="module-number">Module 2</div>
-                        <h3>What Observability Actually Is</h3>
-                        <p>Shared vocabulary — signals, resource, scope, attributes, context — and why correlation is the real product.</p>
+                        <h3>The Three Signals — Metrics, Logs and Traces</h3>
+                        <p>What metrics, logs and traces are, with an example of each taken from the application you&#39;ll instrument.</p>
                     </div>
                 </a>
                 
@@ -181,7 +181,7 @@
         <section class="getting-started">
             <h2>Getting Started</h2>
             <ol>
-                <li>Start with <a href="00-setup-and-sanity-check.html">Module 0</a> to get your environment green</li>
+                <li>Start with <a href="00-setup-and-sanity-check.html">Module 0</a> to get your environment ready</li>
                 <li>Work through the modules in order — each one builds on the last</li>
                 <li>Pick the track you want to type in, JavaScript or Python. Both end up looking at identical data.</li>
                 
@@ -193,8 +193,7 @@
             <ul>
                 <li>Paste the exact queries from the handout — "just explore the data" comes later</li>
                 <li>When something looks wrong, read the Collector logs before anything else</li>
-                <li>Use <code>git</code> to track your changes, and the <code>solutions/</code> checkpoints to catch up if you fall behind</li>
-                <li>Compare notes with someone on the other track after each module — that's where the point lands</li>
+                <li>You can look at the solutions in the repository</li>
                 
             </ul>
         </section>
@@ -218,7 +217,7 @@
             <h2>Workshop Completion</h2>
             <p>Upon completing all modules, you&#39;ll have:</p>
             <ul>
-                <li><strong>Instrumented a real service</strong> with metrics, logs and traces, starting from nothing</li>
+                <li><strong>Instrumented a service</strong> with metrics, logs and traces, starting from nothing</li>
                 <li><strong>Run an OpenTelemetry Collector</strong> as a single ingress point, fanning out to three backends</li>
                 <li><strong>Chosen the right instruments</strong> and reasoned about cardinality before it hurt</li>
                 <li><strong>Emitted structured logs</strong> that carry trace context, and queried them with LogsQL</li>

@@ -3,8 +3,10 @@
 
 const $ = (id) => document.getElementById(id);
 
+const APIS = [...$('track').options].map((o) => o.value);
+
 const state = {
-  api: localStorage.getItem('workshop-api') || 'http://localhost:8081',
+  api: localStorage.getItem('workshop-api') || APIS[0],
   list: 'work',
 };
 
@@ -15,6 +17,28 @@ $('track').addEventListener('change', (e) => {
   refresh();
 });
 
+// Only one track's API runs at a time. If the selected one doesn't answer, switch
+// to the one that does — a refused connection shows up in the browser as a CORS
+// error, which sends people looking in the wrong place.
+async function isUp(base) {
+  try {
+    return (await fetch(base + '/healthz')).ok;
+  } catch {
+    return false;
+  }
+}
+
+async function pickApi() {
+  if (await isUp(state.api)) return;
+  for (const base of APIS) {
+    if (base !== state.api && (await isUp(base))) {
+      state.api = base;
+      $('track').value = base;
+      return;
+    }
+  }
+}
+
 function say(message, isError = false) {
   const el = $('status');
   el.textContent = message;
@@ -23,10 +47,15 @@ function say(message, isError = false) {
 }
 
 async function api(path, options = {}) {
-  const res = await fetch(state.api + path, {
-    ...options,
-    headers: { 'content-type': 'application/json', 'x-client': 'web', ...options.headers },
-  });
+  let res;
+  try {
+    res = await fetch(state.api + path, {
+      ...options,
+      headers: { 'content-type': 'application/json', 'x-client': 'web', ...options.headers },
+    });
+  } catch {
+    throw new Error(`cannot reach the API at ${state.api} — is your track's API running?`);
+  }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.status === 204 ? null : res.json();
 }
@@ -104,5 +133,5 @@ $('new-todo').addEventListener('submit', async (e) => {
   }
 });
 
-refresh();
+pickApi().then(refresh);
 setInterval(refresh, 15000);

@@ -118,41 +118,32 @@
     <div class="container">
         <article class="module-content">
             <h1>Módulo 4: El Collector, y Dónde Acaban los Datos</h1>
-
-<p><strong>Duración:</strong> ~45 min · <strong>Checkpoints: 42</strong> · <strong>Igual para los dos tracks</strong></p>
-
+<p><strong>Duración:</strong> ~45 min · <strong>Igual para los dos tracks</strong></p>
 <p>El Collector es la caja que todo el mundo asiente al ver y nadie lee. Al terminar este módulo lo habrás leído línea a línea, lo habrás editado, lo habrás roto a propósito y habrás encontrado la rotura en su propia telemetría. 📦</p>
-
 <h2>Objetivos de Aprendizaje</h2>
-
 <p>Al terminar este módulo, serás capaz de:</p>
-
 <ul>
 <li>Leer una configuración de OpenTelemetry Collector y decir qué hace cada sección</li>
 <li>Añadir un processor a un pipeline con soltura — lo vas a necesitar otra vez en el Módulo 8</li>
 <li>Entender qué son los stream fields de VictoriaLogs y por qué elegirlos mal sale caro</li>
 <li>Saber si tu propio pipeline de telemetría está sano</li>
 </ul>
-
 <h2>Prerrequisitos</h2>
-
 <ul>
-<li>Módulo 3 completado y con checkpoint — la telemetría está fluyendo</li>
+<li>Módulo 3 completado — la telemetría está fluyendo</li>
 </ul>
-
 <h2>Ejercicio 4.1 — Lee la configuración [~20 min]</h2>
-
 <p><strong>Deberías poder responder esto al terminar:</strong> <em>si se pierde un span entre tu app y VictoriaTraces, ¿en qué tres sitios mirarías?</em></p>
-
 <h3>Hazlo</h3>
-
 <p>Abre <code>collector/config.yaml</code> y sigue la explicación. El fichero entero:</p>
-
 <pre><code class="language-yaml">receivers:
   otlp:
     protocols:
-      grpc: { endpoint: 127.0.0.1:4317 }
-      http: { endpoint: 127.0.0.1:4318 }
+      # 0.0.0.0, not 127.0.0.1: the Collector runs in a container, and your
+      # application reaches it from outside that container. A receiver bound
+      # to the loopback interface would refuse that connection.
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
 
   # The Collector scrapes its own metrics and ships them through its own
   # metrics pipeline. Module 4.2 depends on this: it is how you find out that
@@ -183,19 +174,19 @@ processors:
 
 exporters:
   otlphttp/victoriametrics:
-    metrics_endpoint: http://localhost:8428/opentelemetry/v1/metrics
+    metrics_endpoint: http://victoriametrics:8428/opentelemetry/v1/metrics
     encoding: proto
     compression: gzip
   otlphttp/victorialogs:
-    logs_endpoint: http://localhost:9428/insert/opentelemetry/v1/logs
+    logs_endpoint: http://victorialogs:9428/insert/opentelemetry/v1/logs
     headers:
       VL-Stream-Fields: &quot;service.name,deployment.environment&quot;
   otlphttp/victoriatraces:
-    traces_endpoint: http://localhost:10428/insert/opentelemetry/v1/traces
+    traces_endpoint: http://victoriatraces:10428/insert/opentelemetry/v1/traces
 
 extensions:
   health_check:
-    endpoint: 127.0.0.1:13133
+    endpoint: 0.0.0.0:13133
 
 service:
   extensions: [health_check]
@@ -205,97 +196,65 @@ service:
         - pull:
             exporter:
               prometheus:
-                host: 127.0.0.1
+                host: 0.0.0.0
                 port: 8888
   pipelines:
     traces:  { receivers: [otlp], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriatraces] }
     metrics: { receivers: [otlp, prometheus/self], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriametrics] }
     logs:    { receivers: [otlp], processors: [memory_limiter, resource, transform/severity, batch], exporters: [otlphttp/victorialogs] }
 </code></pre>
-
 <p>Cuatro secciones, y la cuarta es la que importa:</p>
-
 <p><strong><code>receivers</code></strong> — cómo entra la telemetría. Un receiver OTLP, dos protocolos. Tu app habla con <code>:4318</code> porque configuraste <code>OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf</code>.</p>
-
-<p><strong><code>processors</code></strong> — qué pasa por el camino. Los nuestros hacen tres cosas:
-- <code>memory_limiter</code> rechaza trabajo en vez de morir por OOM. Ponlo <strong>el primero</strong> en todos los pipelines; un Collector que muere se lleva tu visibilidad justo cuando la necesitas.
-- <code>resource</code> estampa <code>deployment.environment</code> en todo, para que la telemetría de una máquina que se olvidó de ponerlo siga siendo atribuible.
-- <code>transform/severity</code> pasa <code>severity_text</code> a mayúsculas. Está ahí porque el SDK de JS emite <code>info</code> y el de Python emite <code>INFO</code>, y normalizar una vez en el medio sale más barato que hacer que todas las consultas y todos los dashboards aguanten las dos formas. Aquí es donde el Collector se gana el sueldo.
-- <code>batch</code> agrupa registros antes de exportar. Siempre el último.</p>
-
+<p><strong><code>processors</code></strong> — qué pasa por el camino. Los nuestros hacen tres cosas:</p>
+<ul>
+<li><code>memory_limiter</code> rechaza trabajo en vez de morir por OOM. Ponlo <strong>el primero</strong> en todos los pipelines; un Collector que muere se lleva tu visibilidad justo cuando la necesitas.</li>
+<li><code>resource</code> estampa <code>deployment.environment</code> en todo, para que la telemetría de una máquina que se olvidó de ponerlo siga siendo atribuible.</li>
+<li><code>transform/severity</code> pasa <code>severity_text</code> a mayúsculas. Está ahí porque el SDK de JS emite <code>info</code> y el de Python emite <code>INFO</code>, y normalizar una vez en el medio sale más barato que hacer que todas las consultas y todos los dashboards aguanten las dos formas. Aquí es donde el Collector se gana el sueldo.</li>
+<li><code>batch</code> agrupa registros antes de exportar. Siempre el último.</li>
+</ul>
 <p><strong><code>exporters</code></strong> — a dónde va. Son tres, y fíjate bien en <em>por qué</em>: tres hosts distintos, tres rutas distintas, una de ellas necesitando una cabecera especial. <strong>Esta es la razón de que el Collector exista en esta arquitectura.</strong> Tu app conoce un endpoint; el Collector conoce estos tres.</p>
-
 <p><strong><code>service.pipelines</code></strong> — el cableado. Nada de lo declarado arriba está activo hasta que aparece en un pipeline. Esto pilla a todo el mundo al menos una vez: añades un processor, reinicias y no cambia nada, porque nunca lo metiste en un pipeline.</p>
-
 <p>Así que, respondiendo a la pregunta del ejercicio: un span que falta puede ser (1) que la app nunca lo exportó, (2) que se descartó o se enrutó mal en el pipeline del Collector, o (3) que el endpoint del exporter lo rechazó. Aprenderás a distinguirlos en 4.2.</p>
-
 <h3>Tres puntos que merecen una pausa</h3>
-
 <p><strong><code>VL-Stream-Fields</code> es específico de VictoriaLogs y sí importa.</strong> Define qué es un <em>stream</em>. VictoriaLogs guarda los logs agrupados por stream, así que esta elección condiciona tanto el diseño de almacenamiento como el rendimiento de las consultas. <code>service.name,deployment.environment</code> te da un puñado de streams — bien. Meter ahí algo de cardinalidad alta, como <code>trace_id</code>, te daría un stream por petición y degradaría VictoriaLogs seriamente. Lo vas a poder sentir en el Módulo 6.3.</p>
-
 <p><strong>VictoriaMetrics quiere temporalidad cumulative.</strong> Los dos SDKs usan cumulative por defecto, así que estás bien tal cual. Si alguna vez acabas con métricas delta (algunas configuraciones de SDK de ciertos proveedores van así por defecto), el arreglo es el processor <code>deltatocumulative</code> en el Collector, no un cambio en la app.</p>
-
-<p><strong>VictoriaMetrics arranca con <code>-opentelemetry.usePrometheusNaming</code>.</strong> Es uno de los flags que escribiste en el Módulo 0.1. Sin ese flag, VM guarda los nombres con puntos de OTel tal cual — <code>http.server.duration_count</code> — y tus consultas necesitan comillas. Con él obtienes la forma Prometheus de toda la vida: <code>http_server_duration_milliseconds_count</code>, y <code>service.name</code> pasa a ser la etiqueta <code>service_name</code>. El Módulo 5.2 lo aprovecha.</p>
-
+<p><strong>VictoriaMetrics arranca con <code>-opentelemetry.usePrometheusNaming</code>.</strong> Está puesto en <code>docker-compose.yml</code>, que lo arrancó en el Módulo 0. Sin ese flag, VM guarda los nombres con puntos de OTel tal cual — <code>http.server.duration_count</code> — y tus consultas necesitan comillas. Con él obtienes la forma Prometheus de toda la vida: <code>http_server_duration_milliseconds_count</code>, y <code>service.name</code> pasa a ser la etiqueta <code>service_name</code>. El Módulo 5.2 lo aprovecha.</p>
 <p><strong>Los nombres de endpoint son por señal, no genéricos.</strong> <code>metrics_endpoint</code>, <code>logs_endpoint</code>, <code>traces_endpoint</code>. Si usas la clave genérica <code>endpoint</code>, el exporter añade su propia ruta convencional y acabarás con 404 que parecen problemas de conectividad.</p>
-
 <h3>Comprueba en la UI de Victoria</h3>
-
 <p>Confirma que el processor <code>resource</code> está haciendo su trabajo. vmui de VictoriaLogs:</p>
-
 <pre><code>service.name:todo-api AND deployment.environment:workshop
 </code></pre>
-
 <p>Deberías ver: los mismos registros que con <code>service.name:todo-api</code> a secas. Ninguno ha perdido el atributo de entorno.</p>
-
 <h3>Comprueba en Grafana</h3>
-
 <p>Grafana → Explore → VictoriaMetrics:</p>
-
 <pre><code>otelcol_receiver_accepted_spans
 </code></pre>
-
 <p>El Collector informa sobre sí mismo. Fíjate en cómo sube el número.</p>
-
 <h3>Para pensar</h3>
-
 <p><code>batch</code> va el último en todos los pipelines y <code>memory_limiter</code> el primero. ¿Por qué el orden no es arbitrario?</p>
-
 <h3>Si te atascas</h3>
-
 <ul>
-<li><strong>Editar la configuración no hace nada.</strong> El Collector lee su configuración una sola vez, al arrancar. Vete a su terminal: <strong>Ctrl-C, y luego ↑ Enter</strong>. Vas a hacer esto una docena de veces hoy, que es justo por lo que en el Módulo 0.1 le dimos una terminal para él solo.</li>
-<li><strong>El Collector no arranca tras una edición.</strong> Es YAML, y va a ser la indentación. Nombra la línea problemática mientras se muere — y como está en primer plano, no te lo puedes perder.</li>
+<li><strong>Editar la configuración no hace nada.</strong> El Collector lee su configuración una sola vez, al arrancar. Reinícialo: <strong><code>docker compose restart otel-collector</code></strong>. Vas a hacer esto una docena de veces hoy; sigue su log con <code>docker compose logs -f otel-collector</code> para verlo volver.</li>
+<li><strong>El Collector no arranca tras una edición.</strong> Es YAML, y va a ser la indentación. Nombra la línea problemática mientras se muere — léela con <code>docker compose logs otel-collector</code>. <code>docker compose ps -a</code> lo muestra como parado.</li>
 </ul>
-
-<h2>Ejercicio 4.2 — Edítalo [~25 min] [checkpoint: 42] <em>(recortable en la versión de un día)</em></h2>
-
+<h2>Ejercicio 4.2 — Edítalo [~25 min] <em>(recortable en la versión de un día)</em></h2>
 <p><strong>Deberías poder responder esto al terminar:</strong> <em>¿cómo sabrías, ahora mismo, si tu Collector hubiera dejado de entregar spans?</em></p>
-
 <h3>Hazlo</h3>
-
 <p>Tres tareas, de menos a más valor.</p>
-
 <p><strong>Tarea 1 — Descarta un atributo ruidoso.</strong></p>
-
 <p>Añade un processor <code>attributes</code> y mételo en el pipeline de trazas:</p>
-
 <pre><code class="language-yaml">processors:
   attributes/clean:
     actions:
       - { key: net.peer.ip, action: delete }
 </code></pre>
-
 <pre><code class="language-yaml">service:
   pipelines:
     traces:
       processors: [memory_limiter, resource, attributes/clean, batch]
 </code></pre>
-
-<p>Reinicia el Collector y confirma que el atributo ya no está en los spans nuevos.</p>
-
+<p>Reinicia el Collector — <code>docker compose restart otel-collector</code> — y confirma que el atributo ya no está en los spans nuevos.</p>
 <p><strong>Tarea 2 — Filtra los health checks.</strong></p>
-
 <pre><code class="language-yaml">processors:
   filter/healthz:
     error_mode: ignore
@@ -303,44 +262,30 @@ service:
       span:
         - 'attributes[&quot;url.path&quot;] == &quot;/healthz&quot;'
 </code></pre>
-
 <p>Añade <code>filter/healthz</code> al pipeline de trazas, reinicia y confirma que los spans de <code>/healthz</code> dejan de llegar.</p>
-
-<p>Y ahora ten la discusión: acabas de hacer invisible tu sonda de disponibilidad. Si el endpoint de salud empieza a fallar, ¿se va a enterar alguien por este sistema? Debate con quien tengas al lado si ese filtro debería llegar a producción.</p>
-
+<p>Y ahora piensa en lo que acabas de hacer: has hecho invisible tu sonda de disponibilidad. Si el endpoint de salud empieza a fallar, ¿se va a enterar alguien por este sistema? ¿Debería ese filtro llegar a producción?</p>
 <p><strong>Tarea 3 — Rómpelo a propósito. Esta es la importante.</strong> 💥</p>
-
 <p>Apunta un exporter a un puerto en el que no escucha nadie:</p>
-
 <pre><code class="language-yaml">exporters:
   otlphttp/victoriatraces:
     traces_endpoint: http://victoriatraces:19999/insert/opentelemetry/v1/traces
 </code></pre>
-
 <p>Reinicia el Collector. Lanza el loadgen. Las trazas dejan de llegar a vmui — pero fíjate en que <strong>tu aplicación está tan contenta</strong>. Ni errores, ni lentitud, ni nada en sus logs. Así se ve un pipeline roto en silencio desde fuera, y es exactamente así como equipos reales pierden una semana de datos.</p>
-
 <p>Ahora encuéntralo. El Collector expone sus propias métricas en <code>:8888</code>, y ya se están
 recogiendo en VictoriaMetrics. La señal más clara es <strong>entra dato y no sale</strong> — pon estas
 dos en una misma gráfica en vmui:</p>
-
 <pre><code>rate(otelcol_receiver_accepted_spans_total[1m])
 </code></pre>
-
 <pre><code>rate(otelcol_exporter_sent_spans_total[1m])
 </code></pre>
-
 <p>La primera sigue subiendo. La segunda cae a cero. Después mira dónde se están acumulando
 los spans:</p>
-
 <pre><code>otelcol_exporter_queue_size
 </code></pre>
-
 <pre><code>otelcol_exporter_queue_capacity
 </code></pre>
-
 <p>Observa cómo crece la cola del exporter de trazas mientras las otras dos se quedan a cero.
 Luego arregla el puerto, reinicia y mira cómo se vacía.</p>
-
 <blockquote>
 <p>📌 Puede que esperases <code>otelcol_exporter_send_failed_spans_total</code> aquí, que es la métrica a la
 que todo el mundo va primero. Se queda a cero un buen rato: el Collector <em>reintenta</em>, así
@@ -349,45 +294,29 @@ cola se llena y de verdad se descartan datos. Es una distinción realmente útil
 <strong>&ldquo;está fallando&rdquo; y &ldquo;está perdiendo datos&rdquo; son dos alertas distintas con urgencias
 distintas</strong>, y la cola es lo que te compra el tiempo que hay entre las dos.</p>
 </blockquote>
-
 <h3>Comprueba en la UI de Victoria</h3>
-
 <p>vmui de VictoriaMetrics, las dos consultas de arriba. Durante la ventana rota deberías ver: <code>otelcol_exporter_send_failed_spans_total</code> subiendo de forma sostenida, y <code>otelcol_exporter_queue_size</code> acercándose a su límite. Tras el arreglo, la tasa de fallos se aplana.</p>
-
 <h3>Comprueba en Grafana</h3>
-
 <p>Construye un panel pequeño con las dos series y guárdalo. En serio — un panel de &ldquo;¿está sano mi pipeline de telemetría?&rdquo; es de los dashboards más valiosos que vas a construir en tu vida, y casi nadie tiene uno.</p>
-
 <h3>Para pensar</h3>
-
 <blockquote>
 <p><strong>El pipeline de observabilidad es en sí mismo un sistema de producción, y necesita ser observable.</strong></p>
 </blockquote>
-
 <p>La mayoría de los equipos aprende esto por las malas, normalmente durante un incidente, normalmente descubriendo que la razón por la que no ven nada es la cosa que les enseña las cosas. ¿Sobre qué alertarías, y por qué despertarías a una persona?</p>
-
 <h3>Si te atascas</h3>
-
 <ul>
 <li><strong>El processor <code>filter</code> se rechaza al arrancar.</strong> La sintaxis OTTL es quisquillosa: <code>attributes[&quot;url.path&quot;]</code> con comillas dobles dentro de los corchetes, y toda la condición entre comillas simples.</li>
 <li><strong><code>otelcol_exporter_send_failed_spans_total</code> no devuelve absolutamente nada.</strong> Es lo esperado — mira la nota de arriba. Usa la comparación entre las tasas del receiver y del exporter.</li>
-<li><strong>Todas las métricas están planas, incluidas las del propio Collector.</strong> Puede que hayas roto la configuración tan a fondo que el Collector no llegó a arrancar. Mira su terminal — un Collector muerto no exporta nada, incluidas sus propias métricas de fallo. Eso es una lección en sí misma, y es la razón de que merezca la pena saberse <code>curl -s localhost:13133/</code> de memoria.</li>
+<li><strong>Todas las métricas están planas, incluidas las del propio Collector.</strong> Puede que hayas roto la configuración tan a fondo que el Collector no llegó a arrancar. Mira su log (<code>docker compose logs otel-collector</code>) — un Collector muerto no exporta nada, incluidas sus propias métricas de fallo. Eso es una lección en sí misma, y es la razón de que merezca la pena saberse <code>curl -s localhost:13133/</code> de memoria.</li>
 </ul>
-
-<pre><code class="language-bash">./checkpoint.sh 42
-</code></pre>
-
 <h2>Lo Que Hemos Conseguido</h2>
-
 <ul>
 <li>Sabes leer una configuración de Collector y decir qué hace cada sección</li>
 <li>Has añadido processors a un pipeline y visto el efecto</li>
 <li>Has vivido un pipeline roto en silencio y lo has diagnosticado desde las métricas del propio Collector</li>
 <li>Sabes por qué <code>VL-Stream-Fields</code> es una decisión y no un formalismo</li>
 </ul>
-
 <h2>Siguientes Pasos</h2>
-
 <p>La fontanería está entendida. Toca añadir significado, empezando por los números. Continúa con el <a href="05-manual-metrics.html">Módulo 5: Métricas Manuales</a>.</p>
 
         </article>

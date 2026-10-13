@@ -1,6 +1,6 @@
 # Module 3: The Easy Path — Zero-Code Auto-Instrumentation
 
-**Duration:** ~60 min · **Checkpoints: 31**
+**Duration:** ~60 min
 
 In this module the application starts emitting metrics, logs and traces. You will not change a single line of application code to make that happen. Then we'll look hard at what that does — and doesn't — buy you. ⚡
 
@@ -18,7 +18,7 @@ By the end of this module, you will:
 - Modules 0–2 completed
 - Stack running, `./doctor.sh` green
 
-## Exercise 3.1 — Turn it on [~20 min] [checkpoint: 31]
+## Exercise 3.1 — Turn it on [~20 min]
 
 **You should be able to answer this by the end:** *which file did you have to edit to get telemetry, and which file did you not?*
 
@@ -26,27 +26,29 @@ By the end of this module, you will:
 
 <!-- track:js -->
 
-1. Add the two packages. Same shape as the install in Module 0.2 — a throwaway container
-   writing into your bind-mounted source directory:
+1. Add the two packages to the `dependencies` in `track-js/todo-api/package.json`:
 
-   ```bash
-   docker run --rm \
-     -u "$(id -u):$(id -g)" -e HOME=/tmp \
-     -v "$PWD/track-js/todo-api:/app" -w /app \
-     node:22-slim npm install @opentelemetry/api @opentelemetry/auto-instrumentations-node
+   ```json
+   "dependencies": {
+     "@opentelemetry/api": "latest",
+     "@opentelemetry/auto-instrumentations-node": "latest",
+     "express": "^4.21.2",
+     ...
+   }
    ```
 
-   `package.json` and `node_modules/` on your laptop both changed. Nothing was baked into
-   an image, and no image was rebuilt.
+   Your API's container runs `npm install` every time it starts, so there is nothing to
+   install by hand. Nothing gets baked into an image, and no image is rebuilt.
 
 2. Create `track-js/todo-api/.env`. **This is the only file you create, and the
-   application never reads it** — you pass it to the container with `--env-file`, exactly
-   the way a deployment platform would hand environment to a process:
+   application never reads it** — `docker-compose.yml` already hands it to the container
+   as environment (`env_file:`), exactly the way a deployment platform would hand
+   environment to a process:
 
    ```bash
    OTEL_SERVICE_NAME=todo-api
    OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
-   OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318
+   OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
    OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
    OTEL_TRACES_EXPORTER=otlp
    OTEL_METRICS_EXPORTER=otlp
@@ -62,16 +64,9 @@ By the end of this module, you will:
    node --require @opentelemetry/auto-instrumentations-node/register src/server.js
    ```
 
-   > 🚨 **Two things in that file will bite you if you change them.**
-   >
-   > **Do not put quotes around the `NODE_OPTIONS` value.** Docker's `--env-file` takes the
-   > rest of the line literally, quotes included, so `NODE_OPTIONS="--require …"` arrives
-   > with the quote marks still attached and Node ignores the whole thing. This is not
-   > how your shell behaves, and it is why the file has no quotes anywhere.
-   >
-   > **The endpoint is `host.docker.internal`, not `localhost`.** Your API is in a
-   > container; the Collector is not. Inside the container, `localhost` is the container,
-   > and the SDK will spend all day failing to export to nothing.
+   > 🚨 **The endpoint is `otel-collector`, not `localhost`.** That's the Collector's
+   > service name in `docker-compose.yml`. Inside your API's container, `localhost` is the
+   > container, and the SDK would spend all day failing to export to nothing.
 
    > ⚠️ The `--require` must load **before** your application code, or the instrumentation
    > has nothing left to hook. It also only patches CommonJS `require()` calls, which is
@@ -90,33 +85,23 @@ By the end of this module, you will:
    opentelemetry-exporter-otlp
    ```
 
-   Then install them, the same way as in Module 0.2 — plus one extra command:
+   Your API's container runs `pip install` every time it starts, so there is nothing to
+   install by hand.
 
-   ```bash
-   docker run --rm \
-     -u "$(id -u):$(id -g)" -e HOME=/tmp \
-     -v "$PWD/track-py/todo-api:/app" -w /app \
-     -e PYTHONUSERBASE=/app/.pylibs \
-     -e PATH=/app/.pylibs/bin:/usr/local/bin:/usr/bin:/bin \
-     python:3.12-slim \
-     sh -c 'pip install --user --no-warn-script-location -r requirements.txt \
-            && opentelemetry-bootstrap -a install'
-   ```
-
-   > ℹ️ `opentelemetry-distro` pulls in `opentelemetry-bootstrap`, and that second command
-   > is what makes the difference between "traces only" and all three signals. It scans
-   > your installed dependencies and installs a matching instrumentation library for each
-   > framework it recognises — Flask, psycopg, requests, logging. Skip it and you will
-   > wonder where your database spans went.
+   > ℹ️ `opentelemetry-distro` pulls in `opentelemetry-bootstrap`, which the container also
+   > runs on start once it exists. It is what makes the difference between "traces only"
+   > and all three signals: it scans your installed dependencies and installs a matching
+   > instrumentation library for each framework it recognises — Flask, psycopg, requests,
+   > logging. Without it you would wonder where your database spans went.
 
 2. Create `track-py/todo-api/.env`. **This is the only file you create, and the application
-   never reads it** — you pass it to the container with `--env-file`, exactly the way a
-   deployment platform would hand environment to a process:
+   never reads it** — `docker-compose.yml` already hands it to the container as environment
+   (`env_file:`), exactly the way a deployment platform would hand environment to a process:
 
    ```bash
    OTEL_SERVICE_NAME=todo-api
    OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
-   OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318
+   OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
    OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
    OTEL_TRACES_EXPORTER=otlp
    OTEL_METRICS_EXPORTER=otlp
@@ -127,68 +112,67 @@ By the end of this module, you will:
    OTEL_PYTHON_LOG_CORRELATION=true
    ```
 
-   > 🚨 **The endpoint is `host.docker.internal`, not `localhost`.** Your API is in a
-   > container; the Collector is not. Inside the container, `localhost` is the container,
-   > and the SDK will spend all day failing to export to nothing. Also note there are no
-   > quotes anywhere in that file: Docker's `--env-file` takes the rest of each line
-   > literally, quote marks included.
+   > 🚨 **The endpoint is `otel-collector`, not `localhost`.** That's the Collector's
+   > service name in `docker-compose.yml`. Inside your API's container, `localhost` is the
+   > container, and the SDK would spend all day failing to export to nothing.
 
    Unlike the JavaScript track, no environment variable can turn the Python SDK on. You
-   change the **command** instead, in the next step, giving you the canonical form:
+   change the **command** instead. In `docker-compose.yml`, find the `todo-api-py` service
+   and put `opentelemetry-instrument` in front of `gunicorn`:
 
+   ```yaml
+       command: opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
    ```
-   opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
-   ```
+
+   That is the canonical form. Don't add gunicorn's `--reload`: the container already
+   restarts the whole command when a file changes, and under `opentelemetry-instrument`
+   gunicorn's own reloader silently stops logs from being exported.
+
+   > ⚠️ Do **not** add `--preload` to gunicorn either. With `--preload`, the SDK is
+   > initialised before forking and the workers emit nothing at all. If you must preload,
+   > initialise the SDK in a `post_fork` hook instead.
 
 <!-- /track -->
 
-3. Restart your API. Ctrl-C in its terminal — and this time the command changes, so don't
-   just press ↑. Two additions to the Module 0.2 command:
+3. Recreate your API's container, so it picks up the new environment and installs the new
+   dependencies. Saving a source file is not enough this time — the container's
+   configuration changed, not your code:
 
    <!-- track:js -->
 
    ```bash
-   docker run --rm -it --name workshop-todo-api \
-     -p 8081:8081 \
-     --add-host=host.docker.internal:host-gateway \
-     -u "$(id -u):$(id -g)" -e HOME=/tmp \
-     -v "$PWD/track-js/todo-api:/app" -w /app \
-     --env-file track-js/todo-api/.env \
-     -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-     -e NOTIFY_URL=http://host.docker.internal:8083 \
-     -e PORT=8081 \
-     node:22-slim node src/server.js
+   docker compose up -d --force-recreate todo-api-js
    ```
 
-   The only new thing is `--env-file track-js/todo-api/.env`. The image is the same, the
-   command is the same, your source is the same. **This** is the command you press ↑ for
-   from now on.
+   Then open a second terminal and follow your API's log in it. Keep it open for the rest
+   of the day — the handouts call it your *log terminal*:
+
+   ```bash
+   docker compose logs -f todo-api-js
+   ```
+
+   Wait for `OpenTelemetry automatic instrumentation started
+   successfully`. The image is the same, the command is the same, your source is the same.
+   The only new thing is the environment.
 
    <!-- /track -->
 
    <!-- track:python -->
 
    ```bash
-   docker run --rm -it --name workshop-todo-api \
-     -p 8082:8082 \
-     --add-host=host.docker.internal:host-gateway \
-     -u "$(id -u):$(id -g)" -e HOME=/tmp \
-     -v "$PWD/track-py/todo-api:/app" -w /app \
-     --env-file track-py/todo-api/.env \
-     -e PYTHONUSERBASE=/app/.pylibs \
-     -e PATH=/app/.pylibs/bin:/usr/local/bin:/usr/bin:/bin \
-     -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-     -e NOTIFY_URL=http://host.docker.internal:8084 \
-     python:3.12-slim opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
+   docker compose up -d --force-recreate todo-api-py
    ```
 
-   Two new things: `--env-file track-py/todo-api/.env`, and `opentelemetry-instrument` in
-   front of `gunicorn`. The image is the same and your source is unchanged. **This** is the
-   command you press ↑ for from now on.
+   Then open a second terminal and follow your API's log in it. Keep it open for the rest
+   of the day — the handouts call it your *log terminal*:
 
-   > ⚠️ Do **not** add `--preload` to gunicorn. With `--preload`, the SDK is initialised
-   > before forking and the workers emit nothing at all. If you must preload, initialise
-   > the SDK in a `post_fork` hook instead.
+   ```bash
+   docker compose logs -f todo-api-py
+   ```
+
+   It shows the new packages installing, then gunicorn starting. The image
+   is the same and your source is unchanged. The new things are the environment and one word
+   in front of the command.
 
    <!-- /track -->
 
@@ -202,7 +186,7 @@ Two settings in that block deserve an explanation rather than a copy-paste:
 
 - **`OTEL_METRIC_EXPORT_INTERVAL: 10000`.** The default is 60 seconds. In a workshop, sixty seconds of nothing reads as "it's broken". Ten seconds keeps the room sane. In production you'd leave it at the default — you're paying for every export.
 - **`OTEL_METRIC_EXPORT_TIMEOUT: 5000`.** It has to be less than the interval, and its default is 30 seconds. Lower the interval without lowering this and the JavaScript SDK refuses to initialise at all: one line on stderr, then no telemetry of any kind. A configuration error that disables everything is worth seeing once.
-- **`-search.latencyOffset=1s` on VictoriaMetrics** — one of the flags you typed in Module 0.1. By default VM hides the most recent 30 seconds of data, so that a partially-written interval never produces a misleading graph. That's correct behaviour and wrong for a classroom. Worth noticing that *correctness* and *freshness* are in genuine tension here.
+- **`-search.latencyOffset=1s` on VictoriaMetrics** — set in `docker-compose.yml`. By default VM hides the most recent 30 seconds of data, so that a partially-written interval never produces a misleading graph. That's correct behaviour and wrong for a classroom. Worth noticing that *correctness* and *freshness* are in genuine tension here.
 
 ### Verify in the Victoria UI
 
@@ -246,14 +230,10 @@ You changed a start command and some environment variables. You did not change t
 
 ### If you're stuck
 
-- **No data at all after 60 seconds.** Read the Collector's terminal — it is right there, in the foreground. A refused connection means the endpoint or protocol variable is wrong. Note that `http/protobuf` goes to port **4318**, gRPC to **4317** — mixing them up is the single most common mistake.
-- **Nothing at all, and the Collector's terminal is silent.** Then nothing ever reached it. In order: is the endpoint `host.docker.internal` and not `localhost`? Does `docker exec workshop-todo-api env | grep OTEL` show your variables? Does `grep -n '\"' track-*/todo-api/.env` find a stray quote mark?
+- **No data at all after 60 seconds.** Read the Collector's log — `docker compose logs -f otel-collector`. A refused connection means the endpoint or protocol variable is wrong. Note that `http/protobuf` goes to port **4318**, gRPC to **4317** — mixing them up is the single most common mistake.
+- **Nothing at all, and the Collector's log is silent.** Then nothing ever reached it. In order: is the endpoint `otel-collector` and not `localhost`? Did you recreate the container after creating `.env`? Does `docker compose exec todo-api-js env | grep OTEL` (or `todo-api-py`) show your variables?
 - **(JS) One error line on startup, then normal logs and no telemetry.** Read that line. `exportIntervalMillis must be greater than or equal to exportTimeoutMillis` means `OTEL_METRIC_EXPORT_TIMEOUT=5000` is missing from your `.env`.
-- **(Python) Traces appear but nothing else.** `opentelemetry-bootstrap -a install` didn't run, or `OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true` is missing from your `.env`. To start over cleanly: `rm -rf track-py/todo-api/.pylibs`, then re-run step 1.
-
-```bash
-./checkpoint.sh 31
-```
+- **(Python) Traces appear but nothing else.** `opentelemetry-bootstrap` didn't run, or `OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true` is missing from your `.env`. Read the start of `docker compose logs todo-api-py`: the bootstrap step runs there, before gunicorn starts.
 
 ## Exercise 3.2 — Explore what arrived [~25 min]
 
@@ -351,40 +331,34 @@ Module 6.
 
 ### Verify in Grafana
 
-Grafana is the ninth thing you start today, and the last. We left it until now because
-until now there was nothing to look at:
+Grafana is the last thing you start today. It has been sitting in `docker-compose.yml`
+since Module 0, behind its own profile; we left it until now because until now there was
+nothing to look at. Naming the service starts it:
 
 ```bash
-docker run -d --name workshop-grafana \
-  -p 3000:3000 \
-  --add-host=host.docker.internal:host-gateway \
-  -e GF_SECURITY_ADMIN_USER=admin \
-  -e GF_SECURITY_ADMIN_PASSWORD=admin \
-  -e GF_INSTALL_PLUGINS=victoriametrics-metrics-datasource,victoriametrics-logs-datasource \
-  -e GF_FEATURE_TOGGLES_ENABLE=correlations,traceToMetrics,traceqlEditor \
-  -v "$PWD/grafana/provisioning:/etc/grafana/provisioning:ro" \
-  grafana/grafana:12.3.1
+docker compose up -d grafana
 ```
 
 First boot takes a minute — it installs the two VictoriaMetrics plugins. Watch it with
-`docker logs -f workshop-grafana`, then open <http://localhost:3000> and log in with
+`docker compose logs -f grafana`, then open <http://localhost:3000> and log in with
 `admin` / `admin`.
 
 **Connections → Data sources.** Four are pre-provisioned from `grafana/provisioning`:
 
 | Name | Type | Points at |
 |---|---|---|
-| VictoriaMetrics | `victoriametrics-metrics-datasource` | `host.docker.internal:8428` |
-| VictoriaLogs | `victoriametrics-logs-datasource` | `host.docker.internal:9428` |
-| VictoriaTraces (Jaeger) | `jaeger` (core, no plugin) | `host.docker.internal:10428/select/jaeger` |
-| VictoriaTraces (Tempo) | `tempo` (core, no plugin) | `host.docker.internal:10428/select/tempo` |
+| VictoriaMetrics | `victoriametrics-metrics-datasource` | `victoriametrics:8428` |
+| VictoriaLogs | `victoriametrics-logs-datasource` | `victorialogs:9428` |
+| VictoriaTraces (Jaeger) | `jaeger` (core, no plugin) | `victoriatraces:10428/select/jaeger` |
+| VictoriaTraces (Tempo) | `tempo` (core, no plugin) | `victoriatraces:10428/select/tempo` |
 
 Click into each and hit **Save & test**. All four must go green.
 
 Note the host in that last column, and note that it is *not* what you type in your own
-browser. Grafana is in a container and the three backends are not, so from Grafana's point
-of view they live on `host.docker.internal` — the same reason your API's `.env` says it.
-You reach the very same processes at `localhost`, because you are not in a container.
+browser. Grafana is in the same Compose project as the three backends, so it reaches them
+by service name, exactly like the Collector does, and exactly like your API reaches
+`otel-collector`. You reach the very same containers at `localhost`, through the ports
+Compose published on your laptop, because you are not in a container.
 
 Then:
 
@@ -399,9 +373,9 @@ Look at the trace tree again. Which of those spans came from a library the OpenT
 
 ### If you're stuck
 
-- **Traces show only the HTTP span, no children.** The database and framework instrumentations load with the SDK. Check what the container actually got: `docker exec workshop-todo-api env | grep -E 'NODE_OPTIONS|OTEL'`. On the Python track, check `opentelemetry-bootstrap -a install` ran.
-- **Grafana's Jaeger datasource returns nothing but vmui has data.** Check the datasource URL — it must be `http://host.docker.internal:10428/select/jaeger`, with `/select/jaeger` on the end.
-- **Grafana can't reach any datasource.** You started it without `--add-host=host.docker.internal:host-gateway`. `docker rm -f workshop-grafana` and run the command again.
+- **Traces show only the HTTP span, no children.** The database and framework instrumentations load with the SDK. Check what the container actually got: `docker compose exec todo-api-js env | grep -E 'NODE_OPTIONS|OTEL'`. On the Python track, check the start of `docker compose logs todo-api-py` for the bootstrap step.
+- **Grafana's Jaeger datasource returns nothing but vmui has data.** Check the datasource URL — it must be `http://victoriatraces:10428/select/jaeger`, with `/select/jaeger` on the end.
+- **Grafana can't reach any datasource.** Check that the three backends are up (`docker compose ps`) and that Grafana was started through Compose, not with a `docker run` of its own — only containers in the Compose project can resolve `victoriametrics`, `victorialogs` and `victoriatraces`.
 
 ## Exercise 3.3 — Find the ceiling [~15 min]
 
@@ -439,7 +413,7 @@ Try building a panel titled "Todos created per list". Get as far as you can. Not
 
 ### Think about
 
-Go back to the three questions you sorted in Module 1.2 — which was a logging problem, which tracing, which metrics. Were you right?
+A todo with an empty title returns a 500. Three questions about it: *which function raised?*, *was the database touched before it failed?*, *how many users hit this today?* Which of them is a logging problem, which a tracing problem, which a metrics problem — and which can you answer right now, with only auto-instrumentation?
 
 ### If you're stuck
 

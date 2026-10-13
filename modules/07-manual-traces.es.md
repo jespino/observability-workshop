@@ -1,6 +1,6 @@
 # Módulo 7: Trazas Manuales
 
-**Duración:** ~90 min · **Checkpoints: 72, 74, 75**
+**Duración:** ~90 min
 
 La auto-instrumentación te dio spans de HTTP, de tu framework web y de Postgres. Esos describen tu *infraestructura*. Este módulo va de spans que describen tu *dominio* — y del momento en que una traza cruza una frontera de servicio y una frontera de lenguaje y sigue entera. 🧵
 
@@ -17,7 +17,7 @@ Al terminar este módulo, serás capaz de:
 
 ## Prerrequisitos
 
-- Módulo 6 completado y con checkpoint
+- Módulo 6 completado
 
 ## 7.1 — Conceptos [~10 min]
 
@@ -36,7 +36,7 @@ Un **span** es una operación con un inicio, un fin y un sitio en un árbol:
 
 **La propagación de contexto** es cómo sobrevive el árbol de spans a un salto de red. El id del span activo viaja en la cabecera W3C `traceparent`; el servicio receptor lo lee y hace su span hijo. Cuando alguien dice "la traza se rompe en esta frontera", la cabecera no llegó. Casi siempre es toda la historia.
 
-## Ejercicio 7.2 — Spans personalizados alrededor de operaciones de negocio [~25 min] [checkpoint: 72]
+## Ejercicio 7.2 — Spans personalizados alrededor de operaciones de negocio [~25 min]
 
 **Deberías poder responder esto al terminar:** *¿podría un compañero depurar una creación fallida a las 3 de la mañana solo con esta traza, sin abrir el código?*
 
@@ -166,10 +166,6 @@ Añadiste `cache.key` como atributo de span. En el Módulo 5.4 un valor sin acot
 - **El span aparece en la raíz en vez de anidado.** Lo creaste fuera del contexto activo. En JS eso suele significar que perdiste el contexto al cruzar un `await` en un callback no instrumentado; en Python, que usaste `start_span` en vez de `start_as_current_span`.
 - **El span no aparece nunca.** Comprueba que se llama a `end()` en todos los caminos.
 
-```bash
-./checkpoint.sh 72
-```
-
 ## Ejercicio 7.3 — Convenciones semánticas [~10 min]
 
 **Deberías poder responder esto al terminar:** *¿qué ganas por usar un nombre de atributo estándar en vez del tuyo?*
@@ -225,7 +221,7 @@ El coste también es real: **algunas convenciones siguen marcadas como experimen
 
 - **Tu consulta no devuelve nada tras el renombrado.** Los spans antiguos conservan el atributo antiguo. Reduce el rango de tiempo a después de tu reinicio.
 
-## Ejercicio 7.4 — Propagación entre servicios y entre lenguajes [~25 min] [checkpoint: 74]
+## Ejercicio 7.4 — Propagación entre servicios y entre lenguajes [~25 min]
 
 **Deberías poder responder esto al terminar:** *¿qué viaja exactamente entre dos servicios para que dos trazas sean una?*
 
@@ -352,13 +348,9 @@ La propagación funcionaba sola hasta que sustituiste una librería. ¿Qué form
 ### Si te atascas
 
 - **`inject()` no añade nada a las cabeceras.** No hay span activo en ese punto del código — estás fuera del contexto de la petición. Loguea `trace.getActiveSpan()` / `trace.get_current_span()` para confirmarlo.
-- **Los dos servicios tienen spans pero con trace ids distintos tras el arreglo.** Comprueba que la cabecera llega realmente al cable; `docker logs workshop-notify-py` (or `-js`) imprime las cabeceras que recibió.
+- **Los dos servicios tienen spans pero con trace ids distintos tras el arreglo.** Comprueba que la cabecera llega realmente al cable; `docker logs workshop-notify-py` (o `-js`) imprime las cabeceras que recibió.
 
-```bash
-./checkpoint.sh 74
-```
-
-## Ejercicio 7.5 — Sampling [~20 min] [checkpoint: 75] *(recortable)*
+## Ejercicio 7.5 — Sampling [~20 min] *(recortable)*
 
 **Deberías poder responder esto al terminar:** *¿por qué "muestrea el 10% de las trazas" es un mal valor por defecto para un error budget?*
 
@@ -418,16 +410,12 @@ Compara `rate(http_server_duration_milliseconds_count[1m])` — que no se ve afe
 
 El tail sampling necesita que la traza *entera* llegue a *una sola* instancia del Collector antes de poder decidir. Eso condiciona cómo escalas tu flota de Collectors: necesitas hashing consistente por trace id delante, o una topología de dos niveles.
 
-Aquí no hay respuesta gratis. Debatid qué haríais de verdad con 200 servicios y 50k spans/segundo.
+Aquí no hay respuesta gratis. ¿Qué harías de verdad con 200 servicios y 50k spans/segundo?
 
 ### Si te atascas
 
 - **El tail sampling lo tira todo.** `decision_wait` tiene que ser mayor que tu traza más lenta, o los spans que llegan tarde se juzgan contra una traza incompleta.
 - **Head y tail sampling los dos activos.** Se multiplican y no vas a ver casi nada. Apaga primero el head sampling.
-
-```bash
-./checkpoint.sh 75
-```
 
 ## Ejercicio 7.6 — Explora [~15 min, repartido entre los anteriores]
 
@@ -439,7 +427,7 @@ Mira los mismos datos de tres formas, deliberadamente.
 
 **1. vmui de VictoriaTraces** (`http://localhost:10428/select/vmui`)
 
-Fíjate en lo que estás escribiendo: **LogsQL**. El mismo lenguaje del Módulo 6. Este es el premio del punto "un lenguaje de consulta, dos señales" del Módulo 2.
+Fíjate en lo que estás escribiendo: **LogsQL**. El mismo lenguaje del Módulo 6. Como decía el Módulo 2: los logs y las trazas comparten lenguaje de consulta.
 
 ```
 _time:15m "resource_attr:service.name":=todo-api duration:>500ms

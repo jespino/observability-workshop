@@ -1,6 +1,6 @@
 # Module 1: The Application You'll Instrument
 
-**Duration:** ~30 min · **Both tracks, same application**
+**Duration:** ~15 min · **Both tracks, same application**
 
 You cannot instrument a system you don't understand. This module is a guided tour of the todo app: what the pieces are, what the API does, and — most importantly — the handful of functions you'll come back to in every remaining module. 🗺️
 
@@ -11,7 +11,6 @@ By the end of this module, you will:
 - Be able to draw the system from memory: which service calls which, and over what
 - Know every endpoint the API exposes, and what each one touches
 - Know the four files in your track that you'll be editing all day, and what lives in each
-- Have traced one request through the code by hand — the slow way, so that later you appreciate doing it the fast way
 
 ## Prerequisites
 
@@ -20,34 +19,14 @@ By the end of this module, you will:
 
 ## The system
 
-```
-                    ┌─────────────┐
-   browser ────────▶│  frontend   │  static files, identical for both tracks
-                    │   :8080     │
-                    └──────┬──────┘
-                           │ HTTP
-                    ┌──────▼───────────────┐
-                    │  todo-api            │  ◀── the code you edit
-                    │  js :8081 / py :8082 │      (a container, in your terminal)
-                    │  ┌────────────────┐  │
-                    │  │ in-process     │  │  a plain map in front of
-                    │  │ cache          │  │  the list read path
-                    │  └────────────────┘  │
-                    └───────┬───────┬──────┘
-                            │       │
-                  ┌─────────▼┐    ┌─▼─────────────┐
-                  │ Postgres │    │ notify-service│  pre-instrumented,
-                  │  :5432   │    │  :8083 / :8084│  written in the *other*
-                  └──────────┘    └───────────────┘  language on purpose
-```
+![The application: your browser loads the frontend on :8080, which calls todo-api (js :8081 / py :8082) over HTTP. todo-api — the code you edit, which restarts when you save a file — holds an in-process cache in front of the list read path, uses Postgres on :5432 as its only external dependency, and calls notify-service on :8083 / :8084, which is pre-instrumented and written in the other language on purpose.](images/application.png)
 
 Four things worth noticing:
 
 1. **`todo-api` is the only thing you edit.** It runs in a stock `node:22-slim` or
-   `python:3.12-slim` container, in the foreground, in your own terminal, with the source
-   directory on your laptop bind-mounted into it — so your editor edits real files and a
-   Ctrl-C plus ↑ Enter is the whole build-and-deploy cycle. Everything else is fixed
-   scenery.
+   `python:3.12-slim` container, with the source directory on your laptop mounted into it
+   and the server in watch mode — so your editor edits real files, and saving one is the
+   whole build-and-deploy cycle. Everything else is fixed scenery.
 2. **Postgres is its only external dependency.** The cache in front of the read path is
    an in-process map, not Redis. Remember that: nothing on the network can observe it,
    which turns out to matter a great deal later.
@@ -227,123 +206,11 @@ Across the whole workshop, these are the ones that come up again and again. Lear
 
 The *insides* of the repo and cache modules — how the queries are built, how the cache key is derived — are left for you to find out. Not because they're secret, but because by Module 9 you should be able to describe what they do without opening them, purely from telemetry. That's the whole claim of this workshop, and it's more fun if you get to test it. 🔍
 
-## Exercise 1.1 — Trace a request by hand [~15 min]
-
-**You should be able to answer this by the end:** *how many network round-trips does one `POST /todos` with an `urgent` tag make?*
-
-### Do
-
-1. Open your track's `routes` file and follow `POST /todos` all the way down. Write the sequence of calls on paper — every database query, every cache operation, every outbound HTTP request.
-
-2. Do the same for `GET /todos?list=work`.
-
-3. Now check your answer the only way currently available to you:
-
-   Watch the terminal your API is running in. Then, in another terminal:
-
-   <!-- track:js -->
-
-   ```bash
-   curl -s -X POST localhost:8081/todos \
-     -H 'content-type: application/json' \
-     -d '{"title":"ship the thing","list":"work","tags":["urgent"],"priority":1}'
-   ```
-
-   <!-- /track -->
-
-   <!-- track:python -->
-
-   ```bash
-   curl -s -X POST localhost:8082/todos \
-     -H 'content-type: application/json' \
-     -d '{"title":"ship the thing","list":"work","tags":["urgent"],"priority":1}'
-   ```
-
-   <!-- /track -->
-
-4. Compare the log output with the sequence you wrote down. How much of it could you actually confirm?
-
-### Verify in the Victoria UI
-
-Nothing to verify yet — and that's the exercise. Note how long step 3 took you compared with step 1.
-
-### Verify in Grafana
-
-Nothing yet.
-
-### Think about
-
-You just reconstructed a request path by reading source code. That works because the codebase is 400 lines and you have it open. What's the smallest system where that stops working?
-
-### If you're stuck
-
-- **The `POST` returns 500.** Check your JSON — `title` must be a non-empty string. (Keep that in mind; it comes back in Module 6.)
-- **`urgent` doesn't seem to call notify-service.** The tag comparison is exact and lowercase. `Urgent` won't match.
-
-## Exercise 1.2 — Break something, and try to find out why [~10 min]
-
-**You should be able to answer this by the end:** *how long does it take to diagnose a 500 with no telemetry?*
-
-### Do
-
-1. Create a todo with an empty title:
-
-   <!-- track:js -->
-
-   ```bash
-   curl -i -s -X POST localhost:8081/todos \
-     -H 'content-type: application/json' \
-     -d '{"title":"","list":"work","tags":[]}'
-   ```
-
-   <!-- /track -->
-
-   <!-- track:python -->
-
-   ```bash
-   curl -i -s -X POST localhost:8082/todos \
-     -H 'content-type: application/json' \
-     -d '{"title":"","list":"work","tags":[]}'
-   ```
-
-   <!-- /track -->
-
-2. You get a 500. Now answer these three questions **without opening the source**:
-   - Which function raised?
-   - Was the database touched before it failed?
-   - How many other users hit this today?
-
-3. Give up after five minutes. That's the honest outcome, and it's the point.
-
-### Verify in the Victoria UI
-
-Still nothing. Enjoy the last module where that's true. 😄
-
-### Verify in Grafana
-
-Still nothing.
-
-### Think about
-
-Of those three questions, which one is a *logging* problem, which is a *tracing* problem, and which is a *metrics* problem? Keep your answer — we'll come back to it at the end of Module 2.
-
-### If you're stuck
-
-- **You get a 400 instead of a 500.** You're on a checkpointed build from a later module. Run `./checkpoint.sh 00` to get back to the starting state.
-
-This module changed no code, so there's nothing to check point. If you want to
-undo experiments and return to the pristine starting state at any time:
-
-```bash
-./checkpoint.sh 00
-```
-
 ## What We Accomplished
 
 - You can draw the system, name its dependencies, and list its endpoints
 - You know the four files and seven functions that the rest of the workshop revolves around
-- You have felt, concretely, what debugging this app costs without telemetry
 
 ## Next Steps
 
-Now that you know what we're instrumenting, let's agree on what "instrumenting" even means. Continue with [Module 2: What Observability Actually Is](./02-what-observability-is.md).
+Now that you know what we're instrumenting, let's look at the data instrumenting it produces. Continue with [Module 2: The Three Signals — Metrics, Logs and Traces](./02-what-observability-is.md).

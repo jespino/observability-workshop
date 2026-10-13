@@ -43,12 +43,12 @@ Distinta por señal, y por buenas razones:
 | Logs | 7–30 días | Caros por unidad; casi todo el valor está en las primeras horas |
 | Trazas | 3–7 días | Igual que los logs, y más |
 
-Los flags los escribiste tú en el Módulo 0.1:
+El taller los pone en `docker-compose.yml`:
 
 ```
-victoria-metrics  -retentionPeriod=1   -search.latencyOffset=1s ...
-victoria-logs     -retentionPeriod=7d
-victoria-traces   -retentionPeriod=3d
+victoriametrics  -retentionPeriod=1   -search.latencyOffset=1s ...
+victorialogs     -retentionPeriod=7d
+victoriatraces   -retentionPeriod=3d
 ```
 
 La pregunta interesante en producción no es "cuánto tiempo" — es "qué hago con el *agregado* cuando expira el detalle". Las recording rules que consolidan una métrica de alta resolución en otra de baja resolución son la respuesta estándar.

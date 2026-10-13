@@ -64,7 +64,7 @@
     <div class="container">
         <header class="hero">
             <h1>Instrumentando tu aplicación con OpenTelemetry</h1>
-            <p class="lead">¡Bienvenido a un taller práctico donde instrumentarás desde cero una aplicación real de varios servicios con OpenTelemetry, y enviarás métricas, logs y trazas al stack de VictoriaMetrics! Aproximadamente 25% charla, 75% teclado.</p>
+            <p class="lead">¡Bienvenido a un taller práctico donde instrumentarás desde cero una aplicación de varios servicios con OpenTelemetry, y enviarás métricas, logs y trazas al stack de VictoriaMetrics! Aproximadamente 25% charla, 75% teclado.</p>
             <p class="hero-note"><strong>Dos tracks en paralelo: Node.js/Express y Python/Flask.</strong> El mismo sistema, el mismo backend y los mismos ejercicios — solo cambia la superficie del SDK.</p>
         </header>
 
@@ -91,7 +91,7 @@
                     <div class="module-card">
                         <div class="module-number">Módulo 0</div>
                         <h3>Preparación y Comprobación del Entorno</h3>
-                        <p>Descarga y arranca tú mismo cada pieza del stack — cuatro binarios de telemetría y cuatro contenedores — y después ejecuta el script doctor y guarda las UIs en marcadores.</p>
+                        <p>Arranca todo el stack, tu API incluida, con un solo comando de Docker Compose, y comprueba con el script doctor que todo está funcionando.</p>
                     </div>
                 </a>
                 
@@ -106,8 +106,8 @@
                 <a href="02-what-observability-is.html" class="module-card-link">
                     <div class="module-card">
                         <div class="module-number">Módulo 2</div>
-                        <h3>Qué es Realmente la Observabilidad</h3>
-                        <p>Vocabulario común — señales, resource, scope, atributos y contexto — y por qué la correlación es el producto de verdad.</p>
+                        <h3>Las Tres Señales — Métricas, Logs y Trazas</h3>
+                        <p>Qué son las métricas, los logs y las trazas, con un ejemplo de cada una sacado de la aplicación que vas a instrumentar.</p>
                     </div>
                 </a>
                 
@@ -181,7 +181,7 @@
         <section class="getting-started">
             <h2>Cómo Empezar</h2>
             <ol>
-                <li>Comienza con el <a href="00-setup-and-sanity-check.html">Módulo 0</a> para dejar tu entorno en verde</li>
+                <li>Comienza con el <a href="00-setup-and-sanity-check.html">Módulo 0</a> para dejar tu entorno preparado</li>
                 <li>Haz los módulos en orden — cada uno se apoya en el anterior</li>
                 <li>Elige el track en el que quieras escribir, JavaScript o Python. Los dos acaban mirando exactamente los mismos datos.</li>
                 
@@ -193,8 +193,7 @@
             <ul>
                 <li>Pega las consultas exactas del guion — lo de "explora los datos" viene después</li>
                 <li>Cuando algo pinte mal, lee los logs del Collector antes que nada</li>
-                <li>Usa <code>git</code> para rastrear tus cambios, y los checkpoints de <code>solutions/</code> para ponerte al día si te descuelgas</li>
-                <li>Compara notas con alguien del otro track después de cada módulo — ahí es donde cala la idea</li>
+                <li>Puedes mirar las soluciones en el repositorio</li>
                 
             </ul>
         </section>
@@ -218,7 +217,7 @@
             <h2>Completando el Taller</h2>
             <p>Al completar todos los módulos, habrás:</p>
             <ul>
-                <li><strong>Instrumentado un servicio real</strong> con métricas, logs y trazas, partiendo de cero</li>
+                <li><strong>Instrumentado un servicio</strong> con métricas, logs y trazas, partiendo de cero</li>
                 <li><strong>Ejecutado un OpenTelemetry Collector</strong> como punto de entrada único, repartiendo hacia tres backends</li>
                 <li><strong>Elegido los instrumentos correctos</strong> y razonado sobre cardinalidad antes de que doliera</li>
                 <li><strong>Emitido logs estructurados</strong> que arrastran el contexto de traza, y consultado con LogsQL</li>

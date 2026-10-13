@@ -1,45 +1,31 @@
-# Checkpoint solutions
+# Reference solutions
 
-Every exercise that changes code ends at a numbered checkpoint. `./checkpoint.sh NM`
-copies the reference solution over your working directory, so that nobody spends six
-hours lost because of ten minutes stuck in Module 3. It starts and restarts nothing —
-your API container mounts the source directory, so a Ctrl-C plus ↑ Enter in its terminal
-is all it takes to pick the checkpoint up.
+The worked answer to every exercise that changes code or config, for participants to read
+when they want to compare their work or see how an exercise was meant to end. Nothing
+copies them into place: they are there to look at.
 
 ## Layout
 
 ```
 solutions/
 ├── 31/                     # end of exercise 3.1
-│   ├── README.md           # one line, shown by ./checkpoint.sh with no arguments
-│   ├── js/                 # replaces track-js/todo-api/ wholesale
-│   ├── py/                 # replaces track-py/todo-api/ wholesale
-│   └── collector/          # optional: replaces collector/config.yaml
+│   ├── js/                 # track-js/todo-api/ at the end of the exercise
+│   ├── py/                 # track-py/todo-api/ at the end of the exercise
+│   └── collector/          # optional: collector/config.yaml at the end of the exercise
 ├── 42/
 └── ...
 ```
 
-A checkpoint directory is a **complete copy** of the track directory at the end of that
-exercise, not a patch. That makes `checkpoint.sh` trivial and makes it obvious what a
-participant is getting. The cost is duplication between checkpoints, which is fine at
-this size.
+Each directory is a **complete copy** of the track directory at the end of that exercise,
+not a patch, so it reads on its own. `collector/` is only present for the exercises that
+change the Collector config — 4.2, 7.5 and 8.1. The track directories include `.env`,
+which is where the SDK configuration lives from Module 3.1 onwards. On the Python track the
+SDK is switched on by the container's command rather than by `.env`: from 3.1 onwards, the
+`todo-api-py` command in `docker-compose.yml` is `opentelemetry-instrument gunicorn …`.
 
-`collector/` is optional and only present for checkpoints that change the Collector
-config — 4.2, 7.5 and 8.1. `checkpoint.sh` copies it into place and then tells you to
-restart the Collector in its own terminal.
+## The solutions
 
-The track directory includes `.env`, which is where the SDK configuration lives from
-Module 3.1 onwards. That is what makes checkpoint `31` work: it is a `.env` plus two
-lines in `package.json` / `requirements.txt`, and no application code at all.
-
-Note that a checkpoint copies `package.json` / `requirements.txt` but **not** the
-installed packages — `node_modules/` and `.pylibs/` are excluded, because they are large
-and platform-specific. If a checkpoint adds a dependency, re-run the install command from
-the relevant module before restarting.
-
-## The checkpoints
-
-| ID | Exercise | Changes |
+| Directory | Exercise | Changes |
 |---|---|---|
 | `31` | 3.1 Turn on auto-instrumentation | track `.env` + deps |
 | `42` | 4.2 Edit the Collector | `collector/` |
@@ -55,18 +41,15 @@ the relevant module before restarting.
 
 ## Status
 
-⚠️ **Not yet written.** Each checkpoint is the worked answer to its exercise, so these
-need to be produced by actually doing the exercises against the running stack and
-capturing the result — including verifying that both tracks produce the same metric
-names, span names and log attributes (the parity checklist in `workshop.md` §7).
-
-Until they exist, `./checkpoint.sh` will tell participants clearly that the checkpoint
-is unavailable rather than failing in a confusing way.
+⚠️ **Not yet written.** Each one is the worked answer to its exercise, so they need to be
+produced by actually doing the exercises against the running stack and capturing the
+result — including verifying that both tracks produce the same metric names, span names
+and log attributes (the parity checklist in `workshop.md` §7).
 
 ## Adding one
 
 1. Do the exercise on both tracks against a running stack
 2. `mkdir -p solutions/NM/{js,py}` and copy the finished `track-*/todo-api/` into each
-3. Add a one-line `solutions/NM/README.md` describing it
-4. If the exercise changed the Collector config, copy it into `solutions/NM/collector/`
-5. Verify: `./checkpoint.sh NM` from a clean start, then re-run the exercise's "Verify" steps
+   (without `node_modules/`)
+3. If the exercise changed the Collector config, copy it into `solutions/NM/collector/`
+4. Re-run the exercise's "Verify" steps against it

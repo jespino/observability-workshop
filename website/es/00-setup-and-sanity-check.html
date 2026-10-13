@@ -118,730 +118,102 @@
     <div class="container">
         <article class="module-content">
             <h1>Módulo 0: Preparación y Comprobación del Entorno</h1>
-
-<p><strong>Duración:</strong> ~45 min · <strong>Todo aquí es igual para los dos tracks</strong></p>
-
-<p>El objetivo de este módulo es aburrido a propósito: que todos los portátiles de la sala estén en verde antes de empezar a enseñar nada. 🟢</p>
-
-<p><strong>No hay script de preparación.</strong> Vas a descargar cuatro binarios y arrancar ocho procesos
-a mano, uno a uno, comprobando cada uno antes de arrancar el siguiente. Eso tarda más que
-ejecutar un script de setup, y ahí está el sentido: el resto del día, cuando algo deje de
-funcionar, sabrás exactamente qué proceso era, qué comando lo arrancó y dónde fue su log.
-Un script de preparación te habría quitado todo eso en los primeros diez minutos.</p>
-
-<h2>Objetivos de Aprendizaje</h2>
-
-<p>Al terminar este módulo, serás capaz de:</p>
-
-<ul>
-<li>Haber descargado y arrancado todo el stack tú mismo — cuatro procesos de telemetría y cuatro contenedores</li>
-<li>Saber en qué puerto escucha cada pieza, y qué fichero de log leer cuando una se caiga</li>
-<li>Saber en qué tres UIs vas a vivir el resto del día, y tenerlas en marcadores</li>
-<li>Haber elegido tu track</li>
-<li>Haber visto, con tus propios ojos, que la aplicación ahora mismo no emite <strong>nada</strong></li>
-</ul>
-
+<p><strong>Duración:</strong> ~10 min · <strong>Todo aquí es igual para los dos tracks</strong></p>
+<p>El objetivo de este módulo es aburrido a propósito: arrancarlo todo con un solo comando, y
+comprobar que todo está funcionando antes de empezar a enseñar nada. 🟢</p>
 <h2>Prerrequisitos</h2>
-
 <ul>
-<li><strong>Docker</strong> instalado y funcionando (<code>docker ps</code>)</li>
-<li><code>curl</code>, <code>tar</code> y una shell Unix. En Windows, usa WSL2.</li>
-<li>Unos 4GB de RAM libre y 2GB de disco</li>
-<li><strong>No necesitas Node.js ni Python instalados.</strong> La aplicación corre en un contenedor
-<code>node:22-slim</code> o <code>python:3.12-slim</code> de serie, con tu código fuente montado dentro.
-Nada de este repositorio se construye como imagen.</li>
+<li><strong>Docker</strong> con el plugin de Compose: <code>docker compose version</code> tiene que responder</li>
+<li><code>git</code> y una shell Unix. En Windows, usa WSL2.</li>
+<li>Unos 4GB de RAM libre y 3GB de disco</li>
+<li><strong>No necesitas Node.js ni Python instalados</strong> — todo corre en contenedores</li>
 </ul>
-
 <blockquote>
-<p>📦 <strong>Preparación previa, si puedes.</strong> Las descargas del Ejercicio 0.1 son unos 450 MB (la
-mayoría, el Collector), y el Ejercicio 0.2 se baja cuatro imágenes. Hacer las dos cosas
-antes de venir convierte un módulo de 45 minutos en uno de 15, y el wifi del sitio no va
-a ser tu amigo:</p>
-
-<pre><code class="language-bash">&gt; docker pull postgres:16-alpine
-&gt; docker pull node:22-slim          # o python:3.12-slim, para el track de Python
-&gt; docker pull python:3.12-slim      # ...este lo necesitas igual, para notify-service
-&gt; docker pull nginx:alpine
-&gt; docker pull grafana/grafana:12.3.1
-&gt; ```
-
-## Ejercicio 0.1 — Levanta el stack de telemetría, proceso a proceso [~20 min]
-
-**Deberías poder responder esto al terminar:** *¿qué procesos están corriendo en tu portátil, qué puertos ocupan, y dónde escribe su log cada uno?*
-
-### Hazlo
-
-1. Clona el repo y entra en el directorio del taller:
-
-   ```bash
-   git clone https://github.com/jespino/observability-workshop
-   cd observability-workshop/workshop
-</code></pre>
-
-<p>📁 Todo lo que ejecutas hoy vive en <code>workshop/</code>. Los guiones que estás leyendo viven un
-nivel más arriba, en <code>modules/</code>. <strong>Quédate en <code>workshop/</code> el resto del día</strong> — todos
-los comandos de todos los módulos dan por hecho que estás ahí, y varios usan <code>$PWD</code>.</p>
+<p>📦 <strong>Preparación previa, si puedes.</strong> El stack son unos 2 GB de imágenes, y el wifi del
+sitio no va a ser tu amigo. Clona el repo (el paso 1 de abajo) y descárgatelas antes de
+venir:</p>
 </blockquote>
-
+<pre><code class="language-bash">cd observability-workshop/workshop
+docker compose --profile js --profile py --profile grafana pull
+</code></pre>
+<h2>Preparación</h2>
 <ol>
-<li>Crea los tres directorios en los que va a escribir el stack:</li>
-</ol>
-
-<pre><code class="language-bash">   mkdir -p bin data logs
+<li>
+<p>Clona el repo y entra en el directorio del taller. <strong>Quédate en <code>workshop/</code> el resto del
+día</strong> — todos los comandos de todos los módulos dan por hecho que estás ahí.</p>
+<pre><code class="language-bash">git clone https://github.com/jespino/observability-workshop
+cd observability-workshop/workshop
 </code></pre>
-
-<p><code>bin/</code> para los binarios que vas a descargar, <code>data/</code> para el almacenamiento de cada
-   backend, <code>logs/</code> para su salida. Los tres están en el <code>.gitignore</code>.</p>
-
-<ol>
-<li>Averigua qué tienes que descargar para tu máquina:</li>
-</ol>
-
-<pre><code class="language-bash">   OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-   ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
-   echo &quot;$OS/$ARCH&quot;
-</code></pre>
-
-<p>Deberías ver <code>linux/amd64</code>, <code>darwin/arm64</code> o algo parecido. No cierres esta terminal —
-   los cuatro comandos siguientes usan esas dos variables.</p>
-
-<ol>
-<li>Descarga los cuatro binarios. Un comando cada uno, y cada uno deja un solo ejecutable en
-<code>bin/</code>:</li>
-</ol>
-
-<pre><code class="language-bash">   # VictoriaMetrics — almacenamiento de métricas
-   curl -sSL &quot;https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/v1.151.0/victoria-metrics-${OS}-${ARCH}-v1.151.0.tar.gz&quot; \
-     | tar -xzf - -C bin &amp;&amp; mv bin/victoria-metrics-prod bin/victoria-metrics
-</code></pre>
-
-<pre><code class="language-bash">   # VictoriaLogs — almacenamiento de logs
-   curl -sSL &quot;https://github.com/VictoriaMetrics/VictoriaLogs/releases/download/v1.52.0/victoria-logs-${OS}-${ARCH}-v1.52.0.tar.gz&quot; \
-     | tar -xzf - -C bin &amp;&amp; mv bin/victoria-logs-prod bin/victoria-logs
-</code></pre>
-
-<pre><code class="language-bash">   # VictoriaTraces — almacenamiento de trazas
-   curl -sSL &quot;https://github.com/VictoriaMetrics/VictoriaTraces/releases/download/v0.11.0/victoria-traces-${OS}-${ARCH}-v0.11.0.tar.gz&quot; \
-     | tar -xzf - -C bin &amp;&amp; mv bin/victoria-traces-prod bin/victoria-traces
-</code></pre>
-
-<pre><code class="language-bash">   # El OpenTelemetry Collector (distribución contrib — el grande, ~390MB)
-   curl -sSL &quot;https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.159.0/otelcol-contrib_0.159.0_${OS}_${ARCH}.tar.gz&quot; \
-     | tar -xzf - -C bin otelcol-contrib
-</code></pre>
-
-<p>Comprueba que tienes cuatro:</p>
-
-<pre><code class="language-bash">   ls -l bin/
-   ./bin/victoria-metrics --version
-   ./bin/otelcol-contrib --version
-</code></pre>
-
-<ol>
-<li>Arranca <strong>VictoriaMetrics</strong>. Lee los flags antes de ejecutarlo — tres de ellos vuelven a
-aparecer más tarde:</li>
-</ol>
-
-<pre><code class="language-bash">   nohup ./bin/victoria-metrics \
-     -storageDataPath=./data/victoria-metrics \
-     -httpListenAddr=:8428 \
-     -retentionPeriod=1 \
-     -selfScrapeInterval=10s \
-     -search.latencyOffset=1s \
-     -opentelemetry.usePrometheusNaming \
-     &gt; logs/victoria-metrics.log 2&gt;&amp;1 &amp;
-</code></pre>
-
-<p>| Flag | Por qué |
-   |&mdash;|&mdash;|
-   | <code>-retentionPeriod=1</code> | un mes, más que suficiente para un día |
-   | <code>-selfScrapeInterval=10s</code> | VM hace scrape de sus propias métricas. Los módulos 4.2 y 5.4 las consultan. |
-   | <code>-search.latencyOffset=1s</code> | por defecto VM esconde los últimos 30 segundos para que un intervalo escrito a medias no dibuje una gráfica engañosa. Correcto en producción, desesperante en un aula. |
-   | <code>-opentelemetry.usePrometheusNaming</code> | guarda <code>todos.created</code> como <code>todos_created_total</code> y <code>service.name</code> como la label <code>service_name</code>. Sin él, tus consultas necesitan comillas. El módulo 5.2 se aprovecha de esto. |</p>
-
-<p>Ahora demuestra que responde:</p>
-
-<pre><code class="language-bash">   curl -s localhost:8428/health
-</code></pre>
-
-<p><strong>No sigas hasta que eso imprima <code>OK</code>.</strong> Si no lo hace, lee <code>logs/victoria-metrics.log</code>.</p>
-
-<ol>
-<li>Arranca <strong>VictoriaLogs</strong>, y compruébalo igual:</li>
-</ol>
-
-<pre><code class="language-bash">   nohup ./bin/victoria-logs \
-     -storageDataPath=./data/victoria-logs \
-     -httpListenAddr=:9428 \
-     -retentionPeriod=7d \
-     &gt; logs/victoria-logs.log 2&gt;&amp;1 &amp;
-
-   curl -s localhost:9428/health
-</code></pre>
-
-<ol>
-<li>Arranca <strong>VictoriaTraces</strong>:</li>
-</ol>
-
-<pre><code class="language-bash">   nohup ./bin/victoria-traces \
-     -storageDataPath=./data/victoria-traces \
-     -httpListenAddr=:10428 \
-     -retentionPeriod=3d \
-     &gt; logs/victoria-traces.log 2&gt;&amp;1 &amp;
-
-   curl -s localhost:10428/health
-</code></pre>
-
-<p>Esos tres los arrancas una vez y te olvidas. <code>jobs -l</code> los lista; <code>kill %1</code> para uno.</p>
-
-<ol>
-<li>Arranca el <strong>OpenTelemetry Collector</strong> — y dale una <strong>terminal para él solo</strong>, en primer
-plano:</li>
-</ol>
-
-<pre><code class="language-bash">   # en una segunda terminal
-   cd observability-workshop/workshop
-   ./bin/otelcol-contrib --config=collector/config.yaml
-</code></pre>
-
-<p>Tiene su propia terminal porque es el único proceso que vas a reiniciar una y otra vez
-   hoy: cada edición de <code>collector/config.yaml</code> en los módulos 4 y 8 necesita un reinicio,
-   y el reinicio es <strong>Ctrl-C, y luego ↑ Enter</strong>. Ver su log pasar cuando llega telemetría
-   ya justifica la terminal por sí solo.</p>
-
-<p>En una tercera terminal, comprueba sus dos endpoints:</p>
-
-<pre><code class="language-bash">   curl -s localhost:13133/          # extensión health_check
-   curl -s localhost:8888/metrics | head -5   # las métricas propias del Collector
-</code></pre>
-
-<ol>
-<li>Ese es el stack. Cuatro procesos, nativos, en tu portátil:</li>
-</ol>
-
-<p>| Proceso | Puerto | Log | Qué es |
-   |&mdash;|&mdash;|&mdash;|&mdash;|
-   | <code>victoria-metrics</code> | 8428 | <code>logs/victoria-metrics.log</code> | almacenamiento de métricas |
-   | <code>victoria-logs</code> | 9428 | <code>logs/victoria-logs.log</code> | almacenamiento de logs |
-   | <code>victoria-traces</code> | 10428 | <code>logs/victoria-traces.log</code> | almacenamiento de trazas |
-   | <code>otelcol-contrib</code> | 4317 / 4318, 8888, 13133 | su propia terminal | el OpenTelemetry Collector |</p>
-
-<blockquote>
-<p>⚠️ <code>nohup … &amp;</code> mantiene vivos los tres procesos de almacenamiento aunque cierres su
-terminal, pero siguen siendo procesos normales sin ningún supervisor. Si uno
-desaparece, nada lo va a reiniciar — lo harás tú. Es un modelo bastante fiel de
-producción, menos el busca.</p>
-</blockquote>
-
-<h3>Comprueba en la UI de Victoria</h3>
-
-<p>Abre ahora las tres UIs y <strong>guárdalas en marcadores</strong> — las vas a usar constantemente:</p>
-
+</li>
+<li>
+<p>Elige tu track — el lenguaje en el que te sientas <em>cómodo</em>, para que la fricción de hoy
+sea OpenTelemetry y no la sintaxis:</p>
 <table>
 <thead>
 <tr>
-<th>Qué</th>
-<th>URL</th>
+<th>Track</th>
+<th>Puerto de tu API</th>
+<th>Directorio que vas a editar</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
-<td>VictoriaMetrics (métricas)</td>
-<td><code>http://localhost:8428/vmui</code></td>
+<td>Node.js / Express</td>
+<td>8081</td>
+<td><code>track-js/todo-api/</code></td>
 </tr>
-
 <tr>
-<td>VictoriaLogs (logs)</td>
-<td><code>http://localhost:9428/select/vmui</code></td>
-</tr>
-
-<tr>
-<td>VictoriaTraces (trazas)</td>
-<td><code>http://localhost:10428/select/vmui</code></td>
+<td>Python / Flask</td>
+<td>8082</td>
+<td><code>track-py/todo-api/</code></td>
 </tr>
 </tbody>
 </table>
-<p>En la <strong>vmui de VictoriaMetrics</strong>, pega esto en la caja de consulta:</p>
-
-<pre><code>{__name__=~&quot;todo.*&quot;}
-</code></pre>
-
-<p>Deberías ver: <strong>nada. Ni una serie.</strong> Eso no es un entorno roto — es el sentido de todo el
-taller. Quédate un segundo mirándolo. 🫥</p>
-
-<p>Ahora pega esta otra:</p>
-
-<pre><code>{__name__=~&quot;otelcol.*&quot;}
-</code></pre>
-
-<p>Esa <strong>sí</strong> devuelve series, y eso es algo muy útil de saber en un día en el que nada más lo
-hace. El Collector hace scrape de sus propias métricas en <code>:8888</code> con un receiver
-<code>prometheus/self</code> y las manda por su propio pipeline de métricas. Así que el camino
-Collector → VictoriaMetrics ya funciona, y lo acabas de demostrar de punta a punta sin que
-la aplicación exista todavía.</p>
-
-<h3>Comprueba en Grafana</h3>
-
-<p>Todavía no. Grafana es un contenedor más, y lo arrancamos en el Módulo 3.2, cuando por fin
-haya algo que mirar. Una pieza móvil menos por hoy.</p>
-
-<h3>Para pensar</h3>
-
-<p>El Collector está entre la app y los tres procesos de almacenamiento. Antes de que
-expliquemos por qué, adivina: ¿qué se rompería si la app hablase directamente con los tres?</p>
-
-<h3>Si te atascas</h3>
-
-<ul>
-<li><strong>Falla una descarga.</strong> Comprueba que llegas a github.com. Si estás detrás de un proxy,
-exporta <code>HTTPS_PROXY</code> antes del <code>curl</code>. Si <code>mv</code> se queja de que el origen no existe, ha
-cambiado la estructura del tarball — mírala con <code>tar -tzf</code> y ajusta el nombre.</li>
-<li><strong><code>curl localhost:8428/health</code> se queda colgado o rechaza la conexión.</strong> Lee
-<code>logs/victoria-metrics.log</code>. La causa habitual es otro proceso ya en ese puerto:
-<code>ss -ltnp | grep 8428</code>.</li>
-<li><strong>El Collector termina inmediatamente.</strong> Imprime la línea problemática de
-<code>collector/config.yaml</code> antes de morir, en la terminal donde lo arrancaste. Es YAML, así
-que será la indentación.</li>
-<li><strong>Puertos ya ocupados.</strong> Algo en tu máquina tiene cogido el 5432, el 8428 o el 3000.
-Párralo, o cambia el puerto en el comando de arriba <em>y</em> en todos los sitios donde los
-guiones lo mencionan — lo cual es una buena razón para simplemente parar lo otro.</li>
-</ul>
-
-<h2>Ejercicio 0.2 — Arranca la aplicación y elige tu track [~25 min]</h2>
-
-<p><strong>Deberías poder responder esto al terminar:</strong> <em>¿qué hace la app, en qué puerto está la API de tu track, y cómo llega un proceso dentro de un contenedor a otro que está fuera?</em></p>
-
-<h3>Hazlo</h3>
-
-<ol>
-<li>Elige tu track. Los dos construyen lo mismo contra el mismo backend:</li>
-</ol>
-
-<p>| Track | Puerto | Directorio que vas a editar | Corre en |
-   |&mdash;|&mdash;|&mdash;|&mdash;|
-   | Node.js / Express | 8081 | <code>track-js/todo-api/</code> | <code>node:22-slim</code> |
-   | Python / Flask | 8082 | <code>track-py/todo-api/</code> | <code>python:3.12-slim</code> |</p>
-
-<p>Elige el lenguaje en el que estés <em>cómodo</em>. Hoy la fricción tiene que ser
-   OpenTelemetry, no la sintaxis. (Elige el otro solo si te sientes valiente y quieres el
-   reto extra.)</p>
-
-<p><strong>No</strong> necesitas ninguno de los dos lenguajes instalado. Tu código se monta dentro de
-   una imagen de serie de Docker Hub, así que el contenedor aporta el runtime y tu editor
-   edita ficheros de verdad en tu portátil.</p>
-
 <blockquote>
-<p>🔌 <strong>Lee esto una vez y el resto del módulo tiene sentido.</strong> Todos los contenedores de
-abajo llevan dos flags que importan:</p>
-
-<ul>
-<li><code>-p 8081:8081</code> publica el puerto del contenedor en tu portátil, para que tu
-navegador y <code>curl</code> lleguen a él en <code>localhost</code>.</li>
-<li><code>--add-host=host.docker.internal:host-gateway</code> le da al contenedor un nombre para
-<em>tu portátil</em>, para que pueda llegar a las cosas que <strong>no</strong> están en un contenedor:
-Postgres, y el endpoint OTLP del Collector en el 4318.</li>
-</ul>
-
-<p>Dentro de un contenedor, <code>localhost</code> es el contenedor. Este es el error más común de
-todo el día, y se presenta exactamente como &ldquo;la telemetría no llega, sin decir nada&rdquo;.
-Es también la razón de que <code>collector/config.yaml</code> escuche en <code>0.0.0.0</code> y no en
-<code>127.0.0.1</code>: un receiver atado al loopback rechaza las conexiones de los contenedores.</p>
+<p>💡 <strong>Usa el selector de track en la barra de navegación, arriba del todo.</strong> Cambia
+todos los ejemplos de código a tu lenguaje y recuerda tu elección.</p>
 </blockquote>
-
-<ol>
-<li>Arranca <strong>Postgres</strong> — la única dependencia de la aplicación:</li>
-</ol>
-
-<pre><code class="language-bash">   docker run -d --name workshop-postgres \
-     -p 5432:5432 \
-     -e POSTGRES_USER=todo -e POSTGRES_PASSWORD=todo -e POSTGRES_DB=todo \
-     -v &quot;$PWD/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro&quot; \
-     postgres:16-alpine
-</code></pre>
-
-<p>El <code>init.sql</code> que montas crea el esquema y siembra unos cientos de todos. Espérate a que
-   esté listo:</p>
-
-<pre><code class="language-bash">   docker exec workshop-postgres pg_isready -U todo -d todo
-</code></pre>
-
-<ol>
-<li>Arranca <strong><code>notify-service</code></strong> — el servicio de más abajo al que llama tu API. Ya viene
-instrumentado, porque no es el ejercicio; existe para que una traza de tu API tenga
-adónde ir.</li>
-</ol>
-
-<p>Está escrito en <strong>el otro lenguaje de tu track</strong>, a propósito, para que la propagación
-   de contexto entre lenguajes del Módulo 7.4 funcione en cualquiera de los dos.</p>
-
-<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
-
-<pre><code class="language-bash">   docker run -d --name workshop-notify \
-     -p 8083:8083 \
-     --add-host=host.docker.internal:host-gateway \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/services/notify-service-py:/app&quot; -w /app \
-     --env-file services/notify-service-py/otel.env \
-     python:3.12-slim \
-     sh -c 'pip install --user -q --no-warn-script-location -r requirements.txt \
-            &amp;&amp; opentelemetry-bootstrap -a install &gt; /dev/null \
-            &amp;&amp; exec opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8083 app:app'
-</code></pre>
-
-<p></div></p>
-
-<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
-
-<pre><code class="language-bash">   docker run -d --name workshop-notify \
-     -p 8084:8084 \
-     --add-host=host.docker.internal:host-gateway \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/services/notify-service-js:/app&quot; -w /app \
-     --env-file services/notify-service-js/otel.env \
-     node:22-slim \
-     sh -c 'npm install --silent --no-fund --no-audit \
-            &amp;&amp; exec node --require @opentelemetry/auto-instrumentations-node/register server.js'
-</code></pre>
-
-<p>Ese <code>--require</code> es lo único con forma de OpenTelemetry en todo el comando, y es lo que
-   enciende el SDK. Escribirás el equivalente para tu propia API en el Módulo 3.1.</p>
-
-<p></div></p>
-
-<p>Instala sus propias dependencias al arrancar por primera vez, así que dale un minuto:</p>
-
-<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
-
-<pre><code class="language-bash">   curl -s localhost:8083/healthz     # {&quot;ok&quot;:true} cuando esté arriba
-   docker logs -f workshop-notify     # Ctrl-C cuando veas que está escuchando
-</code></pre>
-
-<p></div></p>
-
-<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
-
-<pre><code class="language-bash">   curl -s localhost:8084/healthz     # {&quot;ok&quot;:true} cuando esté arriba
-   docker logs -f workshop-notify     # Ctrl-C cuando veas que está escuchando
-</code></pre>
-
-<p></div></p>
-
-<blockquote>
-<p>📄 <strong>Abre <code>services/notify-service-*/otel.env</code> y léelo.</strong> Ese fichero es toda la
-instrumentación de este servicio: diez variables de entorno y ni una línea de código.
-En el Módulo 3.1 escribirás un fichero exactamente de esa forma para tu propia API.
-Fíjate en el endpoint — <code>http://host.docker.internal:4318</code>, porque el Collector no
-está en un contenedor.</p>
-</blockquote>
-
-<ol>
-<li>Instala las dependencias de <strong>tu</strong> aplicación. La misma idea, salvo que los paquetes
-caen en tu directorio de código en vez de dentro de una imagen, así que sobreviven al
-contenedor:</li>
-</ol>
-
-<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
-
-<pre><code class="language-bash">   docker run --rm \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-js/todo-api:/app&quot; -w /app \
-     node:22-slim npm install
-</code></pre>
-
-<p>Ahora tienes <code>track-js/todo-api/node_modules/</code>, tuyo, en tu portátil.
-   <code>-u &quot;$(id -u):$(id -g)&quot;</code> es lo que hace que sea tuyo y no de root; <code>-e HOME=/tmp</code> le da
-   a npm un sitio donde escribir su caché.</p>
-
-<p></div></p>
-
-<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
-
-<pre><code class="language-bash">   docker run --rm \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-py/todo-api:/app&quot; -w /app \
-     -e PYTHONUSERBASE=/app/.pylibs \
-     python:3.12-slim \
-     pip install --user --no-warn-script-location -r requirements.txt
-</code></pre>
-
-<p>Ahora tienes <code>track-py/todo-api/.pylibs/</code>, tuyo, en tu portátil — <code>PYTHONUSERBASE</code> es lo
-   que redirigió el <code>pip install --user</code> ahí en vez de dentro de la imagen.
-   <code>-u &quot;$(id -u):$(id -g)&quot;</code> hace que los ficheros sean tuyos y no de root; <code>-e HOME=/tmp</code>
-   le da a pip un sitio donde escribir.</p>
-
-<p></div></p>
-
-<ol>
-<li>En una <strong>cuarta terminal</strong>, arranca tu API. <strong>En primer plano, y déjala ahí</strong> — a partir
-del Módulo 3 la vas a reiniciar constantemente, y verla arrancar es la mitad del
-feedback:</li>
-</ol>
-
-<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
-
-<pre><code class="language-bash">   cd observability-workshop/workshop
-
-   docker run --rm -it --name workshop-todo-api \
-     -p 8081:8081 \
-     --add-host=host.docker.internal:host-gateway \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-js/todo-api:/app&quot; -w /app \
-     -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-     -e NOTIFY_URL=http://host.docker.internal:8083 \
-     -e PORT=8081 \
-     node:22-slim node src/server.js
-</code></pre>
-
-<p></div></p>
-
-<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
-
-<pre><code class="language-bash">   cd observability-workshop/workshop
-
-   docker run --rm -it --name workshop-todo-api \
-     -p 8082:8082 \
-     --add-host=host.docker.internal:host-gateway \
-     -u &quot;$(id -u):$(id -g)&quot; -e HOME=/tmp \
-     -v &quot;$PWD/track-py/todo-api:/app&quot; -w /app \
-     -e PYTHONUSERBASE=/app/.pylibs \
-     -e PATH=/app/.pylibs/bin:/usr/local/bin:/usr/bin:/bin \
-     -e DATABASE_URL=postgres://todo:todo@host.docker.internal:5432/todo \
-     -e NOTIFY_URL=http://host.docker.internal:8084 \
-     python:3.12-slim gunicorn -w 2 -b 0.0.0.0:8082 app:app
-</code></pre>
-
-<p><code>PYTHONUSERBASE</code> y <code>PATH</code> están ahí por lo mismo que en el paso 4: los paquetes viven en
-   <code>.pylibs/</code> dentro del montaje, así que hay que decirle a Python de dónde importar y
-   dónde encontrar el comando <code>gunicorn</code>.</p>
-
-<p></div></p>
-
-<blockquote>
-<p>⌨️ <strong>Este es el comando que más veces vas a reescribir hoy.</strong> No hace falta que lo
-reescribas: Ctrl-C para el contenedor, y <strong>↑ Enter</strong> para arrancarlo otra vez. Vuelve a
-leer tus ficheros fuente y (desde el Módulo 3.1) tu <code>.env</code> cada vez. También está
-escrito en <a href="https://github.com/jespino/observability-workshop/blob/main/workshop/README.md"><code>workshop/README.md</code></a>
-si pierdes el historial de tu shell.</p>
-</blockquote>
-
-<ol>
-<li>En una <strong>quinta terminal</strong>, sirve el frontend — es una SPA estática, así que un nginx de
-serie sirve:</li>
-</ol>
-
-<pre><code class="language-bash">   docker run -d --name workshop-frontend \
-     -p 8080:80 \
-     -v &quot;$PWD/frontend:/usr/share/nginx/html:ro&quot; \
-     nginx:alpine
-</code></pre>
-
-<ol>
-<li>Ahora comprueba todo de una vez:</li>
-</ol>
-
-<pre><code class="language-bash">   ./doctor.sh
-</code></pre>
-
-<p>Todas las filas tienen que estar en ✅ antes de continuar. <code>doctor.sh</code> no arranca nada —
-   solo mira, y te dice a qué paso de este módulo tienes que volver. Es uno de los cuatro
-   únicos scripts que quedan en el repositorio, y ninguno de ellos prepara nada.</p>
-
-<ol>
-<li>Abre el frontend en <code>http://localhost:8080</code> y crea unos cuantos todos a mano. Que al
-menos uno de ellos:
-
-<ul>
-<li>tenga la etiqueta <code>urgent</code></li>
-<li>esté en la lista <code>work</code></li>
-<li>tenga el título vacío (sí, a propósito — mira qué pasa)</li>
-</ul></li>
-</ol>
-
-<blockquote>
-<p>💡 <strong>Usa el selector de track en la barra de navegación, arriba del todo.</strong> Cada
-módulo está escrito una sola vez para los dos tracks; el selector cambia los ejemplos
-de código a tu lenguaje y recuerda tu elección mientras avanzas por el taller.</p>
-</blockquote>
-
-<ol>
-<li>Confirma que tu API responde directamente:</li>
-</ol>
-
-<p><div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p></p>
-
-<pre><code class="language-bash">   curl -s localhost:8081/healthz
-   curl -s &quot;localhost:8081/todos?list=work&quot; | head -c 400
-</code></pre>
-
-<p></div></p>
-
-<p><div class="track-block" data-track="python"><p class="track-label">Python / Flask</p></p>
-
-<pre><code class="language-bash">   curl -s localhost:8082/healthz
-   curl -s &quot;localhost:8082/todos?list=work&quot; | head -c 400
-</code></pre>
-
-<p></div></p>
-
-<ol>
-<li><p>Arranca el generador de carga para que siempre haya tráfico que mirar:</p>
-
+</li>
+<li>
+<p>Arranca el stack de tu track:</p>
 <div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
-
-<pre><code class="language-bash">./loadgen.sh 2m
+<pre><code class="language-bash">docker compose --profile js up -d
 </code></pre>
 </div>
-
 <div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
-
-<pre><code class="language-bash">TRACK=py ./loadgen.sh 2m
+<pre><code class="language-bash">docker compose --profile py up -d
 </code></pre>
 </div>
+<p>Esto arranca un contenedor por pieza: <strong>tu API</strong>, su base de datos Postgres,
+<code>notify-service</code> (el servicio de más abajo al que llama tu API), el frontend, el
+OpenTelemetry Collector, y VictoriaMetrics, VictoriaLogs y VictoriaTraces para guardar
+métricas, logs y trazas. Sus datos viven en <strong>volúmenes de Docker</strong>, fuera del
+repositorio: sobreviven a los reinicios y a <code>docker compose down</code>, y
+<code>docker compose down -v</code> los borra.</p>
+<p><img src="../images/docker-compose-stack.png" alt="Todo lo que arranca docker compose: tu navegador llega al frontend en localhost; el frontend llama a todo-api, que usa Postgres y llama a notify-service; los dos envían OTLP al OpenTelemetry Collector, que reparte métricas, logs y trazas entre VictoriaMetrics, VictoriaLogs y VictoriaTraces, cada uno con su volumen; Grafana, a partir del Módulo 3, lee de los tres."></p>
+<p>El código de tu API está montado dentro de su contenedor, así que <strong>guardar un fichero
+la reinicia</strong> — ese es todo el ciclo de despliegue de hoy.</p>
+</li>
+<li>
+<p>Comprueba que todo está funcionando:</p>
+<pre><code class="language-bash">./doctor.sh
+</code></pre>
+<p>Espera a que el stack arranque — la primera vez tarda un minuto mientras tu API instala
+sus dependencias — y después comprueba cada pieza. <strong>Todas las filas tienen que estar en
+✅.</strong> Al final te muestra las UIs que vas a usar todo el día: guárdalas en marcadores.</p>
 </li>
 </ol>
-
-<p>Eso son ocho cosas funcionando. Aquí están todas:</p>
-
-<table>
-<thead>
-<tr>
-<th></th>
-<th>Corre como</th>
-<th>Puerto</th>
-</tr>
-</thead>
-
-<tbody>
-<tr>
-<td><code>victoria-metrics</code></td>
-<td>binario nativo, en background</td>
-<td>8428</td>
-</tr>
-
-<tr>
-<td><code>victoria-logs</code></td>
-<td>binario nativo, en background</td>
-<td>9428</td>
-</tr>
-
-<tr>
-<td><code>victoria-traces</code></td>
-<td>binario nativo, en background</td>
-<td>10428</td>
-</tr>
-
-<tr>
-<td><code>otelcol-contrib</code></td>
-<td>binario nativo, su propia terminal</td>
-<td>4317 / 4318</td>
-</tr>
-
-<tr>
-<td><code>workshop-postgres</code></td>
-<td>contenedor</td>
-<td>5432</td>
-</tr>
-
-<tr>
-<td><code>workshop-notify</code></td>
-<td>contenedor</td>
-<td>8083 (py) / 8084 (js)</td>
-</tr>
-
-<tr>
-<td><code>workshop-todo-api</code></td>
-<td>contenedor, tu terminal</td>
-<td>8081 (js) / 8082 (py)</td>
-</tr>
-
-<tr>
-<td><code>workshop-frontend</code></td>
-<td>contenedor</td>
-<td>8080</td>
-</tr>
-</tbody>
-</table>
-
-<h3>Comprueba en la UI de Victoria</h3>
-
-<p>vmui de VictoriaLogs (<code>http://localhost:9428/select/vmui</code>), pega:</p>
-
-<pre><code>service.name:todo-api
-</code></pre>
-
-<p>Deberías ver: <strong>ningún resultado de <code>todo-api</code>.</strong> Su salida se va a la terminal donde lo
-arrancaste, y a ningún otro sitio. Ahora mismo la única forma de depurar esta app es
-entornar los ojos mirando esa terminal.</p>
-
-<p>Y ahora pega esto:</p>
-
-<pre><code>service.name:notify-service
-</code></pre>
-
-<p>Esa <strong>sí</strong> devuelve líneas de log — el servicio de más abajo, el que ya venía
-instrumentado, está mandando todo a VictoriaLogs, a través del Collector, desde dentro de
-un contenedor. Así que el pipeline funciona. Lo único que falta es tu servicio.</p>
-
-<h3>Comprueba en Grafana</h3>
-
-<p>Todavía no.</p>
-
-<h3>Para pensar</h3>
-
-<ul>
-<li>Acabas de crear un todo con el título vacío. ¿Qué pasó en la interfaz? Con lo que tienes
-ahora mismo, ¿podrías decir <em>por qué</em>?</li>
-<li>La telemetría de <code>notify-service</code> llega y la tuya no, y la diferencia son diez variables
-de entorno en un fichero. ¿Qué te dice eso sobre dónde tiene que vivir la configuración
-de la instrumentación?</li>
-</ul>
-
 <h3>Si te atascas</h3>
-
 <ul>
-<li><strong><code>docker run</code> falla con &ldquo;address already in use&rdquo;.</strong> Algo ya tiene ese puerto — a menudo
-un contenedor de una ejecución anterior. <code>docker rm -f workshop-todo-api</code> y vuelve a
-intentarlo.</li>
-<li><strong>La API no llega a la base de datos</strong> (<code>ECONNREFUSED</code> / <code>could not connect to server</code>).
-Casi seguro que tienes <code>localhost</code> donde necesitas <code>host.docker.internal</code> en
-<code>DATABASE_URL</code>. Dentro del contenedor, <code>localhost</code> es el contenedor.</li>
-<li><strong>(Python) <code>gunicorn: executable file not found</code>.</strong> Falta el flag <code>-e PATH=…</code>, o está mal
-escrito. <code>gunicorn</code> se instaló en <code>/app/.pylibs/bin</code>, que no está en el PATH de la imagen
-de serie.</li>
-<li><strong>(JS) <code>Cannot find module 'express'</code>.</strong> El paso 4 no se ejecutó, o se ejecutó contra el
-directorio del otro track. Comprueba <code>ls track-js/todo-api/node_modules | head</code>.</li>
-<li><strong><code>node_modules</code> o <code>.pylibs</code> es de root</strong> y no lo puedes borrar. Faltaba el flag
-<code>-u &quot;$(id -u):$(id -g)&quot;</code>. Bórralo con <code>sudo rm -rf</code> y repite el paso 4.</li>
-<li><strong>El frontend carga pero no crea todos.</strong> Revisa el selector de track en la cabecera del
-frontend — puede estar apuntando al track que no arrancaste.</li>
-<li><strong><code>loadgen.sh</code> termina al instante.</strong> Necesita que la API esté sana primero. Vuelve a
-ejecutar <code>./doctor.sh</code>.</li>
+<li><strong><code>docker compose</code> no es un comando.</strong> Tienes el antiguo <code>docker-compose</code> independiente,
+o no tienes Compose. Instala el plugin de Docker Compose (viene con Docker Desktop).</li>
+<li><strong><code>port is already allocated</code>.</strong> Algo en tu máquina tiene cogido uno de los puertos (a
+menudo un contenedor viejo de una ejecución anterior). Búscalo con <code>docker ps</code>, páralo, y
+vuelve a lanzar el <code>up</code>.</li>
+<li><strong>Una fila de <code>doctor.sh</code> sale en rojo.</strong> Las pistas de debajo de la tabla te dicen dónde
+mirar; normalmente es <code>docker compose logs SERVICIO</code> del servicio que ha fallado.</li>
 </ul>
-
-<p>Este módulo no tiene checkpoint — todavía no has editado nada. A partir de aquí, cada
-ejercicio termina con uno:</p>
-
-<pre><code class="language-bash">./checkpoint.sh NM   # copia la solución de referencia sobre tu directorio de trabajo
-</code></pre>
-
-<p><strong>Dilo en voz alta ahora:</strong> si llevas más de diez minutos atascado, ejecuta el checkpoint y
-sigue. Nadie está juzgando. 🤝</p>
-
-<h2>Lo Que Hemos Conseguido</h2>
-
-<ul>
-<li>Has descargado y arrancado tú mismo cuatro procesos de telemetría, y sabes qué hace cada flag</li>
-<li>Hay cuatro contenedores funcionando, y sabes cuál de ellos puede ver qué</li>
-<li><code>./doctor.sh</code> está todo en verde</li>
-<li>Las tres UIs de Victoria en marcadores</li>
-<li>Tienes un track, y la página te está mostrando código en tu lenguaje</li>
-<li>Has demostrado, empíricamente, que la aplicación es invisible ahora mismo — mientras que
-el servicio de al lado no lo es</li>
-</ul>
-
 <h2>Siguientes Pasos</h2>
-
 <p>Antes de instrumentar la aplicación, deberías saber qué <em>hace</em>. Continúa con el <a href="01-the-application.html">Módulo 1: La Aplicación que Vas a Instrumentar</a>.</p>
 
         </article>

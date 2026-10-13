@@ -17,7 +17,7 @@ application from scratch and learn to emit, route and query metrics, logs and tr
 - **modules/**: One markdown handout per module (00–10)
   - `*.md` — English
   - `*.es.md` — Spanish
-- **workshop/**: The runnable stack participants clone and work in — Collector config, Grafana provisioning, seed SQL, both track applications, the pre-instrumented `notify-service` in both languages, checkpoint solutions, and the five remaining scripts (`doctor.sh`, `loadgen.sh`, `checkpoint.sh`, `reset.sh`, `verify-queries.sh`). **None of them set anything up** — Module 0 does that, by hand. See `workshop/README.md`.
+- **workshop/**: The runnable stack participants clone and work in — Collector config, Grafana provisioning, seed SQL, both track applications, the pre-instrumented `notify-service` in both languages, reference solutions, and `docker-compose.yml` (the whole stack except the participant's own API), and four helper scripts (`doctor.sh`, `loadgen.sh`, `reset.sh`, `verify-queries.sh`). **None of the scripts start the stack** — Module 0 does that with `docker compose up`. See `workshop/README.md`.
 - **website/**: Generated static site (`/`, `/es/`), deployed to GitHub Pages
 - **website-generator/**: Go program that builds the multi-language website
 
@@ -69,7 +69,7 @@ follow from the `tracks` list.
 |---|---|---|
 | 0 | Setup and sanity check | `workshop.md` Module 0 |
 | 1 | The application you'll instrument | `workshop.md` §3 (new, no equivalent module) |
-| 2 | What observability actually is | `workshop.md` Module 1 |
+| 2 | The three signals — metrics, logs and traces | `workshop.md` Module 1 (rewritten: only the three signals, no value judgments) |
 | 3 | Zero-code auto-instrumentation | `workshop.md` Module 2 |
 | 4 | The Collector | `workshop.md` Module 3 |
 | 5 | Manual metrics | `workshop.md` Module 4 |
@@ -81,70 +81,101 @@ follow from the `tracks` list.
 
 > ⚠️ **The handouts are offset by one from `workshop.md` from Module 2 onwards**, because the
 > application tour was added as Module 1. Use the table above when porting content across.
-> Exercise and checkpoint numbers follow the *handout* numbering (checkpoint `52` is
-> exercise 5.2 in `modules/05-manual-metrics.md`).
+> Exercise numbers, and the `solutions/` directory names, follow the *handout* numbering
+> (`solutions/52` is exercise 5.2 in `modules/05-manual-metrics.md`).
 
-> ⚠️ **`workshop.md` still describes a Docker Compose architecture with Redis. That is no
-> longer how the workshop runs.** The design doc remains the source of truth for *what each
+> ⚠️ **`workshop.md` describes an older Docker Compose architecture with Redis. That is not
+> how the workshop runs.** The design doc remains the source of truth for *what each
 > module teaches* — its module outline, timings, cuttable exercises, planted faults and
 > facilitator advice all still apply. It is **not** the source of truth for *how anything
 > runs*. Where they disagree, `workshop/` and `workshop/README.md` win. Concretely,
-> `workshop.md` is out of date on: docker-compose (gone), Redis (gone — the cache is
-> in-process), the port map (no 6379; notify-service on 8083 *and* 8084), the pre-work
-> email in §9 (now a list of `curl` downloads and `docker pull`s, and *no* language runtime
-> is needed), and Module 0's timing (~45 min without pre-work, not 30).
+> `workshop.md` is out of date on: the compose file (now `workshop/docker-compose.yml`,
+> without the participant's API in it), Redis (gone — the cache is in-process), the port
+> map (no 6379; notify-service on 8083 *and* 8084), and the pre-work email in §9 (now one
+> `docker compose … pull`, and *no* language runtime is needed).
 
 ## The stack
 
-**There is no docker-compose, and there is no setup script.** Module 0 walks participants
-through downloading the four binaries with `curl` and starting every process by hand, one
-at a time. That is the deliberate pedagogy, not an omission: do not reintroduce a
-`setup.sh` / `stack.sh` / `app.sh`. If a command needs to exist somewhere for reference, it
-goes in the Module 0 handout and in `workshop/README.md`'s reference card.
+**The stack is `workshop/docker-compose.yml`, started in Module 0 with one command**
+(`docker compose --profile js|py up -d`). Module 0 is deliberately brief (~10 min): clone,
+pick a track, `up`, and `./doctor.sh` — one paragraph on what starts and where the data
+lives (Docker volumes), and nothing else. Don't make participants verify pieces by hand
+with `curl`; that is `doctor.sh`'s job. `doctor.sh` waits for the stack to come up (the API
+installs its dependencies on start), detects the track from the running Compose services,
+and prints the UI URLs when everything is green. Module 1 is a tour of the application, with no exercises. Do not add a `setup.sh` / `stack.sh` wrapper around Compose either. If a command needs to exist
+somewhere for reference, it goes in the handout and in `workshop/README.md`'s reference card.
 
-**Nothing in the repository is built into an image.** There are no Dockerfiles. The
-applications run in stock Docker Hub images (`node:22-slim`, `python:3.12-slim`,
-`nginx:alpine`, `postgres:16-alpine`, `grafana/grafana`) with the source directory
-bind-mounted at `/app`, so `npm install` / `pip install` write into the participant's
-working tree rather than into an image layer. Participants need Docker, and need **neither
-Node.js nor Python installed**.
+**The participant's API is in the compose file too** (`todo-api-js` / `todo-api-py`,
+selected by the same profile as its notify-service), with its source bind-mounted and the
+server in watch mode, so **saving a file is the whole deploy cycle**. Anything that is not a
+source file — `.env`, the dependency list, the `command:` — needs
+`docker compose up -d --force-recreate todo-api-js|py`. The handouts must never go back to
+"Ctrl-C and ↑ Enter".
 
-| Component | How it runs | Port |
-|---|---|---|
-| VictoriaMetrics | binary from `bin/`, `nohup … &` | 8428 |
-| VictoriaLogs | binary from `bin/`, `nohup … &` | 9428 |
-| VictoriaTraces | binary from `bin/`, `nohup … &` | 10428 |
-| OpenTelemetry Collector | binary from `bin/`, **own terminal, foreground** | 4317 / 4318, 8888, 13133 |
-| todo-api (JS) | `node:22-slim` container, **own terminal, foreground** | 8081 |
-| todo-api (Python) | `python:3.12-slim` container, **own terminal, foreground** | 8082 |
-| frontend | `nginx:alpine` container, `-p 8080:80` | 8080 |
-| Postgres | container `workshop-postgres` | 5432 |
-| notify-service (Python impl, called by the JS track) | container `workshop-notify` | 8083 |
-| notify-service (JS impl, called by the Python track) | container `workshop-notify` | 8084 |
-| Grafana | container `workshop-grafana`, from Module 3.2 | 3000 |
+- **JS**: `node --watch src/server.js`. Once the SDK is loaded it registers its own SIGTERM
+  handler, which stops Node exiting on its own, so `--watch` would hang on
+  "Waiting for graceful termination". `src/server.js` therefore has
+  a `process.on('SIGTERM', …)` that exits after 500ms. Keep it in every solution in `solutions/`.
+- **Python**: gunicorn runs under `watchmedo auto-restart` (watchdog, installed by the
+  entrypoint). **Not** `gunicorn --reload`: under `opentelemetry-instrument` it silently
+  stops OTel logs from being exported. Module 3.1 switches the SDK on by editing the
+  service's `command:` to `opentelemetry-instrument gunicorn …`, and every solution from 3.1
+  onwards assumes that command.
+- Both entrypoints install dependencies on every start, into a Docker volume
+  (`/app/node_modules` on a volume; `PYTHONUSERBASE=/deps`), never into the working tree.
+  npm runs with `NODE_OPTIONS=` emptied, because Module 3.1 puts `--require` for a package
+  in `NODE_OPTIONS`. The Python entrypoint runs `opentelemetry-bootstrap` once it exists.
+
+**Nothing in the repository is built into an image.** There are no Dockerfiles. Every
+service runs a stock Docker Hub image (`victoriametrics/*`,
+`otel/opentelemetry-collector-contrib`, `node:22-slim`, `python:3.12-slim`, `nginx:alpine`,
+`postgres:16-alpine`, `grafana/grafana`). Participants need Docker with the Compose plugin,
+and need **neither Node.js nor Python installed**.
+
+| Component | How it runs | Port | Data |
+|---|---|---|---|
+| todo-api (JS) | Compose service `todo-api-js`, profile `js`, `node --watch` | 8081 | deps in volume `workshop_todo-api-js-modules` |
+| todo-api (Python) | Compose service `todo-api-py`, profile `py`, gunicorn under `watchmedo` | 8082 | deps in volume `workshop_todo-api-py-deps` |
+| Postgres | Compose service `postgres` (container `workshop-postgres`) | 5432 | volume `workshop_postgres` |
+| notify-service (Python impl, called by the JS track) | Compose service `notify-py`, profile `js` | 8083 | — |
+| notify-service (JS impl, called by the Python track) | Compose service `notify-js`, profile `py` | 8084 | — |
+| frontend | Compose service `frontend` | 8080 | — |
+| OpenTelemetry Collector | Compose service `otel-collector`, mounts `collector/` | 4317 / 4318, 8888, 13133 | — |
+| VictoriaMetrics | Compose service `victoriametrics` | 8428 | volume `workshop_victoria-metrics` |
+| VictoriaLogs | Compose service `victorialogs` | 9428 | volume `workshop_victoria-logs` |
+| VictoriaTraces | Compose service `victoriatraces` | 10428 | volume `workshop_victoria-traces` |
+| Grafana | Compose service `grafana`, profile `grafana`, from Module 3.2 (`docker compose up -d grafana`) | 3000 | volume `workshop_grafana` |
+
+The Collector is restarted with `docker compose restart otel-collector` after every config
+edit (Modules 4 and 8). It has no restart policy on purpose, so a config it cannot parse
+leaves it visibly exited. Its config directory is mounted rather than the single file, so
+editors that save by rename still work.
+
+notify-service mounts its source read-only and installs its dependencies inside the
+container on first start, so it never writes into the working tree.
 
 ### Container networking
 
-Every container that must reach something outside itself gets
-`--add-host=host.docker.internal:host-gateway` and addresses the host as
-`host.docker.internal`. Consequences that are easy to break:
+Everything, the participant's API included, is in one Compose project, so:
 
-- `collector/config.yaml` binds its OTLP receivers to **`0.0.0.0`**, not `127.0.0.1` — a
-  loopback-only receiver refuses connections from the app container.
-- Both `.env` files (Module 3.1) and both `services/notify-service-*/otel.env` use
-  `OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318`.
-- `grafana/provisioning/datasources/workshop.yaml` points at `host.docker.internal`, while
-  every URL a participant types in a browser stays `localhost`.
-- Every app `docker run` carries `-u "$(id -u):$(id -g)" -e HOME=/tmp`, so installed
-  packages are owned by the participant and npm/pip have a writable cache.
+- Services address each other by **service name**. `collector/config.yaml` exports to
+  `http://victoriametrics:8428` etc., `grafana/provisioning/datasources/workshop.yaml`
+  points at the service names, both `services/notify-service-*/otel.env` and both `.env`
+  files (Module 3.1) use `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318`, and the
+  API's `DATABASE_URL` / `NOTIFY_URL` use `postgres` and `notify-py` / `notify-js`.
+  `host.docker.internal` is not used anywhere any more.
+- `collector/config.yaml` binds its OTLP receivers, `health_check` and its own telemetry to
+  **`0.0.0.0`**, not `127.0.0.1` — a loopback-only listener inside a container is
+  unreachable from other containers and through its published port.
+- Every URL a participant types in a browser stays `localhost`.
 
-### `--env-file` has no shell quoting
+### Env files
 
-Docker takes the rest of each line literally, quotes included. `NODE_OPTIONS="--require …"`
-in an env file arrives with the quote marks attached and silently disables the SDK, so the
-handouts' `.env` files have **no quotes anywhere**. `NODE_OPTIONS` also must not be set for
-a container whose command runs `npm install` first (npm cannot preload a package it has not
-installed) — that is why `services/notify-service-js` puts `--require` on the command line
+The `.env` and `otel.env` files are read by Compose (`env_file:`), which — unlike
+`docker run --env-file` — does strip surrounding quotes. The handouts still write them
+without quotes. `NODE_OPTIONS` must not be in effect for a command that runs `npm install`
+first (npm cannot preload a package it has not installed): `todo-api-js`'s entrypoint
+empties it for npm, and `services/notify-service-js` puts `--require` on its command line
 instead of in its `otel.env`.
 
 ### `OTEL_METRIC_EXPORT_TIMEOUT` must be ≤ the interval
@@ -176,33 +207,33 @@ Do not remove it.
 
 ### The workshop stack
 
-Only five scripts remain, and none of them start or set up anything:
+The stack itself is Docker Compose; the four helper scripts never start it:
 
 ```bash
 cd workshop
-./doctor.sh                     # 17 checks, one table. Starts nothing.
+docker compose --profile js up -d   # the stack (--profile py for the Python track)
+./doctor.sh                     # waits for the stack, then 13 checks. Starts nothing.
 ./loadgen.sh 2m                 # traffic (TRACK=py for the Python API)
-./checkpoint.sh 52              # catch up to the end of exercise 5.2
 ./reset.sh                      # wipe telemetry, keep the todos
 ./verify-queries.sh             # do the handout's queries actually return data?
 ```
 
-`reset.sh` is the only one that touches a process: wiping a log backend means stopping it,
-deleting its storage directory and starting it again, because there is no delete-by-query
-API for logs. Its three command lines live in `scripts/common.sh` as `victoria_cmdline()`
-and must stay identical to what Module 0.1 tells participants to type. It deliberately
-leaves the Collector alone for the participant to restart.
+`reset.sh` is the only one that touches the stack: wiping a log backend means stopping it,
+deleting its storage and starting it again, because there is no delete-by-query API for
+logs. It removes the three Victoria containers and their `workshop_victoria-*` volumes,
+brings them back up, and restarts the Collector. The volume names come from `name: workshop`
+in `docker-compose.yml` — rename the project or a volume and `reset.sh` must follow.
 
 **Everything else is a command in the handout.** `workshop/README.md` carries a reference
-card with every one of them — the four `curl` downloads, the four `nohup` invocations, and
-every `docker run`. When you change a command in a handout, change it there too.
+card with every one of them — the Compose commands and how to recreate the API. When you change a command in a handout, change it there too.
 
-**SDK configuration lives in `track-*/todo-api/.env`**, passed to the container with
-`--env-file`. Module 3.1 creates it. The application never reads that file, which is the
+**SDK configuration lives in `track-*/todo-api/.env`**, loaded by Compose's `env_file:`
+(declared `required: false`, since it does not exist before Module 3.1). Module 3.1 creates it. The application never reads that file, which is the
 point. On the JS track `NODE_OPTIONS=--require …` turns the SDK on; on the Python track no
 environment variable can, so Module 3.1 changes the container's **command** to
-`opentelemetry-instrument gunicorn …` instead. There is no `RUN_WRAPPER` any more — that
-was an `app.sh` invention.
+`opentelemetry-instrument gunicorn …` in `docker-compose.yml` instead. There is no
+`RUN_WRAPPER` — don't add an environment variable to fake this; the command change is the
+lesson.
 
 ### Website
 
@@ -227,6 +258,7 @@ go run . -modules ../modules -output ../website
 - `workshop.md`: Facilitator design doc — read this before writing any module
 - `README.md` / `README.es.md`: Workshop overview
 - `modules/00-setup-and-sanity-check.md` (+ `.es.md`) through `modules/10-production-realities.md`
+- `modules/images/`: images the handouts embed as `![alt](images/NAME.png)`. One image serves both languages (labels in English), with the alt text translated. The generator copies the directory to the site root and fixes the path on the `/es/` pages.
 
 ### Website Generator
 
@@ -242,7 +274,7 @@ Every exercise inside a module follows the same shape, so participants build a r
 (the full template is `workshop.md` §6):
 
 ```
-## Exercise N.M — <title>            [~15 min] [checkpoint: NM]
+## Exercise N.M — <title>            [~15 min]
 
 **You should be able to answer this by the end:** <one concrete question>
 
@@ -270,7 +302,7 @@ commented or announced**. Where they live:
 | `/stats` holds a DB connection across an HTTP call | `routes/todos.js` / `routes.py` |
 
 The Module 9 "new release" is one environment variable, not a new build: add
-`-e LIST_PAGE_THRESHOLD=5` to the participant's usual `docker run`, plus
+`LIST_PAGE_THRESHOLD=5` to the participant's `.env` and recreate their API container, plus
 `./loadgen.sh forever --rps 25 --big-lists`. It adds no new bug — it lowers the threshold
 at which an existing one becomes visible. The full command is in `workshop/README.md`'s
 facilitator notes.
@@ -278,7 +310,7 @@ facilitator notes.
 ### Editorial approach
 
 - Uses emojis for a friendly, approachable tone
-- Modules build progressively; each has a checkpoint in `solutions/` so anyone who falls behind can catch up between modules
+- Modules build progressively; `solutions/` holds the worked answer to each exercise, for participants to compare against — nothing copies it into place. There are no checkpoints: don't add `[checkpoint: NM]` tags, "checkpointed" prerequisites or a catch-up script back to the handouts
 - Include troubleshooting ("If you're stuck") for the two most likely failure modes, and where the tracks fail differently, label the fix `(JS)` / `(Python)`
 - The app ships with deliberate faults (see `workshop.md` §3) — **don't announce them in the handouts**; participants find them in Module 9 once they have the tooling. Module 1 deliberately shows the handler layer but not the repo/cache internals for this reason.
 

@@ -1,6 +1,6 @@
 # Módulo 4: El Collector, y Dónde Acaban los Datos
 
-**Duración:** ~45 min · **Checkpoints: 42** · **Igual para los dos tracks**
+**Duración:** ~45 min · **Igual para los dos tracks**
 
 El Collector es la caja que todo el mundo asiente al ver y nadie lee. Al terminar este módulo lo habrás leído línea a línea, lo habrás editado, lo habrás roto a propósito y habrás encontrado la rotura en su propia telemetría. 📦
 
@@ -15,7 +15,7 @@ Al terminar este módulo, serás capaz de:
 
 ## Prerrequisitos
 
-- Módulo 3 completado y con checkpoint — la telemetría está fluyendo
+- Módulo 3 completado — la telemetría está fluyendo
 
 ## Ejercicio 4.1 — Lee la configuración [~20 min]
 
@@ -29,8 +29,11 @@ Abre `collector/config.yaml` y sigue la explicación. El fichero entero:
 receivers:
   otlp:
     protocols:
-      grpc: { endpoint: 127.0.0.1:4317 }
-      http: { endpoint: 127.0.0.1:4318 }
+      # 0.0.0.0, not 127.0.0.1: the Collector runs in a container, and your
+      # application reaches it from outside that container. A receiver bound
+      # to the loopback interface would refuse that connection.
+      grpc: { endpoint: 0.0.0.0:4317 }
+      http: { endpoint: 0.0.0.0:4318 }
 
   # The Collector scrapes its own metrics and ships them through its own
   # metrics pipeline. Module 4.2 depends on this: it is how you find out that
@@ -61,19 +64,19 @@ processors:
 
 exporters:
   otlphttp/victoriametrics:
-    metrics_endpoint: http://localhost:8428/opentelemetry/v1/metrics
+    metrics_endpoint: http://victoriametrics:8428/opentelemetry/v1/metrics
     encoding: proto
     compression: gzip
   otlphttp/victorialogs:
-    logs_endpoint: http://localhost:9428/insert/opentelemetry/v1/logs
+    logs_endpoint: http://victorialogs:9428/insert/opentelemetry/v1/logs
     headers:
       VL-Stream-Fields: "service.name,deployment.environment"
   otlphttp/victoriatraces:
-    traces_endpoint: http://localhost:10428/insert/opentelemetry/v1/traces
+    traces_endpoint: http://victoriatraces:10428/insert/opentelemetry/v1/traces
 
 extensions:
   health_check:
-    endpoint: 127.0.0.1:13133
+    endpoint: 0.0.0.0:13133
 
 service:
   extensions: [health_check]
@@ -83,7 +86,7 @@ service:
         - pull:
             exporter:
               prometheus:
-                host: 127.0.0.1
+                host: 0.0.0.0
                 port: 8888
   pipelines:
     traces:  { receivers: [otlp], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriatraces] }
@@ -113,7 +116,7 @@ Así que, respondiendo a la pregunta del ejercicio: un span que falta puede ser 
 
 **VictoriaMetrics quiere temporalidad cumulative.** Los dos SDKs usan cumulative por defecto, así que estás bien tal cual. Si alguna vez acabas con métricas delta (algunas configuraciones de SDK de ciertos proveedores van así por defecto), el arreglo es el processor `deltatocumulative` en el Collector, no un cambio en la app.
 
-**VictoriaMetrics arranca con `-opentelemetry.usePrometheusNaming`.** Es uno de los flags que escribiste en el Módulo 0.1. Sin ese flag, VM guarda los nombres con puntos de OTel tal cual — `http.server.duration_count` — y tus consultas necesitan comillas. Con él obtienes la forma Prometheus de toda la vida: `http_server_duration_milliseconds_count`, y `service.name` pasa a ser la etiqueta `service_name`. El Módulo 5.2 lo aprovecha.
+**VictoriaMetrics arranca con `-opentelemetry.usePrometheusNaming`.** Está puesto en `docker-compose.yml`, que lo arrancó en el Módulo 0. Sin ese flag, VM guarda los nombres con puntos de OTel tal cual — `http.server.duration_count` — y tus consultas necesitan comillas. Con él obtienes la forma Prometheus de toda la vida: `http_server_duration_milliseconds_count`, y `service.name` pasa a ser la etiqueta `service_name`. El Módulo 5.2 lo aprovecha.
 
 **Los nombres de endpoint son por señal, no genéricos.** `metrics_endpoint`, `logs_endpoint`, `traces_endpoint`. Si usas la clave genérica `endpoint`, el exporter añade su propia ruta convencional y acabarás con 404 que parecen problemas de conectividad.
 
@@ -143,10 +146,10 @@ El Collector informa sobre sí mismo. Fíjate en cómo sube el número.
 
 ### Si te atascas
 
-- **Editar la configuración no hace nada.** El Collector lee su configuración una sola vez, al arrancar. Vete a su terminal: **Ctrl-C, y luego ↑ Enter**. Vas a hacer esto una docena de veces hoy, que es justo por lo que en el Módulo 0.1 le dimos una terminal para él solo.
-- **El Collector no arranca tras una edición.** Es YAML, y va a ser la indentación. Nombra la línea problemática mientras se muere — y como está en primer plano, no te lo puedes perder.
+- **Editar la configuración no hace nada.** El Collector lee su configuración una sola vez, al arrancar. Reinícialo: **`docker compose restart otel-collector`**. Vas a hacer esto una docena de veces hoy; sigue su log con `docker compose logs -f otel-collector` para verlo volver.
+- **El Collector no arranca tras una edición.** Es YAML, y va a ser la indentación. Nombra la línea problemática mientras se muere — léela con `docker compose logs otel-collector`. `docker compose ps -a` lo muestra como parado.
 
-## Ejercicio 4.2 — Edítalo [~25 min] [checkpoint: 42] *(recortable en la versión de un día)*
+## Ejercicio 4.2 — Edítalo [~25 min] *(recortable en la versión de un día)*
 
 **Deberías poder responder esto al terminar:** *¿cómo sabrías, ahora mismo, si tu Collector hubiera dejado de entregar spans?*
 
@@ -172,7 +175,7 @@ service:
       processors: [memory_limiter, resource, attributes/clean, batch]
 ```
 
-Reinicia el Collector y confirma que el atributo ya no está en los spans nuevos.
+Reinicia el Collector — `docker compose restart otel-collector` — y confirma que el atributo ya no está en los spans nuevos.
 
 **Tarea 2 — Filtra los health checks.**
 
@@ -187,7 +190,7 @@ processors:
 
 Añade `filter/healthz` al pipeline de trazas, reinicia y confirma que los spans de `/healthz` dejan de llegar.
 
-Y ahora ten la discusión: acabas de hacer invisible tu sonda de disponibilidad. Si el endpoint de salud empieza a fallar, ¿se va a enterar alguien por este sistema? Debate con quien tengas al lado si ese filtro debería llegar a producción.
+Y ahora piensa en lo que acabas de hacer: has hecho invisible tu sonda de disponibilidad. Si el endpoint de salud empieza a fallar, ¿se va a enterar alguien por este sistema? ¿Debería ese filtro llegar a producción?
 
 **Tarea 3 — Rómpelo a propósito. Esta es la importante.** 💥
 
@@ -252,11 +255,7 @@ La mayoría de los equipos aprende esto por las malas, normalmente durante un in
 
 - **El processor `filter` se rechaza al arrancar.** La sintaxis OTTL es quisquillosa: `attributes["url.path"]` con comillas dobles dentro de los corchetes, y toda la condición entre comillas simples.
 - **`otelcol_exporter_send_failed_spans_total` no devuelve absolutamente nada.** Es lo esperado — mira la nota de arriba. Usa la comparación entre las tasas del receiver y del exporter.
-- **Todas las métricas están planas, incluidas las del propio Collector.** Puede que hayas roto la configuración tan a fondo que el Collector no llegó a arrancar. Mira su terminal — un Collector muerto no exporta nada, incluidas sus propias métricas de fallo. Eso es una lección en sí misma, y es la razón de que merezca la pena saberse `curl -s localhost:13133/` de memoria.
-
-```bash
-./checkpoint.sh 42
-```
+- **Todas las métricas están planas, incluidas las del propio Collector.** Puede que hayas roto la configuración tan a fondo que el Collector no llegó a arrancar. Mira su log (`docker compose logs otel-collector`) — un Collector muerto no exporta nada, incluidas sus propias métricas de fallo. Eso es una lección en sí misma, y es la razón de que merezca la pena saberse `curl -s localhost:13133/` de memoria.
 
 ## Lo Que Hemos Conseguido
 

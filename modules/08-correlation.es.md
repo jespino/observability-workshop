@@ -1,6 +1,6 @@
 # Módulo 8: Correlación — Convertir las Tres Señales en Una
 
-**Duración:** ~45 min · **Checkpoints: 81, 82** · **Casi igual para los dos tracks**
+**Duración:** ~45 min · **Casi igual para los dos tracks**
 
 Este es el módulo del premio. Todo lo que has construido hasta ahora era materia prima; aquí lo conectas todo para poder moverte de una gráfica a una línea de log, a una traza y a una línea de código sin escribir ni una consulta. 🔗
 
@@ -15,10 +15,10 @@ Al terminar este módulo, serás capaz de:
 
 ## Prerrequisitos
 
-- Módulo 7 completado y con checkpoint
+- Módulo 7 completado
 - El dashboard del Módulo 5.5, con el panel de logs añadido en el Módulo 6.4
 
-## Ejercicio 8.1 — Métricas a partir de spans con el connector spanmetrics [~20 min] [checkpoint: 81] *(recortable)*
+## Ejercicio 8.1 — Métricas a partir de spans con el connector spanmetrics [~20 min] *(recortable)*
 
 **Deberías poder responder esto al terminar:** *ahora tienes dos fuentes de verdad para la latencia de petición. ¿En cuál confías?*
 
@@ -54,7 +54,7 @@ Un **connector** en el Collector es un exporter en un pipeline y un receiver en 
          exporters: [otlphttp/victoriametrics]
    ```
 
-3. Reinicia el Collector y lanza el loadgen dos minutos.
+3. Reinicia el Collector (`docker compose restart otel-collector`) y lanza el loadgen dos minutos.
 
 Fíjate en la lista de `dimensions`. `http.route` es una convención semántica que te salió gratis; `todo.list` es el atributo que *tú* pusiste en tus spans en el Módulo 7.2. Nombres estándar y nombres de tu dominio, promocionados a etiquetas de métrica codo con codo.
 
@@ -113,11 +113,7 @@ Es un punto sutil, real y que casi nunca se enseña, y saber explicarlo hará qu
 - **No aparece ningún `traces_span_metrics_*`.** La causa más habitual es haber puesto el connector bajo `processors:` en vez de en el bloque `connectors:` de primer nivel.
 - **La métrica existe pero no tiene etiqueta `todo_list`.** Las dimensiones solo aparecen si el atributo está realmente en el span. Comprueba un span en vmui primero.
 
-```bash
-./checkpoint.sh 81
-```
-
-## Ejercicio 8.2 — Cableando los saltos en Grafana [~25 min] [checkpoint: 82]
+## Ejercicio 8.2 — Cableando los saltos en Grafana [~25 min]
 
 **Deberías poder responder esto al terminar:** *partiendo de un pico en un dashboard, ¿cuántos clics hasta la línea de código?*
 
@@ -214,10 +210,6 @@ Acabas de construir cuatro saltos a mano. En una organización de cincuenta serv
 - **El derived field no aparece.** Solo aplica a campos que Grafana ve en el registro de log; confirma primero que `trace_id` sale en la tabla de Explore.
 - **"Trace to logs" no devuelve nada.** El mapeo de tags suele ser el culpable: Grafana envía `service.name` y tus logs tienen que tener un campo con exactamente ese nombre.
 - **No aparece el menú de Correlations.** Puede estar detrás de un feature toggle según tu versión de Grafana — tu facilitador tiene el flag.
-
-```bash
-./checkpoint.sh 82
-```
 
 ## Lo Que Hemos Conseguido
 

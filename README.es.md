@@ -1,6 +1,6 @@
 # Instrumentando tu aplicación con OpenTelemetry
 
-¡Bienvenido a un taller práctico donde instrumentarás desde cero una aplicación real de varios servicios con OpenTelemetry, y enviarás métricas, logs y trazas al stack de VictoriaMetrics! Aproximadamente 25% charla, 75% teclado.
+¡Bienvenido a un taller práctico donde instrumentarás desde cero una aplicación de varios servicios con OpenTelemetry, y enviarás métricas, logs y trazas al stack de VictoriaMetrics! Aproximadamente 25% charla, 75% teclado.
 
 **Dos tracks en paralelo: Node.js/Express y Python/Flask.** Todo el mundo construye el mismo sistema, contra el mismo backend y con los mismos ejercicios — solo cambia la superficie del SDK. Es deliberado: al final de cada módulo ambos tracks miran datos idénticos en UIs idénticas, lo que deja claro que OpenTelemetry es un protocolo y un modelo de datos, no una librería.
 
@@ -12,17 +12,17 @@
 ## Prerrequisitos
 
 - Soltura con APIs HTTP y con JavaScript o Python
-- **Docker** instalado y funcionando (`docker ps`), además de `git`, `curl`, `tar` y una shell Unix
+- **Docker** con el plugin de Compose, instalado y funcionando (`docker ps`, `docker compose version`), además de `git`, `curl` y una shell Unix
 - **No necesitas Node.js ni Python instalados.** La aplicación corre en una imagen
   `node:22-slim` o `python:3.12-slim` de serie de Docker Hub, con tu directorio de código
   montado dentro — nada de este repositorio se construye como imagen
 - **No hace falta saber nada de OpenTelemetry, MetricsQL ni LogsQL**
 - Al menos 4GB de RAM libre y unos 3GB de espacio en disco
 
-No hay script de preparación ni `docker-compose.yml`. El Módulo 0 te guía descargando los
-cuatro binarios de telemetría y arrancando cada proceso a mano, uno a uno. Es a propósito:
-cuesta media hora una vez, y significa que el resto del día sabes exactamente qué proceso
-ocupa qué puerto y dónde fue su log.
+Todo el stack — tu API, Postgres, notify-service, el frontend, el OpenTelemetry Collector
+y los tres backends de Victoria — es un único `docker-compose.yml` que se arranca con un
+solo comando. El código de tu API está montado dentro de su contenedor y se recarga solo,
+así que guardar un fichero es todo lo que hace falta para desplegar un cambio.
 
 ## Descripción General del Taller
 
@@ -30,15 +30,15 @@ Este taller consta de 11 módulos que te llevan desde un servicio que no emite a
 
 ### [Módulo 0: Preparación y Comprobación del Entorno](./modules/00-setup-and-sanity-check.es.md)
 
-Descarga y arranca tú mismo cada pieza del stack — cuatro binarios de telemetría y cuatro contenedores — y después ejecuta el script doctor y guarda las UIs en marcadores.
+Arranca todo el stack, tu API incluida, con un solo comando de Docker Compose, y comprueba con el script doctor que todo está funcionando.
 
 ### [Módulo 1: La Aplicación que Vas a Instrumentar](./modules/01-the-application.es.md)
 
 Recorre la todo-api que vas a editar durante todo el día — sus endpoints, sus dependencias y el puñado de funciones que importan.
 
-### [Módulo 2: Qué es Realmente la Observabilidad](./modules/02-what-observability-is.es.md)
+### [Módulo 2: Las Tres Señales — Métricas, Logs y Trazas](./modules/02-what-observability-is.es.md)
 
-Vocabulario común — señales, resource, scope, atributos y contexto — y por qué la correlación es el producto de verdad.
+Qué son las métricas, los logs y las trazas, con un ejemplo de cada una sacado de la aplicación que vas a instrumentar.
 
 ### [Módulo 3: El Camino Fácil: Auto-instrumentación Sin Código](./modules/03-auto-instrumentation.es.md)
 
@@ -75,7 +75,7 @@ Coste, sampling, retención, PII y estrategia de despliegue: qué cambia cuando 
 ## Cómo Empezar
 
 1. Clona este repositorio y haz `cd observability-workshop/workshop` — todo lo que ejecutas vive ahí
-2. Comienza con el [Módulo 0](./modules/00-setup-and-sanity-check.es.md) para dejar tu entorno en verde
+2. Comienza con el [Módulo 0](./modules/00-setup-and-sanity-check.es.md) para dejar tu entorno preparado
 3. Haz los módulos en orden — cada uno se apoya en el anterior
 4. Elige el track en el que quieras escribir, JavaScript o Python. Los dos acaban mirando exactamente los mismos datos.
 5. En la [web](https://jespino.github.io/observability-workshop/es/), usa el **selector de track** de la barra de navegación para cambiar todos los ejemplos de código a tu lenguaje. Tu elección se recuerda mientras te mueves entre módulos.
@@ -87,17 +87,17 @@ Coste, sampling, retención, PII y estrategia de despliegue: qué cambia cuando 
 ├── README.md                 # Versión en inglés
 ├── workshop.md               # Documento de diseño para facilitadores: esquema, tiempos, equipo
 ├── workshop/                 # ◀ EL DIRECTORIO EN EL QUE TRABAJAS
+│   ├── docker-compose.yml    #   todo el stack, arrancado en el Módulo 0
 │   ├── collector/            #   la config del Collector que editas desde el Módulo 4
 │   ├── postgres/init.sql     #   esquema y datos iniciales
-│   ├── grafana/provisioning/ #   datasources, montados al arrancar Grafana
+│   ├── grafana/provisioning/ #   datasources, montados en el contenedor de Grafana
 │   ├── frontend/             #   SPA compartida
 │   ├── track-js/todo-api/    #   el servicio que editas (Node.js / Express)
 │   ├── track-py/todo-api/    #   el servicio que editas (Python / Flask)
 │   ├── services/             #   notify-service pre-instrumentado, en los dos lenguajes
-│   ├── solutions/            #   soluciones de los checkpoints
+│   ├── solutions/            #   soluciones de referencia, una por ejercicio
 │   ├── doctor.sh             #   ¿está todo en verde?
 │   ├── loadgen.sh            #   generar tráfico
-│   ├── checkpoint.sh         #   ponerte al día al final de un ejercicio
 │   └── reset.sh              #   borrar la telemetría, conservar los todos
 ├── modules/                  # Guiones para participantes (markdown), un fichero por módulo
 │   ├── 00-setup-and-sanity-check.es.md
@@ -115,7 +115,7 @@ Coste, sampling, retención, PII y estrategia de despliegue: qué cambia cuando 
 ```
 
 Consulta [`workshop/README.md`](workshop/README.md) para el mapa de puertos, una chuleta
-con todos los comandos que el Módulo 0 te hace escribir, las reglas de red de los
+con todos los comandos que los guiones te hacen escribir, las reglas de red de los
 contenedores y las notas para facilitadores.
 
 ## Generador de la Web
@@ -144,7 +144,7 @@ make serve
 
 El generador:
 
-- Convierte markdown a HTML usando [blackfriday](https://github.com/russross/blackfriday)
+- Convierte markdown a HTML usando [goldmark](https://github.com/yuin/goldmark)
 - Conserva todo el formato, los emojis y los bloques de código
 - Genera la navegación entre módulos
 - Crea una página índice con el resumen de módulos
@@ -156,10 +156,9 @@ Consulta [website-generator/README.md](website-generator/README.md) para más de
 ## Consejos para el Éxito
 
 - Pega las consultas exactas del guion — lo de "explora los datos" viene después
-- Cuando algo pinte mal, lee la terminal del Collector antes que nada — corre en primer plano justo por eso
-- Dentro de un contenedor, `localhost` es el contenedor. `host.docker.internal` es tu portátil. Casi todos los "la telemetría no llega y no dice nada" son esto
-- Usa `git` para rastrear tus cambios, y los checkpoints de `solutions/` para ponerte al día si te descuelgas
-- Compara notas con alguien del otro track después de cada módulo — ahí es donde cala la idea
+- Cuando algo pinte mal, lee el log del Collector antes que nada: `docker compose logs -f otel-collector`
+- Dentro de un contenedor, `localhost` es el contenedor: los contenedores se encuentran por nombre de servicio (`otel-collector`, `postgres`). Casi todos los "la telemetría no llega y no dice nada" son esto
+- Puedes mirar las soluciones en el repositorio
 
 ## Recursos
 
@@ -174,7 +173,7 @@ Consulta [website-generator/README.md](website-generator/README.md) para más de
 
 Al completar todos los módulos, habrás:
 
-- **Instrumentado un servicio real** con métricas, logs y trazas, partiendo de cero
+- **Instrumentado un servicio** con métricas, logs y trazas, partiendo de cero
 - **Ejecutado un OpenTelemetry Collector** como punto de entrada único, repartiendo hacia tres backends
 - **Elegido los instrumentos correctos** y razonado sobre cardinalidad antes de que doliera
 - **Emitido logs estructurados** que arrastran el contexto de traza, y consultado con LogsQL

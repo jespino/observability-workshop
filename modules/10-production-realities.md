@@ -43,12 +43,12 @@ Different per signal, for good reasons:
 | Logs | 7–30 days | Expensive per unit; most value is in the first hours |
 | Traces | 3–7 days | Same as logs, more so |
 
-You typed the flags yourself in Module 0.1:
+The workshop sets them in `docker-compose.yml`:
 
 ```
-victoria-metrics  -retentionPeriod=1   -search.latencyOffset=1s ...
-victoria-logs     -retentionPeriod=7d
-victoria-traces   -retentionPeriod=3d
+victoriametrics  -retentionPeriod=1   -search.latencyOffset=1s ...
+victorialogs     -retentionPeriod=7d
+victoriatraces   -retentionPeriod=3d
 ```
 
 The interesting production question isn't "how long" — it's "what do I do with the *aggregate* when the detail expires". Recording rules that roll up a high-resolution metric into a low-resolution one are the standard answer.
