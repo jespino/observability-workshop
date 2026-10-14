@@ -1,4 +1,0 @@
-flask==3.1.0
-gunicorn==23.0.0
-opentelemetry-distro==0.50b0
-opentelemetry-exporter-otlp==1.29.0

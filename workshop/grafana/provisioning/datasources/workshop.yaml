@@ -19,10 +19,6 @@ datasources:
     uid: victorialogs
     access: proxy
     url: http://victorialogs:9428
-    jsonData:
-      # Module 8.2 replaces this with a real derived field pointing at the
-      # Jaeger datasource. Left empty on purpose so there is something to do.
-      derivedFields: []
 
   # VictoriaTraces implements the Jaeger query API, so Grafana's core Jaeger
   # datasource works against it with no plugin.
@@ -31,10 +27,3 @@ datasources:
     uid: victoriatraces-jaeger
     access: proxy
     url: http://victoriatraces:10428/select/jaeger
-
-  # The Tempo API is experimental, but it unlocks Traces Drilldown.
-  - name: VictoriaTraces (Tempo)
-    type: tempo
-    uid: victoriatraces-tempo
-    access: proxy
-    url: http://victoriatraces:10428/select/tempo

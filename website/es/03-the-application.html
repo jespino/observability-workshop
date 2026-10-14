@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Módulo 3: La Aplicación que Vas a Instrumentar - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumentando tu aplicación con OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Inicio</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="../03-the-application.html">English</option><option value="" selected>Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Módulo 3: La Aplicación que Vas a Instrumentar</h1>
+<p>No puedes instrumentar un sistema que no entiendes. Este módulo es un recorrido guiado por la app de tareas: qué piezas tiene, qué hace la API y dónde vive su código. 🗺️</p>
+<h2>Objetivos de Aprendizaje</h2>
+<p>Al terminar este módulo, serás capaz de:</p>
+<ul>
+<li>Dibujar el sistema de memoria: qué servicio llama a cuál, y por dónde</li>
+<li>Enumerar todos los endpoints que expone la API y qué toca cada uno</li>
+<li>Conocer los cuatro ficheros de tu track que vas a editar todo el día, y qué vive en cada uno</li>
+</ul>
+<h2>El sistema</h2>
+<p><img src="../images/application.png" alt="La aplicación: tu navegador carga el frontend en :8080, que llama a todo-api (js :8081 / py :8082) por HTTP. todo-api — el código que editas, que se reinicia al guardar un fichero — tiene una caché en proceso delante del camino de lectura de listas, usa Postgres en :5432 como su única dependencia externa, y llama a notify-service en :8083, que ya viene instrumentado."></p>
+<p>Cuatro cosas que merece la pena notar:</p>
+<ol>
+<li><strong><code>todo-api</code> es lo único que editas.</strong> Corre en un contenedor <code>node:22-slim</code> o
+<code>python:3.12-slim</code> de serie, con el directorio de código de tu portátil montado dentro
+y el servidor en modo vigilancia — así tu editor edita ficheros de verdad, y guardar uno
+es todo el ciclo de construir y desplegar. Todo lo demás es decorado fijo.</li>
+<li><strong>Postgres es su única dependencia externa.</strong> La caché que hay delante del camino de
+lectura es un map en memoria, no Redis: nada en la red puede observarla.</li>
+<li><strong><code>notify-service</code> es el mismo en todos los tracks.</strong> Es un pequeño servicio en Python
+en <code>:8083</code>, ya instrumentado, al que tu API llama para enviar notificaciones. Nunca lo
+editas; está ahí para que una petición pueda viajar de un servicio a otro, y para que
+puedas seguirla.</li>
+<li><strong><code>./loadgen.sh</code> mantiene el tráfico</strong>, así siempre hay algo que mirar. Ejecuta
+<code>./loadgen.sh 2m</code> cuando las gráficas se queden quietas.</li>
+</ol>
+<h2>La API</h2>
+<table>
+<thead>
+<tr>
+<th>Método</th>
+<th>Ruta</th>
+<th>Qué hace</th>
+<th>Toca</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/healthz</code></td>
+<td>Sonda de vida</td>
+<td>nada</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/lists</code></td>
+<td>Todas las listas con sus contadores</td>
+<td>Postgres</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/todos?list=&lt;nombre&gt;</code></td>
+<td>Todos de una lista</td>
+<td>Postgres, caché</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/todos/:id</code></td>
+<td>Un todo</td>
+<td>Postgres</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/todos</code></td>
+<td>Crea un todo</td>
+<td>Postgres, caché, <code>notify-service</code> (solo los urgentes)</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/todos/:id/complete</code></td>
+<td>Marca un todo como completado</td>
+<td>Postgres, caché</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/todos/:id</code></td>
+<td>Borra un todo</td>
+<td>Postgres, caché</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/stats</code></td>
+<td>Contadores resumen para el dashboard</td>
+<td>Postgres, <code>notify-service</code></td>
+</tr>
+</tbody>
+</table>
+<p>Un todo tiene esta pinta:</p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;0f2c6b1e-8a7d-4f2b-9c31-0a5e6d7b8c90&quot;,
+  &quot;title&quot;: &quot;Renovar el certificado TLS&quot;,
+  &quot;list&quot;: &quot;work&quot;,
+  &quot;slug&quot;: &quot;R-renovar-el-certificado-t&quot;,
+  &quot;tags&quot;: [&quot;urgent&quot;, &quot;infra&quot;],
+  &quot;priority&quot;: 2,
+  &quot;due_at&quot;: &quot;2026-09-05T09:00:00Z&quot;,
+  &quot;created_at&quot;: &quot;2026-09-01T08:12:44Z&quot;,
+  &quot;completed_at&quot;: null
+}
+</code></pre>
+<p>Dos comportamientos conviene saberlos desde ya, porque condicionan la telemetría:</p>
+<ul>
+<li><strong>Un todo con la etiqueta <code>urgent</code> dispara una llamada a <code>notify-service</code></strong> al crearse. Los que no la llevan, no.</li>
+<li><strong>Las lecturas de listas pasan primero por la caché en proceso</strong>, y van a Postgres cuando no encuentran el dato en la caché.</li>
+</ul>
+<h2>El código</h2>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code>track-js/todo-api/
+├── package.json
+└── src/
+    ├── server.js         # app express, middleware, rutas, arranque
+    ├── routes/todos.js   # ◀ los handlers — es lo que más vas a editar
+    ├── repo.js           # ◀ todo el acceso a Postgres
+    ├── cache.js          # ◀ la caché en proceso
+    ├── notify.js         # ◀ el cliente de notify-service
+    ├── enrich.js         # lógica de negocio de etiquetas y prioridad
+    ├── log.js            # el logger pino
+    └── db.js             # el pool de conexiones a Postgres
+</code></pre>
+<p>Los cuatro ficheros marcados con ◀ son donde ocurre prácticamente todo tu trabajo.</p>
+<p><strong><code>src/server.js</code></strong> — Express pelado, sin sorpresas, mostrado aquí sin los detalles de CORS y de manejo de errores. Fíjate en que no hay configuración de telemetría por ninguna parte. Ese es el punto de partida. La línea de <code>SIGTERM</code> está para que el servidor salga enseguida cuando guardas un fichero y <code>node --watch</code> lo reinicia:</p>
+<pre><code class="language-js">require('express-async-errors');
+const express = require('express');
+const { todosRouter } = require('./routes/todos.js');
+const { waitForDependencies } = require('./db.js');
+const { log } = require('./log.js');
+
+const app = express();
+const port = Number(process.env.PORT ?? 8081);
+
+app.use(express.json());
+// … cabeceras CORS, para que el frontend pueda llamar a la API desde el navegador
+
+app.get('/healthz', (_req, res) =&gt; res.json({ ok: true }));
+app.use(todosRouter);
+// … un manejador de errores que registra el fallo y responde 500
+
+process.on('SIGTERM', () =&gt; setTimeout(() =&gt; process.exit(0), 500));
+
+waitForDependencies().then(() =&gt; {
+  app.listen(port, () =&gt; log.info(`todo-api listening on ${port}`));
+});
+</code></pre>
+<p><strong><code>src/routes/todos.js</code></strong> — los handlers:</p>
+<pre><code class="language-js">todosRouter.post('/todos', async (req, res) =&gt; {
+  const todo = await createTodo(req.body);          // repo.js
+  const enriched = await enrich(todo);              // enrich.js
+  await setSlug(todo.id, enriched.slug);            // repo.js
+
+  if (todo.tags.includes('urgent')) {
+    await notifyUrgent(enriched);                   // notify.js → :8083
+  }
+
+  invalidate(todo.list);                            // cache.js
+  log.info('todo created ' + todo.id);              // log.js
+  res.status(201).json(enriched);
+});
+
+todosRouter.patch('/todos/:id/complete', async (req, res) =&gt; {
+  const todo = await completeTodo(req.params.id);   // repo.js
+  if (!todo) return res.status(404).json({ error: 'not found or already complete' });
+  invalidate(todo.list);                            // cache.js
+  log.info('todo completed ' + todo.id);            // log.js
+  res.json(todo);
+});
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code>track-py/todo-api/
+├── requirements.txt
+├── app.py                # factoría flask, blueprints, arranque
+└── todo_api/
+    ├── routes.py         # ◀ los handlers — es lo que más vas a editar
+    ├── repo.py           # ◀ todo el acceso a Postgres
+    ├── cache.py          # ◀ la caché en proceso
+    ├── notify.py         # ◀ el cliente de notify-service
+    ├── enrich.py         # lógica de negocio de etiquetas y prioridad
+    ├── log.py            # el logger de la stdlib
+    └── db.py             # el pool de conexiones a Postgres
+</code></pre>
+<p>Los cuatro ficheros marcados con ◀ son donde ocurre prácticamente todo tu trabajo.</p>
+<p><strong><code>app.py</code></strong> — Flask pelado, sin sorpresas, mostrado aquí sin los detalles de CORS. Fíjate en que no hay configuración de telemetría por ninguna parte. Ese es el punto de partida:</p>
+<pre><code class="language-python">from flask import Flask, jsonify
+
+from todo_api.db import wait_for_dependencies
+from todo_api.routes import bp
+
+
+def create_app() -&gt; Flask:
+    app = Flask(__name__)
+    app.register_blueprint(bp)
+
+    @app.get(&quot;/healthz&quot;)
+    def healthz():
+        return jsonify(ok=True)
+
+    # … cabeceras CORS, para que el frontend pueda llamar a la API desde el navegador
+
+    return app
+
+
+wait_for_dependencies()
+app = create_app()
+</code></pre>
+<p><strong><code>todo_api/routes.py</code></strong> — los handlers:</p>
+<pre><code class="language-python">@bp.post(&quot;/todos&quot;)
+def post_todo():
+    todo = create_todo(request.get_json(silent=True))  # repo.py
+    enriched = enrich(todo)                            # enrich.py
+    set_slug(todo.id, enriched[&quot;slug&quot;])                # repo.py
+
+    if &quot;urgent&quot; in todo.tags:
+        notify_urgent(enriched)                        # notify.py → :8083
+
+    invalidate(todo.list)                              # cache.py
+    log.info(&quot;todo created %s&quot;, todo.id)               # log.py
+    return jsonify(enriched), 201
+
+
+@bp.patch(&quot;/todos/&lt;todo_id&gt;/complete&quot;)
+def patch_complete(todo_id):
+    todo = complete_todo(todo_id)                      # repo.py
+    if todo is None:
+        return jsonify(error=&quot;not found or already complete&quot;), 404
+    invalidate(todo.list)                              # cache.py
+    log.info(&quot;todo completed %s&quot;, todo.id)             # log.py
+    return jsonify(todo.to_dict())
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code>track-go/todo-api/
+├── go.mod
+├── main.go           # servidor net/http, middleware, rutas, arranque
+├── routes.go         # ◀ los handlers de las peticiones — el que más vas a editar
+├── repo.go           # ◀ todo el acceso a Postgres
+├── cache.go          # ◀ la caché en proceso
+├── notify.go         # ◀ el cliente de notify-service
+├── enrich.go         # lógica de negocio de etiquetas y prioridad
+├── log.go            # el logger slog
+└── db.go             # el pool de conexiones a Postgres
+</code></pre>
+<p>Los cuatro ficheros marcados con ◀ son donde ocurre prácticamente todo tu trabajo.</p>
+<p><strong><code>main.go</code></strong> — el <code>net/http</code> de la librería estándar, sin framework, mostrado aquí sin los detalles de CORS. Fíjate en que no hay configuración de telemetría por ninguna parte. Ese es el punto de partida. Cada handler devuelve un <code>error</code>; el pequeño tipo <code>handler</code> lo registra y responde 500, como haría el manejador de errores de un framework web:</p>
+<pre><code class="language-go">func main() {
+	if err := waitForDependencies(); err != nil {
+		log.Error(&quot;startup failed: &quot; + err.Error())
+		os.Exit(1)
+	}
+
+	port := envString(&quot;PORT&quot;, &quot;8085&quot;)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(&quot;GET /healthz&quot;, func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]bool{&quot;ok&quot;: true})
+	})
+	routes(mux)
+
+	log.Info(&quot;todo-api listening on &quot; + port)
+	// cors() añade cabeceras CORS, para que el frontend pueda llamar a la API desde el navegador
+	if err := http.ListenAndServe(&quot;:&quot;+port, cors(mux)); err != nil {
+		log.Error(&quot;server stopped: &quot; + err.Error())
+		os.Exit(1)
+	}
+}
+
+// handler es un http.HandlerFunc que puede fallar.
+type handler func(w http.ResponseWriter, r *http.Request) error
+
+func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := h(w, r); err != nil {
+		log.Error(&quot;request failed: &quot; + err.Error())
+		writeJSON(w, http.StatusInternalServerError, map[string]string{&quot;error&quot;: &quot;internal&quot;})
+	}
+}
+</code></pre>
+<p><strong><code>routes.go</code></strong> — los handlers:</p>
+<pre><code class="language-go">func postTodo(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	body, _ := io.ReadAll(r.Body)
+
+	todo, err := createTodo(ctx, body)                // repo.go
+	if err != nil {
+		return err
+	}
+	enriched, err := enrich(todo)                     // enrich.go
+	if err != nil {
+		return err
+	}
+	if err := setSlug(ctx, todo.ID, *enriched.Slug); err != nil {   // repo.go
+		return err
+	}
+
+	if slices.Contains(todo.Tags, &quot;urgent&quot;) {
+		if _, err := notifyUrgent(ctx, enriched); err != nil {     // notify.go → :8083
+			return err
+		}
+	}
+
+	invalidate(todo.List)                             // cache.go
+	log.Info(&quot;todo created &quot; + todo.ID)               // log.go
+	return writeJSON(w, http.StatusCreated, enriched)
+}
+
+func patchComplete(w http.ResponseWriter, r *http.Request) error {
+	todo, err := completeTodo(r.Context(), r.PathValue(&quot;id&quot;))   // repo.go
+	if err != nil {
+		return err
+	}
+	if todo == nil {
+		return writeJSON(w, http.StatusNotFound, map[string]string{&quot;error&quot;: &quot;not found or already complete&quot;})
+	}
+	invalidate(todo.List)                             // cache.go
+	log.Info(&quot;todo completed &quot; + todo.ID)             // log.go
+	return writeJSON(w, http.StatusOK, todo)
+}
+</code></pre>
+</div>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="02-setup-and-sanity-check.html" class="nav-button">← Anterior</a>
+            
+            
+            <a href="04-auto-instrumentation.html" class="nav-button">Siguiente: Módulo 4 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumentando tu aplicación con OpenTelemetry</p>
+            <p>Creado por <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

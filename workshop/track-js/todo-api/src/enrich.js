@@ -1,5 +1,5 @@
 // Business logic with no library instrumentation of its own.
-// Module 7.2 wraps this in the first custom span.
+// Module 8.2 wraps this in the first custom span.
 
 const PRIORITY_LABELS = { 1: 'high', 2: 'normal', 3: 'low' };
 

@@ -2,7 +2,7 @@
   "name": "todo-api",
   "version": "1.0.0",
   "private": true,
-  "description": "The service you instrument. CommonJS on purpose: the `--require` hook that Module 3 adds only patches CommonJS, so every auto-instrumentation loads.",
+  "description": "The service you instrument. CommonJS on purpose: the `--require` hook that Module 4 adds only patches CommonJS, so every auto-instrumentation loads.",
   "scripts": {
     "start": "node src/server.js"
   },

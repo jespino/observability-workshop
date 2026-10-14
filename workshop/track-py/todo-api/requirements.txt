@@ -1,5 +1,5 @@
 # The service you instrument.
-# Module 3 adds the OpenTelemetry packages here.
+# Module 4 adds the OpenTelemetry packages here.
 #
 # Ranges rather than exact pins. Pin exactly in production.
 flask>=3.1,<4

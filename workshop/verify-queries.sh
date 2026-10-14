@@ -7,7 +7,7 @@
 # the output says which.
 #
 #   ./verify-queries.sh              # all of them
-#   ./verify-queries.sh 3            # just module 3
+#   ./verify-queries.sh 4            # just module 4
 
 source "$(dirname "$0")/scripts/common.sh"
 
@@ -45,56 +45,43 @@ trc() {
 }
 want() { [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]; }
 
-if want 3; then
-  echo; echo "  Module 3 — auto-instrumentation"
-  trc '_time:15m "resource_attr:service.name":=todo-api'
-  met '{__name__=~"http.*"}'
-  log 'service.name:todo-api'
-  met 'rate(http_server_duration_milliseconds_count[1m])'
-  trc '_time:15m "resource_attr:service.name":=todo-api name:="POST /todos"'
-  met 'sum(rate(http_server_duration_milliseconds_count{http_method="POST", http_target="/todos"}[5m]))' 'python track only'
-fi
-
 if want 4; then
-  echo; echo "  Module 4 — the Collector"
-  log 'service.name:todo-api AND deployment.environment:workshop'
-  met 'rate(otelcol_receiver_accepted_spans_total[1m])'
-  met 'rate(otelcol_exporter_sent_spans_total[1m])'
-  met 'otelcol_exporter_queue_size'
+  echo; echo "  Module 4 — auto-instrumentation"
+  met '{__name__=~"http.*"}' 'not on the go track'
+  met 'rate(http_server_request_duration_seconds_count{service_name="todo-api"}[1m])' 'js track only'
+  met 'rate(http_server_duration_milliseconds_count{service_name="todo-api"}[1m])' 'python track only'
+  met 'go_goroutine_count{service_name="todo-api"}' 'go track only'
+  log 'service.name:todo-api' 'go track: only from Module 7'
+  trc '_time:15m "resource_attr:service.name":=notify-service name:="POST /notify"' 'needs an urgent todo'
+  trc '_time:15m "resource_attr:service.name":=todo-api "span_attr:url.path":*' 'js and go tracks'
+  trc '_time:15m "resource_attr:service.name":=todo-api "span_attr:http.target":*' 'python track only'
 fi
 
-if want 5; then
-  echo; echo "  Module 5 — metrics"
-  met 'sum(rate(todos_created_total[5m])) by (list)' 'needs 5.2'
-  met 'todos_open' 'needs 5.2, renamed to todos_active by 5.3'
-  met 'histogram_quantile(0.95, sum(rate(todo_completion_age_seconds_bucket[5m])) by (le, list))' 'needs 5.2'
-  met 'todos_overdue' 'needs 5.2'
-  met 'todos_active' 'needs 5.3'
+if want 6; then
+  echo; echo "  Module 6 — metrics"
+  met 'sum(rate(todos_created_total[5m])) by (list)' 'needs 6.1'
+  met 'todos_open' 'needs 6.1'
+  met 'histogram_quantile(0.95, sum(rate(todo_completion_age_seconds_bucket[5m])) by (le, list))' 'needs 6.1'
+  met 'max(todos_overdue) by (list)' 'needs 6.1'
   met 'vm_cache_entries{type="storage/tsid"}'
   met 'process_resident_memory_bytes{job="victoria-metrics"}'
   met 'histogram_quantile(0.95, sum(rate(http_server_duration_milliseconds_bucket{service_name="todo-api"}[5m])) by (le))' 'python track only'
 fi
 
-if want 6; then
-  echo; echo "  Module 6 — logs"
-  log 'service.name:todo-api AND severity_text:ERROR'
-  log 'service.name:todo-api AND _time:5m | stats by (severity_text) count()'
-  log '_stream:{service.name="todo-api"}'
-  log 'service.name:todo-api AND _msg:"todo created" | fields _time, trace_id, list, todo_id' 'needs 6.2'
-fi
-
 if want 7; then
-  echo; echo "  Module 7 — traces"
-  trc '_time:15m "resource_attr:service.name":=todo-api duration:>500ms'
-  trc '_time:15m "resource_attr:service.name":=todo-api | stats by (name) count()'
-  trc '_time:15m "span_attr:http.route":="/todos" status_code:=2'
-  trc '_time:15m "resource_attr:service.name":=notify-service'
-  trc '_time:15m "resource_attr:service.name":=todo-api name:="todo.enrich"' 'needs 7.2'
+  echo; echo "  Module 7 — logs"
+  log 'service.name:todo-api AND severity_text:ERROR'
+  log 'service.name:todo-api AND _msg:"todo created" | fields _time, trace_id, list, todo_id' 'needs 7.1'
+  log 'service.name:todo-api AND _time:5m AND list:* | stats by (list) count()' 'needs 7.1'
 fi
 
 if want 8; then
-  echo; echo "  Module 8 — correlation"
-  met '{__name__=~"traces_span_metrics.*"}' 'needs 8.1'
+  echo; echo "  Module 8 — traces"
+  trc '_time:15m "resource_attr:service.name":=todo-api name:="todo.enrich"' 'needs 8.2'
+  trc '_time:15m "resource_attr:service.name":=todo-api status_code:=2' 'needs failures: ./loadgen.sh 1m --errors'
+  trc '_time:15m "resource_attr:service.name":=todo-api name:="todo.enrich" "span_attr:error.type":*' 'needs 8.3'
+  trc '_time:15m "span_attr:http.route":="/todos" status_code:=2' 'needs failures'
+  trc '_time:5m "resource_attr:service.name":=notify-service name:="POST /notify" | fields _time, trace_id' 'needs an urgent todo'
 fi
 
 echo

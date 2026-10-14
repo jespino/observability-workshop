@@ -1,5 +1,5 @@
 # Business logic with no library instrumentation of its own.
-# Module 7.2 wraps this in the first custom span.
+# Module 8.2 wraps this in the first custom span.
 
 import re
 from datetime import datetime, timezone

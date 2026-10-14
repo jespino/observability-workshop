@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Checks every moving part of the workshop and prints a table.
-# Every row must be green before Module 1.
+# Every row must be green before Module 3.
 #
-# Run it right after `docker compose --profile js|py up -d`: it waits for the
+# Run it right after `docker compose --profile js|py|go up -d`: it waits for the
 # stack to come up (the API and notify-service install their dependencies on
 # start, which takes a minute the first time), then checks everything.
 #
@@ -38,8 +38,10 @@ otlp_open() { json_post http://localhost:4318/v1/traces '{}'; }
 # Which track is running? The profile you started Compose with decides.
 running=$(compose ps --services --status running 2>/dev/null || true)
 TRACK=""
-if   echo "$running" | grep -qx todo-api-js; then TRACK=js; API="$JS_API"; NOTIFY=http://localhost:8083
-elif echo "$running" | grep -qx todo-api-py; then TRACK=py; API="$PY_API"; NOTIFY=http://localhost:8084
+NOTIFY=http://localhost:8083
+if   echo "$running" | grep -qx todo-api-js; then TRACK=js; API="$JS_API"
+elif echo "$running" | grep -qx todo-api-py; then TRACK=py; API="$PY_API"
+elif echo "$running" | grep -qx todo-api-go; then TRACK=go; API="$GO_API"
 fi
 
 echo
@@ -52,6 +54,7 @@ echo
 ready() {
   http http://localhost:8428/health && http http://localhost:9428/health \
     && http http://localhost:10428/health && http http://localhost:13133/ \
+    && http http://localhost:3000/api/health \
     && { [ -z "$TRACK" ] || { api_up "$API" && api_up "$NOTIFY"; }; } \
     && metric 'otelcol_process_uptime_total'
 }
@@ -64,7 +67,7 @@ if [ -n "$running" ] && ! ready >/dev/null 2>&1; then
   printf '\n\n'
 fi
 
-echo "  The stack — docker compose  (Module 0)"
+echo "  The stack — docker compose  (Module 2)"
 check "VictoriaMetrics :8428"              http http://localhost:8428/health
 check "VictoriaLogs    :9428"              http http://localhost:9428/health
 check "VictoriaTraces  :10428"             http http://localhost:10428/health
@@ -74,16 +77,17 @@ check "Collector OTLP :4318 accepts data"  otlp_open
 check "Collector metrics reach VM"         metric 'otelcol_process_uptime_total'
 check "Postgres ready"                     pg_ready
 check "frontend :8080"                     http http://localhost:8080/
+check "Grafana :3000"                      http http://localhost:3000/api/health
 
 echo
-echo "  Your API  (Module 0)"
+echo "  Your API  (Module 2)"
 if [ -n "$TRACK" ]; then
   check "todo-api ($TRACK) healthy"            api_up "$API"
   check "todo-api can list todos"            http "$API/todos?list=work"
   check "todo-api can create a todo"         json_post "$API/todos" '{"title":"doctor check","list":"inbox","tags":[]}'
   check "notify-service healthy"             api_up "$NOTIFY"
 else
-  printf '  %s❌%s  %-46s %sstart Compose with --profile js or --profile py%s\n' \
+  printf '  %s❌%s  %-46s %sstart Compose with --profile js, py or go%s\n' \
     "$RED" "$OFF" "todo-api is not running" "$DIM" "$OFF"
   fail=$((fail + 1))
 fi
@@ -96,6 +100,7 @@ if [ "$fail" -eq 0 ]; then
   echo "    VictoriaMetrics   http://localhost:8428/vmui"
   echo "    VictoriaLogs      http://localhost:9428/select/vmui"
   echo "    VictoriaTraces    http://localhost:10428/select/vmui"
+  echo "    Grafana           http://localhost:3000   (admin / admin)"
   echo
 else
   printf '  %s%d of %d checks failed.%s\n\n' "$RED" "$fail" "$((pass + fail))" "$OFF"
@@ -104,7 +109,7 @@ else
   printf '    Collector red         %sdocker compose logs otel-collector%s — it names the bad line of its config\n' "$DIM" "$OFF"
   printf '    OTLP :4318 red        collector/config.yaml must bind 0.0.0.0, not 127.0.0.1\n'
   printf '    API / notify red      started with your track'"'"'s %s--profile%s? Both install their dependencies first: give them a minute\n' "$DIM" "$OFF"
-  printf '    Your API red          %sdocker compose logs todo-api-js%s (or %stodo-api-py%s)\n' "$DIM" "$OFF" "$DIM" "$OFF"
+  printf '    Your API red          %sdocker compose logs todo-api-js%s (or %stodo-api-py%s, %stodo-api-go%s)\n' "$DIM" "$OFF" "$DIM" "$OFF" "$DIM" "$OFF"
   printf '    %sEvery command is also in ./README.md, under "Reference card".%s\n\n' "$DIM" "$OFF"
   exit 1
 fi

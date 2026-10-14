@@ -1,8 +1,8 @@
 # The workshop Collector.
 #
-# Module 4 reads this file line by line, then edits it. Module 8 adds the
-# spanmetrics connector. Keep it valid: a Collector that will not start
-# exports nothing at all, including its own failure metrics.
+# Module 5 explains what it does; no exercise edits it. Keep it valid: a
+# Collector that will not start exports nothing at all, including its own
+# failure metrics.
 #
 # The Collector runs in a container, started by docker-compose.yml. The
 # addresses it dials — the three Victoria backends — are their Compose service
@@ -19,8 +19,9 @@ receivers:
       http: { endpoint: 0.0.0.0:4318 }
 
   # The Collector scrapes its own metrics and ships them through its own
-  # metrics pipeline. Module 4.2 depends on this: it is how you find out that
-  # the pipeline itself has stopped delivering.
+  # metrics pipeline. The Auto-Instrumentation dashboard's Telemetry pipeline
+  # row depends on this: it is how you find out that the pipeline itself has
+  # stopped delivering.
   prometheus/self:
     config:
       scrape_configs:
@@ -72,6 +73,6 @@ service:
                 host: 0.0.0.0
                 port: 8888
   pipelines:
-    traces:  { receivers: [otlp], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriatraces] }
     metrics: { receivers: [otlp, prometheus/self], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriametrics] }
     logs:    { receivers: [otlp], processors: [memory_limiter, resource, transform/severity, batch], exporters: [otlphttp/victorialogs] }
+    traces:  { receivers: [otlp], processors: [memory_limiter, resource, batch], exporters: [otlphttp/victoriatraces] }

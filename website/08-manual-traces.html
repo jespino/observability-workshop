@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 8: Manual Traces - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/08-manual-traces.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Module 8: Manual Traces</h1>
+<p>Auto-instrumentation gave you spans for HTTP, your web framework and Postgres. Those describe your <em>infrastructure</em>. This module is about spans that describe your <em>domain</em> — and about the moment a trace crosses a service boundary and still holds together. 🧵</p>
+<h2>Learning Objectives</h2>
+<p>By the end of this module, you will:</p>
+<ul>
+<li>Create custom spans around business operations, with useful attributes and events</li>
+<li>Record errors on spans so that they&rsquo;re visible as errors, not just as text</li>
+<li>Name spans in a way that doesn&rsquo;t explode your backend</li>
+<li>Use semantic conventions, and know what they buy you</li>
+<li>Propagate context across services manually, having first watched it break</li>
+</ul>
+<h2>8.1 — Concepts</h2>
+<p>A <strong>span</strong> is one operation with a start, an end, and a place in a tree:</p>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>name</strong></td>
+<td>Low cardinality. <code>GET /todos/:id</code>, never <code>GET /todos/8f3a…</code></td>
+</tr>
+<tr>
+<td><strong>kind</strong></td>
+<td><code>SERVER</code>, <code>CLIENT</code>, <code>INTERNAL</code>, <code>PRODUCER</code>, <code>CONSUMER</code></td>
+</tr>
+<tr>
+<td><strong>attributes</strong></td>
+<td>High cardinality is <em>fine and encouraged</em> here</td>
+</tr>
+<tr>
+<td><strong>events</strong></td>
+<td>Timestamped points inside the span</td>
+</tr>
+<tr>
+<td><strong>status</strong></td>
+<td><code>UNSET</code>, <code>OK</code>, or <code>ERROR</code></td>
+</tr>
+<tr>
+<td><strong>parent</strong></td>
+<td>What makes it a tree</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>⭐ <strong>The naming rule:</strong> low cardinality in the name, high cardinality in the attributes. This is the exact inverse of the metrics rule from Module 6.2, and for the same underlying reason — the name is an index key, the attributes are payload.</p>
+</blockquote>
+<p><strong>Context propagation</strong> is how the span tree survives a network hop. The trace ID and the active span&rsquo;s ID travel in the W3C <code>traceparent</code> header; the receiving service reads it and makes its own span a child. When someone says &ldquo;the trace broke at this boundary&rdquo;, the header didn&rsquo;t make it. That&rsquo;s nearly always the whole story.</p>
+<h2>Exercise 8.2 — Custom spans around business operations</h2>
+<p><strong>You should be able to answer this by the end:</strong> <em>could a colleague debug a failed create at 3am from this trace alone, without opening the source?</em></p>
+<h3>Do</h3>
+<ol>
+<li>Wrap <code>enrich</code> in a span. It&rsquo;s the ideal first candidate: real business logic, no library instrumentation of its own, currently a complete blind spot.</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>In <code>src/routes/todos.js</code>, where <code>enrich</code> is already imported:</p>
+<pre><code class="language-js">const { trace, SpanStatusCode } = require('@opentelemetry/api');
+
+const tracer = trace.getTracer('todo-api');
+
+async function enrichTraced(todo) {
+  return tracer.startActiveSpan('todo.enrich', async (span) =&gt; {
+    try {
+      span.setAttribute('todo.list', todo.list);
+      span.setAttribute('todo.tag_count', todo.tags.length);
+      span.setAttribute('todo.priority', todo.priority);
+
+      const result = await enrich(todo);
+
+      span.addEvent('enrichment.complete', { source: result.source });
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (err) {
+      span.recordException(err);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+</code></pre>
+<blockquote>
+<p>⚠️ <code>span.end()</code> in a <code>finally</code> block, every time. A span that is never ended is never exported, and the trace silently loses a subtree.</p>
+</blockquote>
+<p>Then make the <code>POST /todos</code> handler call it instead of <code>enrich</code>:</p>
+<pre><code class="language-js">const enriched = await enrichTraced(todo);
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>In <code>todo_api/routes.py</code>, where <code>enrich</code> is already imported:</p>
+<pre><code class="language-python">from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+
+tracer = trace.get_tracer(&quot;todo-api&quot;)
+
+
+def enrich_traced(todo):
+    with tracer.start_as_current_span(
+        &quot;todo.enrich&quot;, record_exception=False, set_status_on_exception=False,
+    ) as span:
+        try:
+            span.set_attribute(&quot;todo.list&quot;, todo.list)
+            span.set_attribute(&quot;todo.tag_count&quot;, len(todo.tags))
+            span.set_attribute(&quot;todo.priority&quot;, todo.priority)
+
+            result = enrich(todo)
+
+            span.add_event(&quot;enrichment.complete&quot;, {&quot;source&quot;: result[&quot;source&quot;]})
+            span.set_status(Status(StatusCode.OK))
+            return result
+        except Exception as err:
+            span.record_exception(err)
+            span.set_status(Status(StatusCode.ERROR, str(err)))
+            raise
+</code></pre>
+<blockquote>
+<p>ℹ️ The context manager ends the span for you, including on exception. By default it also
+records the exception and marks the span as an error; those two are switched off here so
+that the code does it explicitly, as on the other tracks, instead of twice.</p>
+</blockquote>
+<p>Then make the <code>POST /todos</code> handler call it instead of <code>enrich</code>:</p>
+<pre><code class="language-python">enriched = enrich_traced(todo)
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>Create a new file, <code>tracing.go</code>, next to <code>routes.go</code> — it&rsquo;s the same package, so
+<code>enrich</code> is already in reach:</p>
+<pre><code class="language-go">package main
+
+import (
+	&quot;context&quot;
+
+	&quot;go.opentelemetry.io/otel&quot;
+	&quot;go.opentelemetry.io/otel/attribute&quot;
+	&quot;go.opentelemetry.io/otel/codes&quot;
+	&quot;go.opentelemetry.io/otel/trace&quot;
+)
+
+var tracer = otel.Tracer(&quot;todo-api&quot;)
+
+func enrichTraced(ctx context.Context, todo Todo) (Enriched, error) {
+	_, span := tracer.Start(ctx, &quot;todo.enrich&quot;)
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String(&quot;todo.list&quot;, todo.List),
+		attribute.Int(&quot;todo.tag_count&quot;, len(todo.Tags)),
+		attribute.Int(&quot;todo.priority&quot;, todo.Priority),
+	)
+
+	result, err := enrich(todo)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return result, err
+	}
+
+	span.AddEvent(&quot;enrichment.complete&quot;, trace.WithAttributes(attribute.String(&quot;source&quot;, result.Source)))
+	span.SetStatus(codes.Ok, &quot;&quot;)
+	return result, nil
+}
+</code></pre>
+<blockquote>
+<p>⚠️ <code>defer span.End()</code> right after <code>tracer.Start</code>, every time. A span that is never ended is never exported, and the trace silently loses a subtree.</p>
+</blockquote>
+<p>Then make <code>postTodo</code> call it instead of <code>enrich</code>, passing the request&rsquo;s context:</p>
+<pre><code class="language-go">enriched, err := enrichTraced(ctx, todo)
+</code></pre>
+</div>
+<ol start="2">
+<li>
+<p>Do the same for <strong>two more operations</strong>. Suggested, in order of payoff:</p>
+<ul>
+<li><code>notifyUrgent</code> / <code>notify_urgent</code> — the outbound call, so you can see it separately from the raw HTTP span</li>
+<li><code>readSummary</code> / <code>read_summary</code> — the cache read path, with an attribute for whether it hit</li>
+</ul>
+<p>For the cache one, wrap the <code>readSummary</code> / <code>read_summary</code> call in the <code>GET /todos</code> handler and record the outcome. It already returns whether it hit and the key it looked up:</p>
+</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-js">const cached = tracer.startActiveSpan('cache.read', (span) =&gt; {
+  const result = readSummary(list);
+  span.setAttribute('cache.hit', result.hit);
+  span.setAttribute('cache.key', result.key);
+  span.end();
+  return result;
+});
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-python">with tracer.start_as_current_span(&quot;cache.read&quot;) as span:
+    hit, key, value = read_summary(list_name)
+    span.set_attribute(&quot;cache.hit&quot;, hit)
+    span.set_attribute(&quot;cache.key&quot;, key)
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code class="language-go">_, span := tracer.Start(r.Context(), &quot;cache.read&quot;)
+hit, key, value := readSummary(list)
+span.SetAttributes(attribute.Bool(&quot;cache.hit&quot;, hit), attribute.String(&quot;cache.key&quot;, key))
+span.End()
+</code></pre>
+</div>
+<ol start="3">
+<li>Save the file, generate load, and then do the <strong>3am test</strong>: pull up a trace for <code>POST /todos</code> and ask whether you could debug it without the source. Iterate on the attributes until the answer is yes. This iteration <em>is</em> the exercise — the first set of attributes you pick is never the right one.</li>
+</ol>
+<h3>Verify in the Victoria UI</h3>
+<p>VictoriaTraces vmui (<a href="http://localhost:10428/select/vmui" target="_blank" rel="noopener"><code>http://localhost:10428/select/vmui</code></a>):</p>
+<pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api name:=&quot;todo.enrich&quot;
+</code></pre>
+<p>You should see: your span, with <code>todo.list</code>, <code>todo.tag_count</code> and <code>todo.priority</code> on it, nested under the <code>POST /todos</code> server span.</p>
+<p>Find a failure:</p>
+<pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api status_code:=2
+</code></pre>
+<p><code>status_code</code> is <code>0</code> for UNSET, <code>1</code> for OK and <code>2</code> for ERROR. If there are no failures yet, <code>./loadgen.sh 1m --errors</code> adds some.</p>
+<p>You should see: spans marked as errors with an exception recorded — not just a log line elsewhere that happens to mention a failure.</p>
+<h3>Verify in Grafana</h3>
+<p>Open Grafana at <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Explore → VictoriaTraces (Jaeger) → search service <code>todo-api</code>, operation <code>POST /todos</code>. In the waterfall, your <code>todo.enrich</code> span should sit after the <code>INSERT</code>s and before the <code>UPDATE</code> that stores the slug.</p>
+<h2>Exercise 8.3 — Semantic conventions</h2>
+<p><strong>You should be able to answer this by the end:</strong> <em>what do you get for using a standard attribute name instead of your own?</em></p>
+<h3>Do</h3>
+<ol>
+<li>
+<p>Open the <a href="https://opentelemetry.io/docs/specs/semconv/">semantic conventions registry</a> and look at the HTTP, database and error sections.</p>
+</li>
+<li>
+<p>Look at the attributes you added in 8.2: <code>todo.list</code>, <code>todo.tag_count</code>, <code>todo.priority</code>,
+<code>cache.hit</code>, <code>cache.key</code>. They describe your domain, and no standard covers them, so a
+namespace of your own — <code>todo.</code> — is the right call. But one thing your <code>todo.enrich</code>
+span records does have a standard name: <strong>what kind of error</strong> happened. The standard is
+<code>error.type</code>.</p>
+</li>
+<li>
+<p>Add it where <code>todo.enrich</code> records the failure:</p>
+</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-js">} catch (err) {
+  span.recordException(err);
+  span.setAttribute('error.type', err.name);       // e.g. TypeError
+  span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+  throw err;
+}
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-python">except Exception as err:
+    span.record_exception(err)
+    span.set_attribute(&quot;error.type&quot;, type(err).__name__)   # e.g. ValueError
+    span.set_status(Status(StatusCode.ERROR, str(err)))
+    raise
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code class="language-go">// add &quot;fmt&quot; to the imports of tracing.go
+if err != nil {
+	span.RecordError(err)
+	span.SetAttributes(attribute.String(&quot;error.type&quot;, fmt.Sprintf(&quot;%T&quot;, err)))   // e.g. *errors.errorString
+	span.SetStatus(codes.Error, err.Error())
+	return result, err
+}
+</code></pre>
+</div>
+<p>Save the file and generate a few failures: <code>./loadgen.sh 1m --errors</code>.</p>
+<ol start="4">
+<li>
+<p>Now look at what the <em>auto</em>-instrumentation put on the <code>POST /todos</code> server span:</p>
+<pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api name:=&quot;POST /todos&quot;
+</code></pre>
+</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>You will find <code>span_attr:http.request.method</code>, <code>span_attr:http.response.status_code</code> and
+<code>span_attr:url.path</code> — the names the registry you just read uses. The JavaScript
+instrumentation libraries have already moved to them.</p>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>You will find <code>span_attr:http.method</code>, <code>span_attr:http.status_code</code> and
+<code>span_attr:http.target</code> — the <strong>old</strong> names. The registry you just read says
+<code>http.request.method</code>, <code>http.response.status_code</code> and <code>url.path</code>. The convention moved;
+the Python instrumentation libraries have not caught up yet.</p>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>You will find <code>span_attr:http.request.method</code>, <code>span_attr:http.response.status_code</code> and
+<code>span_attr:url.path</code> — the names the registry you just read uses. The instrumentation
+<code>otelc</code> compiles in already uses them. It even sets <code>error.type</code> itself on a failed
+request: to the status code, <code>500</code>.</p>
+</div>
+<p>The same request gets different attribute names depending on which SDK, and which
+version of it, produced it. That is not a footnote: every dashboard, alert and saved
+query written against the old names breaks on the day the libraries catch up. That&rsquo;s
+why, in production, you pin your instrumentation versions and upgrade them on purpose.</p>
+<h3>Verify in the Victoria UI</h3>
+<p>Open VictoriaTraces at <a href="http://localhost:10428/select/vmui" target="_blank" rel="noopener"><code>http://localhost:10428/select/vmui</code></a>.</p>
+<pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api name:=&quot;todo.enrich&quot; &quot;span_attr:error.type&quot;:*
+</code></pre>
+<p>You should see: the failed <code>todo.enrich</code> spans, each with its <code>error.type</code>.</p>
+<pre><code>_time:15m &quot;span_attr:http.route&quot;:=&quot;/todos&quot; status_code:=2
+</code></pre>
+<p>You should see: the failed requests on that route, selected by <code>http.route</code> — a standard
+name all three tracks agree on. The same query works against any OTel-instrumented service.</p>
+<h3>Verify in Grafana</h3>
+<p>Open Grafana at <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Copy the <code>trace_id</code> of one of the failed <code>todo.enrich</code> spans. In Explore → VictoriaTraces (Jaeger), paste it into the trace ID search and expand <code>todo.enrich</code>: <code>error.type</code> sits next to the recorded exception.</p>
+<h2>Exercise 8.4 — Cross-service propagation</h2>
+<p><strong>You should be able to answer this by the end:</strong> <em>what exactly travels between two services to make one trace out of two?</em></p>
+<h3>Do</h3>
+<p><strong>Step 1 — Confirm it already works.</strong></p>
+<p>Create an urgent todo:</p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8081/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;Call the bank&quot;,&quot;list&quot;:&quot;work&quot;,&quot;tags&quot;:[&quot;urgent&quot;]}'
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;Call the bank&quot;,&quot;list&quot;:&quot;work&quot;,&quot;tags&quot;:[&quot;urgent&quot;]}'
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8085/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;Call the bank&quot;,&quot;list&quot;:&quot;work&quot;,&quot;tags&quot;:[&quot;urgent&quot;]}'
+</code></pre>
+</div>
+<p>Find <code>notify-service</code>&rsquo;s side of it in VictoriaTraces:</p>
+<pre><code>_time:5m &quot;resource_attr:service.name&quot;:=notify-service name:=&quot;POST /notify&quot;
+</code></pre>
+<p>Copy its <code>trace_id</code> and pull the whole trace:</p>
+<pre><code>trace_id:=&lt;paste it here&gt;
+</code></pre>
+<p>You should see spans from <strong>both</strong> services in one trace. Nobody wrote any propagation
+code — the HTTP client instrumentation injected <code>traceparent</code> on the way out, and the HTTP
+server instrumentation in <code>notify-service</code> extracted it on the way in.</p>
+<p><strong>Step 2 — Break it, deliberately.</strong></p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>Imagine the HTTP client library your API uses had no instrumentation — common enough for
+less popular libraries. Switch its instrumentation off: add one line to your API&rsquo;s <code>.env</code>
+and recreate the container.</p>
+<p><code>notify.js</code> calls <code>notify-service</code> with <code>fetch</code>, which the <code>undici</code> instrumentation covers:</p>
+<pre><code class="language-bash"># track-js/todo-api/.env
+OTEL_NODE_DISABLED_INSTRUMENTATIONS=undici
+</code></pre>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-js
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>Imagine the HTTP client library your API uses had no instrumentation — common enough for
+less popular libraries. Switch its instrumentation off: add one line to your API&rsquo;s <code>.env</code>
+and recreate the container.</p>
+<p><code>notify.py</code> calls <code>notify-service</code> with <code>requests</code>, which runs on top of <code>urllib3</code>; both are
+instrumented:</p>
+<pre><code class="language-bash"># track-py/todo-api/.env
+OTEL_PYTHON_DISABLED_INSTRUMENTATIONS=requests,urllib3
+</code></pre>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-py
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>In Go, the trace travels inside the <code>context.Context</code> you pass from function to function,
+and the HTTP client instrumentation reads it from the request&rsquo;s context to inject
+<code>traceparent</code>. Lose the context and you lose the trace — the most common way it happens in
+Go. In <code>notify.go</code>, make <code>post</code> build its request with <code>context.Background()</code> instead of
+the <code>ctx</code> it was given:</p>
+<pre><code class="language-go">req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, notifyURL+path, bytes.NewReader(payload))
+</code></pre>
+<p>Save the file.</p>
+</div>
+<p>Create another urgent todo and repeat step 1. You now have <strong>two orphan traces</strong> instead
+of one: your service&rsquo;s, which ends at the database work, and one that starts without it
+and contains <code>notify-service</code>&rsquo;s span.</p>
+<blockquote>
+<p>🧠 Sit with this for a moment. <strong>This &ldquo;before&rdquo; state is what most real distributed systems look like</strong> — every service instrumented, no trace that crosses more than one of them. It looks like it&rsquo;s working right up until you need it.</p>
+</blockquote>
+<p><strong>Step 3 — Fix it by hand.</strong></p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>Inject the context into the request&rsquo;s headers yourself, with the propagation API.</p>
+<p>In <code>src/notify.js</code>:</p>
+<pre><code class="language-js">const { context, propagation } = require('@opentelemetry/api');
+
+async function post(path, body) {
+  const controller = new AbortController();
+  const timer = setTimeout(() =&gt; controller.abort(), TIMEOUT_MS);
+  try {
+    const headers = { 'content-type': 'application/json' };
+    propagation.inject(context.active(), headers);   // adds traceparent
+    const res = await fetch(`${NOTIFY_URL}${path}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+</code></pre>
+<p>Save the file, create an urgent todo and confirm the trace is whole again. One thing is
+different: there is no client <code>POST</code> span between your API&rsquo;s spans and <code>notify-service</code>&rsquo;s,
+because nothing instruments the client any more. The <code>traceparent</code> header alone is enough
+to join the two services.</p>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>Inject the context into the request&rsquo;s headers yourself, with the propagation API.</p>
+<p>In <code>todo_api/notify.py</code>:</p>
+<pre><code class="language-python">from opentelemetry.propagate import inject
+
+
+def _post(path: str, body: dict) -&gt; dict:
+    headers = {&quot;content-type&quot;: &quot;application/json&quot;}
+    inject(headers)                                  # adds traceparent
+    response = requests.post(
+        f&quot;{NOTIFY_URL}{path}&quot;,
+        json=body,
+        headers=headers,
+        timeout=TIMEOUT_S,
+    )
+    return response.json()
+</code></pre>
+<p>Save the file, create an urgent todo and confirm the trace is whole again. One thing is
+different: there is no client <code>POST</code> span between your API&rsquo;s spans and <code>notify-service</code>&rsquo;s,
+because nothing instruments the client any more. The <code>traceparent</code> header alone is enough
+to join the two services.</p>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>Give the request its context back — <code>ctx</code> instead of <code>context.Background()</code>:</p>
+<pre><code class="language-go">req, err := http.NewRequestWithContext(ctx, http.MethodPost, notifyURL+path, bytes.NewReader(payload))
+</code></pre>
+<p>Save the file, create an urgent todo and confirm the trace is whole again. You didn&rsquo;t
+inject anything yourself: the instrumentation does that, as long as the context reaches
+it. In Go, propagating the trace <em>between</em> services starts with passing <code>ctx</code> <em>inside</em>
+yours.</p>
+</div>
+<p><strong>Step 4 — Put it back.</strong></p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>Remove the line you added to <code>.env</code>, recreate the container, and take the <code>inject</code> change
+back out of the notify client. With the instrumentation on again, injecting by hand as well
+sends the header twice — and on the JS track that breaks the trace all over again.</p>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>Remove the line you added to <code>.env</code>, recreate the container, and take the <code>inject</code> change
+back out of the notify client. With the instrumentation on again, injecting by hand as well
+sends the header twice, which you don&rsquo;t want.</p>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>There&rsquo;s nothing to put back: step 3 left <code>notify.go</code> the way it was.</p>
+</div>
+<h3>Verify in the Victoria UI</h3>
+<p>Open VictoriaTraces at <a href="http://localhost:10428/select/vmui" target="_blank" rel="noopener"><code>http://localhost:10428/select/vmui</code></a>.</p>
+<p>Take the trace of the most recent call to <code>notify-service</code>:</p>
+<pre><code>_time:5m &quot;resource_attr:service.name&quot;:=notify-service name:=&quot;POST /notify&quot; | fields _time, trace_id
+</code></pre>
+<pre><code>trace_id:=&lt;paste it here&gt;
+</code></pre>
+<p>You should see: while broken, no <code>POST /todos</code> in that trace — it starts without your
+request. After the fix, the same two queries show <code>POST /todos</code> and everything under it,
+<code>notify-service</code>&rsquo;s span included, in one trace.</p>
+<h3>Verify in Grafana</h3>
+<p>Open Grafana at <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Explore → VictoriaTraces (Jaeger), search service <code>todo-api</code>, operation <code>POST /todos</code>. Before the fix, the waterfall of an urgent create ends at your service. After it, the waterfall continues into <code>notify-service</code>, and you can see exactly how much of the request it accounts for.</p>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="07-manual-logs.html" class="nav-button">← Previous</a>
+            
+            
+            <a href="09-production-realities.html" class="nav-button">Next: Module 9 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

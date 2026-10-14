@@ -50,6 +50,13 @@ n=0
 
 get()  { curl -fsS --max-time 10 -o /dev/null "$API$1" 2>/dev/null || true; }
 post() { curl -fsS --max-time 10 -o /dev/null -X POST "$API$1" -H 'content-type: application/json' -H 'x-client: loadgen' -d "$2" 2>/dev/null || true; }
+# Creates a todo and prints its id, so that it can be completed later on.
+create() { curl -fsS --max-time 10 -X POST "$API/todos" -H 'content-type: application/json' -H 'x-client: loadgen' -d "$1" 2>/dev/null | sed -n 's/.*"id": *"\([^"]*\)".*/\1/p' || true; }
+complete() { curl -fsS --max-time 10 -o /dev/null -X PATCH "$API/todos/$1/complete" -H 'x-client: loadgen' 2>/dev/null || true; }
+
+# Todos created by this run and not completed yet, oldest first. Completing the
+# oldest one gives completion ages from seconds to minutes.
+PENDING=""
 
 echo "Generating traffic against $API (${DURATION}, ~${RPS} req/s)."
 echo "Ctrl-C to stop."
@@ -75,7 +82,16 @@ while :; do
     rand 7; t=$(echo "$TITLES" | cut -d'|' -f$(( R + 1 )))
     rand 4; if [ "$R" -eq 0 ]; then tags='["urgent"]'; else tags='[]'; fi
     rand 3; priority=$(( R + 1 ))
-    post "/todos" "{\"title\":\"$t\",\"list\":\"$list\",\"tags\":$tags,\"priority\":$priority}"
+    id=$(create "{\"title\":\"$t\",\"list\":\"$list\",\"tags\":$tags,\"priority\":$priority}")
+    if [ -n "$id" ]; then PENDING="$PENDING $id"; fi
+  fi
+
+  # Complete about two thirds as many todos as get created.
+  if { [ "$roll" -eq 3 ] || [ "$roll" -eq 4 ]; } && [ -n "$PENDING" ]; then
+    set -- $PENDING
+    complete "$1"
+    shift
+    PENDING="$*"
   fi
 
   if [ "$roll" -eq 9 ]; then

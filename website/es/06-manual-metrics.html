@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Módulo 6: Métricas Manuales - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumentando tu aplicación con OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Inicio</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="../06-manual-metrics.html">English</option><option value="" selected>Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Módulo 6: Métricas Manuales</h1>
+<p>La auto-instrumentación te dio tasas de peticiones HTTP. A nadie le han dado nunca un aviso por una tasa de peticiones HTTP. Este módulo va de emitir los números que el negocio pregunta de verdad — y del único error que te va a costar dinero real si lo cometes a escala. 📊</p>
+<h2>Objetivos de Aprendizaje</h2>
+<p>Al terminar este módulo, serás capaz de:</p>
+<ul>
+<li>Emitir counters, up-down counters, histogramas y observable gauges desde tus handlers</li>
+<li>Explicarle la cardinalidad a un compañero, después de haberla visto explotar delante de ti</li>
+<li>Leer tus propias métricas de negocio en un dashboard de Grafana</li>
+</ul>
+<h2>Ejercicio 6.1 — Tus primeras métricas de negocio</h2>
+<p><strong>Deberías poder responder esto al terminar:</strong> <em>¿cuántos todos se han creado en los últimos cinco minutos en la lista <code>work</code>?</em></p>
+<h3>Hazlo</h3>
+<ol>
+<li>Crea un meter y tres instrumentos, y luego registra desde los handlers.</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>En <code>src/routes/todos.js</code>, añade <code>overdueCount</code> a las funciones que ya importa de <code>../repo.js</code> (lo necesitarás en el paso 3), y pon esto cerca del principio del fichero, después de los imports:</p>
+<pre><code class="language-js">const { metrics } = require('@opentelemetry/api');
+
+const meter = metrics.getMeter('todo-api');
+
+const todosCreated = meter.createCounter('todos.created', {
+  description: 'Number of todos created',
+  unit: '{todo}',
+});
+
+const todosOpen = meter.createUpDownCounter('todos.open', {
+  description: 'Todos currently not completed',
+  unit: '{todo}',
+});
+
+const completionAge = meter.createHistogram('todo.completion.age', {
+  description: 'Wall-clock time between a todo being created and completed',
+  unit: 's',
+  // Segundos, minutos, horas, un día: los valores por defecto están pensados para latencia HTTP.
+  advice: { explicitBucketBoundaries: [1, 5, 15, 60, 300, 3600, 86400] },
+});
+</code></pre>
+<p>En el handler de <code>POST /todos</code>, después de <code>invalidate(todo.list)</code>:</p>
+<pre><code class="language-js">todosCreated.add(1, {
+  list: todo.list,
+  source: req.get('x-client') ?? 'unknown',
+});
+todosOpen.add(1, { list: todo.list });
+</code></pre>
+<p>En el handler de <code>PATCH /todos/:id/complete</code>, después de <code>invalidate(todo.list)</code>:</p>
+<pre><code class="language-js">const ageSeconds = (Date.now() - new Date(todo.created_at).getTime()) / 1000;
+completionAge.record(ageSeconds, { list: todo.list, priority: String(todo.priority) });
+todosOpen.add(-1, { list: todo.list });
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>En <code>todo_api/routes.py</code>, añade <code>overdue_count</code> a las funciones que ya importa de <code>todo_api.repo</code> (lo necesitarás en el paso 3), y pon esto cerca del principio del fichero, después de los imports:</p>
+<pre><code class="language-python">from opentelemetry import metrics
+
+meter = metrics.get_meter(&quot;todo-api&quot;)
+
+todos_created = meter.create_counter(
+    &quot;todos.created&quot;,
+    description=&quot;Number of todos created&quot;,
+    unit=&quot;{todo}&quot;,
+)
+
+todos_open = meter.create_up_down_counter(
+    &quot;todos.open&quot;,
+    description=&quot;Todos currently not completed&quot;,
+    unit=&quot;{todo}&quot;,
+)
+
+completion_age = meter.create_histogram(
+    &quot;todo.completion.age&quot;,
+    description=&quot;Wall-clock time between a todo being created and completed&quot;,
+    unit=&quot;s&quot;,
+    # Segundos, minutos, horas, un día: los valores por defecto están pensados para latencia HTTP.
+    explicit_bucket_boundaries_advisory=[1, 5, 15, 60, 300, 3600, 86400],
+)
+</code></pre>
+<p>En el handler de <code>POST /todos</code>, después de <code>invalidate(todo.list)</code>:</p>
+<pre><code class="language-python">todos_created.add(1, {
+    &quot;list&quot;: todo.list,
+    &quot;source&quot;: request.headers.get(&quot;x-client&quot;, &quot;unknown&quot;),
+})
+todos_open.add(1, {&quot;list&quot;: todo.list})
+</code></pre>
+<p>En el handler de <code>PATCH /todos/&lt;todo_id&gt;/complete</code>, después de <code>invalidate(todo.list)</code>:</p>
+<pre><code class="language-python">from datetime import datetime, timezone   # al principio del fichero
+
+age_seconds = (datetime.now(timezone.utc) - todo.created_at).total_seconds()
+completion_age.record(age_seconds, {&quot;list&quot;: todo.list, &quot;priority&quot;: str(todo.priority)})
+todos_open.add(-1, {&quot;list&quot;: todo.list})
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>En <code>routes.go</code>, añade estos paquetes a sus imports — <code>go mod tidy</code> se ejecuta en cada
+compilación, así que se descargan solos:</p>
+<pre><code class="language-go">import (
+	// ...los imports que ya hay, más:
+	&quot;strconv&quot;
+	&quot;time&quot;
+
+	&quot;go.opentelemetry.io/otel&quot;
+	&quot;go.opentelemetry.io/otel/attribute&quot;
+	&quot;go.opentelemetry.io/otel/metric&quot;
+)
+</code></pre>
+<p>y pon esto después de los imports:</p>
+<pre><code class="language-go">var meter = otel.Meter(&quot;todo-api&quot;)
+
+var todosCreated, _ = meter.Int64Counter(&quot;todos.created&quot;,
+	metric.WithDescription(&quot;Number of todos created&quot;),
+	metric.WithUnit(&quot;{todo}&quot;),
+)
+
+var todosOpen, _ = meter.Int64UpDownCounter(&quot;todos.open&quot;,
+	metric.WithDescription(&quot;Todos currently not completed&quot;),
+	metric.WithUnit(&quot;{todo}&quot;),
+)
+
+var completionAge, _ = meter.Float64Histogram(&quot;todo.completion.age&quot;,
+	metric.WithDescription(&quot;Wall-clock time between a todo being created and completed&quot;),
+	metric.WithUnit(&quot;s&quot;),
+	// Segundos, minutos, horas, un día: los valores por defecto están pensados para latencia HTTP.
+	metric.WithExplicitBucketBoundaries(1, 5, 15, 60, 300, 3600, 86400),
+)
+</code></pre>
+<p>En <code>postTodo</code>, después de <code>invalidate(todo.List)</code>:</p>
+<pre><code class="language-go">source := r.Header.Get(&quot;x-client&quot;)
+if source == &quot;&quot; {
+	source = &quot;unknown&quot;
+}
+todosCreated.Add(ctx, 1, metric.WithAttributes(
+	attribute.String(&quot;list&quot;, todo.List),
+	attribute.String(&quot;source&quot;, source),
+))
+todosOpen.Add(ctx, 1, metric.WithAttributes(attribute.String(&quot;list&quot;, todo.List)))
+</code></pre>
+<p>En <code>patchComplete</code>, después de <code>invalidate(todo.List)</code>:</p>
+<pre><code class="language-go">ctx := r.Context()
+completionAge.Record(ctx, time.Since(todo.CreatedAt).Seconds(), metric.WithAttributes(
+	attribute.String(&quot;list&quot;, todo.List),
+	attribute.String(&quot;priority&quot;, strconv.Itoa(todo.Priority)),
+))
+todosOpen.Add(ctx, -1, metric.WithAttributes(attribute.String(&quot;list&quot;, todo.List)))
+</code></pre>
+</div>
+<blockquote>
+<p>ℹ️ <code>todos.open</code> es un <strong>up-down counter</strong>: suma los cambios que le comunica tu código.
+Empieza en cero cada vez que arranca el proceso — los todos que ya estaban en la base de
+datos no cuentan, y se reinicia cada vez que guardas un fichero. El gauge del paso 3 es
+la otra forma de obtener un número así: le pide el valor real a la base de datos cada
+vez.</p>
+</blockquote>
+<ol start="2">
+<li>
+<p>Fíjate en lo que <code>todo.completion.age</code> <strong>no</strong> es: no es latencia HTTP. Eso ya te lo dio la auto-instrumentación. Esto es una duración <em>de negocio</em> — cuánto tiempo estuvo ahí un todo antes de que alguien lo hiciera. Ninguna librería podría haberla producido jamás, porque ninguna librería sabe qué es un todo. Ese contraste es el objetivo del ejercicio.</p>
+</li>
+<li>
+<p>Ahora añade un <strong>observable gauge</strong> para los todos vencidos, respaldado por una consulta periódica. Los instrumentos observables los consulta el SDK en el momento de exportar, en lugar de empujarlos tu código. Ponlo justo después de los tres instrumentos:</p>
+</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-js">meter.createObservableGauge('todos.overdue', {
+  description: 'Todos past their due date and not completed',
+  unit: '{todo}',
+}).addCallback(async (result) =&gt; {
+  for (const row of await overdueCount()) {     // repo.js
+    result.observe(row.count, { list: row.list });
+  }
+});
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-python">def observe_overdue(options):
+    for row in overdue_count():                  # repo.py
+        yield metrics.Observation(row[&quot;count&quot;], {&quot;list&quot;: row[&quot;list&quot;]})
+
+meter.create_observable_gauge(
+    &quot;todos.overdue&quot;,
+    callbacks=[observe_overdue],
+    description=&quot;Todos past their due date and not completed&quot;,
+    unit=&quot;{todo}&quot;,
+)
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>Un instrumento observable se registra una sola vez, así que va en una función <code>init</code>:</p>
+<pre><code class="language-go">func init() {
+	meter.Int64ObservableGauge(&quot;todos.overdue&quot;,
+		metric.WithDescription(&quot;Todos past their due date and not completed&quot;),
+		metric.WithUnit(&quot;{todo}&quot;),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			rows, err := overdueCount(ctx)          // repo.go
+			if err != nil {
+				return err
+			}
+			for _, row := range rows {
+				o.Observe(row.Count, metric.WithAttributes(attribute.String(&quot;list&quot;, row.List)))
+			}
+			return nil
+		}),
+	)
+}
+</code></pre>
+</div>
+<ol start="4">
+<li>
+<p>Guarda el fichero y genera carga. La API se reinicia sola en cuanto guardas — míralo en
+la terminal de su log. Después, en otra terminal:</p>
+<pre><code class="language-bash">./loadgen.sh 3m
+</code></pre>
+<p>El loadgen crea todos y completa algunos de los que ha creado, así que todos los
+instrumentos reciben datos.</p>
+</li>
+</ol>
+<h3>Comprueba en la UI de Victoria</h3>
+<p>vmui de VictoriaMetrics (<a href="http://localhost:8428/vmui" target="_blank" rel="noopener"><code>http://localhost:8428/vmui</code></a>):</p>
+<pre><code>sum(rate(todos_created_total[5m])) by (list)
+</code></pre>
+<p>Deberías ver: una línea por lista, respondiendo al generador de carga.</p>
+<pre><code>todos_open
+</code></pre>
+<pre><code>histogram_quantile(0.95, sum(rate(todo_completion_age_seconds_bucket[5m])) by (le, list))
+</code></pre>
+<pre><code>max(todos_overdue) by (list)
+</code></pre>
+<p><code>max</code>, no <code>sum</code>: cada proceso de tu API informa del mismo valor, leído de la misma base
+de datos. Sumarlos contaría cada todo vencido más de una vez.</p>
+<blockquote>
+<p>🧩 <strong>El mapeo de nombres, y pilla a todo el mundo.</strong> Escribiste <code>todos.created</code>. Consultaste <code>todos_created_total</code>. Los nombres con puntos de OpenTelemetry se convierten en guiones bajos del lado de VictoriaMetrics, y los counters ganan un sufijo <code>_total</code>. Igualmente <code>todo.completion.age</code> con <code>unit: s</code> se convierte en <code>todo_completion_age_seconds</code>, y un histograma trae consigo <code>_bucket</code>, <code>_sum</code> y <code>_count</code>. Si una métrica &ldquo;no está&rdquo;, esto es lo primero que hay que mirar.</p>
+</blockquote>
+<h3>Comprueba en Grafana</h3>
+<p>Abre Grafana en <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Abre <strong>Dashboards → Workshop → Manual Instrumentation</strong>. Los cuatro paneles de la fila <strong>Business metrics</strong> — todos creados, todos abiertos, edad de completado p95 y todos vencidos — se van llenando mientras corre el loadgen. Cambia la variable <code>list</code> entre valores y confirma que los paneles la siguen.</p>
+<h2>Ejercicio 6.2 — El laboratorio de cardinalidad</h2>
+<p><strong>Deberías poder responder esto al terminar:</strong> <em>¿qué regla te dice si un valor es seguro como atributo de métrica?</em></p>
+<h3>Hazlo</h3>
+<p>Vamos a hacer lo incorrecto a propósito, verlo doler, y luego arreglarlo.</p>
+<ol>
+<li>Añade <code>todo_id</code> como atributo del counter de creación — una línea más en la llamada a <code>add()</code> que ya tienes:</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-js">todosCreated.add(1, {
+  list: todo.list,
+  todo_id: todo.id,        // ⚠️ mal a propósito
+  source: req.get('x-client') ?? 'unknown',
+});
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-python">todos_created.add(1, {
+    &quot;list&quot;: todo.list,
+    &quot;todo_id&quot;: str(todo.id),   # ⚠️ mal a propósito
+    &quot;source&quot;: request.headers.get(&quot;x-client&quot;, &quot;unknown&quot;),
+})
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code class="language-go">todosCreated.Add(ctx, 1, metric.WithAttributes(
+	attribute.String(&quot;list&quot;, todo.List),
+	attribute.String(&quot;todo_id&quot;, todo.ID),     // ⚠️ mal a propósito
+	attribute.String(&quot;source&quot;, source),
+))
+</code></pre>
+</div>
+<ol start="2">
+<li>
+<p>Guarda el fichero y lanza el generador de carga a fondo:</p>
+<pre><code class="language-bash">./loadgen.sh 2m --rps 50
+</code></pre>
+</li>
+<li>
+<p>Y ahora ve a mirar el destrozo.</p>
+</li>
+</ol>
+<h3>Comprueba en la UI de Victoria</h3>
+<p><strong>vmui → pestaña Explore Cardinality</strong> (<a href="http://localhost:8428/vmui" target="_blank" rel="noopener"><code>http://localhost:8428/vmui</code></a>, navegación superior). Mira &ldquo;Metrics with the highest number of series&rdquo;. Observa cómo <code>todos_created_total</code> sube al primer puesto en menos de un minuto.</p>
+<p>Luego los números en crudo:</p>
+<pre><code class="language-bash">curl -s 'http://localhost:8428/api/v1/status/tsdb' | head -c 2000
+</code></pre>
+<p>Y el coste de VictoriaMetrics, en sus propias métricas:</p>
+<pre><code>vm_cache_entries{type=&quot;storage/tsid&quot;}
+</code></pre>
+<pre><code>process_resident_memory_bytes{job=&quot;victoria-metrics&quot;}
+</code></pre>
+<p>Deberías ver: número de series y memoria subiendo de forma sostenida, y siguiendo hacia arriba mientras el loadgen esté funcionando. Cada todo que creas es ya, permanentemente, una serie temporal.</p>
+<h3>Comprueba en Grafana</h3>
+<p>Abre Grafana en <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Pon <code>vm_cache_entries{type=&quot;storage/tsid&quot;}</code> en una gráfica junto a <code>rate(todos_created_total[1m])</code> — Explore → VictoriaMetrics, una consulta cada una. Las formas son muy distintas, y esa diferencia <em>es</em> la lección: una tasa de peticiones modesta produjo un número de series sin límite.</p>
+<h3>Limpia</h3>
+<ol>
+<li>
+<p><strong>Arréglalo.</strong> Quita <code>todo_id</code> de la llamada a <code>add()</code> y guarda el fichero.</p>
+</li>
+<li>
+<p>Después limpia. El destrozo es real y está en tu VictoriaMetrics local:</p>
+<pre><code class="language-bash">./reset.sh
+</code></pre>
+<p>No hay API de borrado por consulta para logs, así que limpiar un backend significa
+pararlo, borrar su almacenamiento y arrancarlo otra vez — que es todo lo que hace
+<code>reset.sh</code>: borra los tres contenedores de almacenamiento y sus volúmenes de Docker, los
+arranca otra vez vacíos, y reinicia el Collector para que sus colas empiecen limpias. El
+volumen <code>workshop_postgres</code>, con tus todos, no se toca.</p>
+</li>
+</ol>
+<blockquote>
+<p>⭐ <strong>La regla:</strong> el valor de un atributo tiene que venir de un conjunto acotado que
+podrías escribir de antemano. <code>list</code> la pasa — hay seis. <code>priority</code> la pasa — hay tres.
+<code>todo_id</code>, <code>user_id</code>, <code>request_id</code>, <code>session_id</code> y las rutas completas de URL fallan
+todas. Cuando <code>todo_id</code> es de verdad lo que necesitas saber — y a veces lo es — va en un
+<strong>span</strong> y en un <strong>registro de log</strong>, no en una métrica. El mismo valor, otra señal, el
+veredicto completamente opuesto.</p>
+</blockquote>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="05-the-collector.html" class="nav-button">← Anterior</a>
+            
+            
+            <a href="07-manual-logs.html" class="nav-button">Siguiente: Módulo 7 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumentando tu aplicación con OpenTelemetry</p>
+            <p>Creado por <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Módulo 8: Trazas Manuales - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumentando tu aplicación con OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Inicio</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="../08-manual-traces.html">English</option><option value="" selected>Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Módulo 8: Trazas Manuales</h1>
+<p>La auto-instrumentación te dio spans de HTTP, de tu framework web y de Postgres. Esos describen tu <em>infraestructura</em>. Este módulo va de spans que describen tu <em>dominio</em> — y del momento en que una traza cruza una frontera de servicio y sigue entera. 🧵</p>
+<h2>Objetivos de Aprendizaje</h2>
+<p>Al terminar este módulo, serás capaz de:</p>
+<ul>
+<li>Crear spans personalizados alrededor de operaciones de negocio, con atributos y eventos útiles</li>
+<li>Registrar errores en los spans para que se vean como errores, y no solo como texto</li>
+<li>Nombrar spans de forma que no revientes tu backend</li>
+<li>Usar convenciones semánticas, y saber qué te aportan</li>
+<li>Propagar contexto entre servicios a mano, después de haberlo visto romperse</li>
+</ul>
+<h2>8.1 — Conceptos</h2>
+<p>Un <strong>span</strong> es una operación con un inicio, un fin y un sitio en un árbol:</p>
+<table>
+<thead>
+<tr>
+<th>Parte</th>
+<th>Notas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>nombre</strong></td>
+<td>Cardinalidad baja. <code>GET /todos/:id</code>, nunca <code>GET /todos/8f3a…</code></td>
+</tr>
+<tr>
+<td><strong>kind</strong></td>
+<td><code>SERVER</code>, <code>CLIENT</code>, <code>INTERNAL</code>, <code>PRODUCER</code>, <code>CONSUMER</code></td>
+</tr>
+<tr>
+<td><strong>atributos</strong></td>
+<td>Aquí la cardinalidad alta <em>está bien y se fomenta</em></td>
+</tr>
+<tr>
+<td><strong>eventos</strong></td>
+<td>Puntos con marca de tiempo dentro del span</td>
+</tr>
+<tr>
+<td><strong>status</strong></td>
+<td><code>UNSET</code>, <code>OK</code> o <code>ERROR</code></td>
+</tr>
+<tr>
+<td><strong>padre</strong></td>
+<td>Lo que lo convierte en un árbol</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>⭐ <strong>La regla de nombrado:</strong> cardinalidad baja en el nombre, cardinalidad alta en los atributos. Es exactamente la inversa de la regla de métricas del Módulo 6.2, y por la misma razón de fondo — el nombre es una clave de índice, los atributos son la carga útil.</p>
+</blockquote>
+<p><strong>La propagación de contexto</strong> es cómo sobrevive el árbol de spans a un salto de red. El ID de la traza y el del span activo viajan en la cabecera W3C <code>traceparent</code>; el servicio receptor lo lee y hace su span hijo. Cuando alguien dice &ldquo;la traza se rompe en esta frontera&rdquo;, la cabecera no llegó. Casi siempre es toda la historia.</p>
+<h2>Ejercicio 8.2 — Spans personalizados alrededor de operaciones de negocio</h2>
+<p><strong>Deberías poder responder esto al terminar:</strong> <em>¿podría un compañero depurar una creación fallida a las 3 de la mañana solo con esta traza, sin abrir el código?</em></p>
+<h3>Hazlo</h3>
+<ol>
+<li>Envuelve <code>enrich</code> en un span. Es el primer candidato ideal: lógica de negocio de verdad, sin instrumentación de librería propia, ahora mismo un punto totalmente ciego.</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>En <code>src/routes/todos.js</code>, donde <code>enrich</code> ya está importado:</p>
+<pre><code class="language-js">const { trace, SpanStatusCode } = require('@opentelemetry/api');
+
+const tracer = trace.getTracer('todo-api');
+
+async function enrichTraced(todo) {
+  return tracer.startActiveSpan('todo.enrich', async (span) =&gt; {
+    try {
+      span.setAttribute('todo.list', todo.list);
+      span.setAttribute('todo.tag_count', todo.tags.length);
+      span.setAttribute('todo.priority', todo.priority);
+
+      const result = await enrich(todo);
+
+      span.addEvent('enrichment.complete', { source: result.source });
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (err) {
+      span.recordException(err);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
+}
+</code></pre>
+<blockquote>
+<p>⚠️ <code>span.end()</code> en un bloque <code>finally</code>, siempre. Un span que nunca termina nunca se exporta, y la traza pierde un subárbol en silencio.</p>
+</blockquote>
+<p>Después haz que el handler de <code>POST /todos</code> lo llame en lugar de <code>enrich</code>:</p>
+<pre><code class="language-js">const enriched = await enrichTraced(todo);
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>En <code>todo_api/routes.py</code>, donde <code>enrich</code> ya está importado:</p>
+<pre><code class="language-python">from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+
+tracer = trace.get_tracer(&quot;todo-api&quot;)
+
+
+def enrich_traced(todo):
+    with tracer.start_as_current_span(
+        &quot;todo.enrich&quot;, record_exception=False, set_status_on_exception=False,
+    ) as span:
+        try:
+            span.set_attribute(&quot;todo.list&quot;, todo.list)
+            span.set_attribute(&quot;todo.tag_count&quot;, len(todo.tags))
+            span.set_attribute(&quot;todo.priority&quot;, todo.priority)
+
+            result = enrich(todo)
+
+            span.add_event(&quot;enrichment.complete&quot;, {&quot;source&quot;: result[&quot;source&quot;]})
+            span.set_status(Status(StatusCode.OK))
+            return result
+        except Exception as err:
+            span.record_exception(err)
+            span.set_status(Status(StatusCode.ERROR, str(err)))
+            raise
+</code></pre>
+<blockquote>
+<p>ℹ️ El context manager cierra el span por ti, también si hay excepción. Por defecto además
+registra la excepción y marca el span como error; aquí esas dos cosas están desactivadas
+para que el código lo haga explícitamente, como en los otros tracks, en vez de dos veces.</p>
+</blockquote>
+<p>Después haz que el handler de <code>POST /todos</code> lo llame en lugar de <code>enrich</code>:</p>
+<pre><code class="language-python">enriched = enrich_traced(todo)
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>Crea un fichero nuevo, <code>tracing.go</code>, junto a <code>routes.go</code> — es el mismo paquete, así que
+<code>enrich</code> ya está a mano:</p>
+<pre><code class="language-go">package main
+
+import (
+	&quot;context&quot;
+
+	&quot;go.opentelemetry.io/otel&quot;
+	&quot;go.opentelemetry.io/otel/attribute&quot;
+	&quot;go.opentelemetry.io/otel/codes&quot;
+	&quot;go.opentelemetry.io/otel/trace&quot;
+)
+
+var tracer = otel.Tracer(&quot;todo-api&quot;)
+
+func enrichTraced(ctx context.Context, todo Todo) (Enriched, error) {
+	_, span := tracer.Start(ctx, &quot;todo.enrich&quot;)
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String(&quot;todo.list&quot;, todo.List),
+		attribute.Int(&quot;todo.tag_count&quot;, len(todo.Tags)),
+		attribute.Int(&quot;todo.priority&quot;, todo.Priority),
+	)
+
+	result, err := enrich(todo)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return result, err
+	}
+
+	span.AddEvent(&quot;enrichment.complete&quot;, trace.WithAttributes(attribute.String(&quot;source&quot;, result.Source)))
+	span.SetStatus(codes.Ok, &quot;&quot;)
+	return result, nil
+}
+</code></pre>
+<blockquote>
+<p>⚠️ <code>defer span.End()</code> justo después de <code>tracer.Start</code>, siempre. Un span que nunca termina nunca se exporta, y la traza pierde un subárbol en silencio.</p>
+</blockquote>
+<p>Después haz que <code>postTodo</code> lo llame en lugar de <code>enrich</code>, pasándole el contexto de la petición:</p>
+<pre><code class="language-go">enriched, err := enrichTraced(ctx, todo)
+</code></pre>
+</div>
+<ol start="2">
+<li>
+<p>Haz lo mismo con <strong>dos operaciones más</strong>. Sugeridas, por orden de rentabilidad:</p>
+<ul>
+<li><code>notifyUrgent</code> / <code>notify_urgent</code> — la llamada saliente, para verla aparte del span HTTP crudo</li>
+<li><code>readSummary</code> / <code>read_summary</code> — el camino de lectura de caché, con un atributo para si acertó</li>
+</ul>
+<p>Para la de caché, envuelve la llamada a <code>readSummary</code> / <code>read_summary</code> en el handler de <code>GET /todos</code> y registra el resultado. Ya devuelve si acertó y la clave que buscó:</p>
+</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-js">const cached = tracer.startActiveSpan('cache.read', (span) =&gt; {
+  const result = readSummary(list);
+  span.setAttribute('cache.hit', result.hit);
+  span.setAttribute('cache.key', result.key);
+  span.end();
+  return result;
+});
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-python">with tracer.start_as_current_span(&quot;cache.read&quot;) as span:
+    hit, key, value = read_summary(list_name)
+    span.set_attribute(&quot;cache.hit&quot;, hit)
+    span.set_attribute(&quot;cache.key&quot;, key)
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code class="language-go">_, span := tracer.Start(r.Context(), &quot;cache.read&quot;)
+hit, key, value := readSummary(list)
+span.SetAttributes(attribute.Bool(&quot;cache.hit&quot;, hit), attribute.String(&quot;cache.key&quot;, key))
+span.End()
+</code></pre>
+</div>
+<ol start="3">
+<li>Guarda el fichero, genera carga y luego haz la <strong>prueba de las 3 de la mañana</strong>: abre una traza de <code>POST /todos</code> y pregúntate si podrías depurarla sin el código delante. Itera sobre los atributos hasta que la respuesta sea sí. Esa iteración <em>es</em> el ejercicio — el primer conjunto de atributos que eliges nunca es el correcto.</li>
+</ol>
+<h3>Comprueba en la UI de Victoria</h3>
+<p>vmui de VictoriaTraces (<a href="http://localhost:10428/select/vmui" target="_blank" rel="noopener"><code>http://localhost:10428/select/vmui</code></a>):</p>
+<pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api name:=&quot;todo.enrich&quot;
+</code></pre>
+<p>Deberías ver: tu span, con <code>todo.list</code>, <code>todo.tag_count</code> y <code>todo.priority</code>, anidado bajo el span de servidor <code>POST /todos</code>.</p>
+<p>Busca un fallo:</p>
+<pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api status_code:=2
+</code></pre>
+<p><code>status_code</code> vale <code>0</code> para UNSET, <code>1</code> para OK y <code>2</code> para ERROR. Si todavía no hay fallos, <code>./loadgen.sh 1m --errors</code> añade algunos.</p>
+<p>Deberías ver: spans marcados como error con una excepción registrada — no solo una línea de log en otro sitio que casualmente menciona un fallo.</p>
+<h3>Comprueba en Grafana</h3>
+<p>Abre Grafana en <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Explore → VictoriaTraces (Jaeger) → busca servicio <code>todo-api</code>, operación <code>POST /todos</code>. En la cascada, tu span <code>todo.enrich</code> debería quedar después de los <code>INSERT</code> y antes del <code>UPDATE</code> que guarda el slug.</p>
+<h2>Ejercicio 8.3 — Convenciones semánticas</h2>
+<p><strong>Deberías poder responder esto al terminar:</strong> <em>¿qué ganas por usar un nombre de atributo estándar en vez del tuyo?</em></p>
+<h3>Hazlo</h3>
+<ol>
+<li>
+<p>Abre el <a href="https://opentelemetry.io/docs/specs/semconv/">registro de convenciones semánticas</a> y mira las secciones de HTTP, de base de datos y de errores.</p>
+</li>
+<li>
+<p>Mira los atributos que añadiste en el 8.2: <code>todo.list</code>, <code>todo.tag_count</code>, <code>todo.priority</code>,
+<code>cache.hit</code>, <code>cache.key</code>. Describen tu dominio, y no hay ningún estándar que los cubra,
+así que un espacio de nombres propio — <code>todo.</code> — es lo correcto. Pero hay una cosa que tu
+span <code>todo.enrich</code> registra que sí tiene nombre estándar: <strong>qué tipo de error</strong> ocurrió.
+El estándar es <code>error.type</code>.</p>
+</li>
+<li>
+<p>Añádelo donde <code>todo.enrich</code> registra el fallo:</p>
+</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-js">} catch (err) {
+  span.recordException(err);
+  span.setAttribute('error.type', err.name);       // p. ej. TypeError
+  span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+  throw err;
+}
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-python">except Exception as err:
+    span.record_exception(err)
+    span.set_attribute(&quot;error.type&quot;, type(err).__name__)   # p. ej. ValueError
+    span.set_status(Status(StatusCode.ERROR, str(err)))
+    raise
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code class="language-go">// añade &quot;fmt&quot; a los imports de tracing.go
+if err != nil {
+	span.RecordError(err)
+	span.SetAttributes(attribute.String(&quot;error.type&quot;, fmt.Sprintf(&quot;%T&quot;, err)))   // p. ej. *errors.errorString
+	span.SetStatus(codes.Error, err.Error())
+	return result, err
+}
+</code></pre>
+</div>
+<p>Guarda el fichero y genera algunos fallos: <code>./loadgen.sh 1m --errors</code>.</p>
+<ol start="4">
+<li>
+<p>Ahora mira qué le puso la <em>auto</em>-instrumentación al span de servidor <code>POST /todos</code>:</p>
+<pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api name:=&quot;POST /todos&quot;
+</code></pre>
+</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>Encontrarás <code>span_attr:http.request.method</code>, <code>span_attr:http.response.status_code</code> y
+<code>span_attr:url.path</code> — los nombres que usa el registro que acabas de leer. Las librerías
+de instrumentación de JavaScript ya se han pasado a ellos.</p>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>Encontrarás <code>span_attr:http.method</code>, <code>span_attr:http.status_code</code> y
+<code>span_attr:http.target</code> — los nombres <strong>antiguos</strong>. El registro que acabas de leer dice
+<code>http.request.method</code>, <code>http.response.status_code</code> y <code>url.path</code>. La convención se movió;
+las librerías de instrumentación de Python todavía no se han puesto al día.</p>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>Encontrarás <code>span_attr:http.request.method</code>, <code>span_attr:http.response.status_code</code> y
+<code>span_attr:url.path</code> — los nombres que usa el registro que acabas de leer. La
+instrumentación que compila <code>otelc</code> ya los usa. Incluso pone <code>error.type</code> por su cuenta
+en una petición fallida: el código de estado, <code>500</code>.</p>
+</div>
+<p>La misma petición recibe nombres de atributo distintos según qué SDK, y qué versión de
+él, la haya producido. Eso no es una nota al pie: todos los dashboards, alertas y
+consultas guardadas escritos contra los nombres viejos se rompen el día que las librerías
+se pongan al día. Por eso, en producción, fijas las versiones de tu instrumentación y las
+actualizas a propósito.</p>
+<h3>Comprueba en la UI de Victoria</h3>
+<p>Abre VictoriaTraces en <a href="http://localhost:10428/select/vmui" target="_blank" rel="noopener"><code>http://localhost:10428/select/vmui</code></a>.</p>
+<pre><code>_time:15m &quot;resource_attr:service.name&quot;:=todo-api name:=&quot;todo.enrich&quot; &quot;span_attr:error.type&quot;:*
+</code></pre>
+<p>Deberías ver: los spans <code>todo.enrich</code> fallidos, cada uno con su <code>error.type</code>.</p>
+<pre><code>_time:15m &quot;span_attr:http.route&quot;:=&quot;/todos&quot; status_code:=2
+</code></pre>
+<p>Deberías ver: las peticiones fallidas de esa ruta, seleccionadas por <code>http.route</code> — un
+nombre estándar en el que los tres tracks coinciden. La misma consulta funciona contra
+cualquier servicio instrumentado con OTel.</p>
+<h3>Comprueba en Grafana</h3>
+<p>Abre Grafana en <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Copia el <code>trace_id</code> de uno de los spans <code>todo.enrich</code> fallidos. En Explore → VictoriaTraces (Jaeger), pégalo en la búsqueda por trace ID y despliega <code>todo.enrich</code>: <code>error.type</code> está junto a la excepción registrada.</p>
+<h2>Ejercicio 8.4 — Propagación entre servicios</h2>
+<p><strong>Deberías poder responder esto al terminar:</strong> <em>¿qué viaja exactamente entre dos servicios para que dos trazas sean una?</em></p>
+<h3>Hazlo</h3>
+<p><strong>Paso 1 — Confirma que ya funciona.</strong></p>
+<p>Crea un todo urgente:</p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8081/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;Call the bank&quot;,&quot;list&quot;:&quot;work&quot;,&quot;tags&quot;:[&quot;urgent&quot;]}'
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;Call the bank&quot;,&quot;list&quot;:&quot;work&quot;,&quot;tags&quot;:[&quot;urgent&quot;]}'
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8085/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;Call the bank&quot;,&quot;list&quot;:&quot;work&quot;,&quot;tags&quot;:[&quot;urgent&quot;]}'
+</code></pre>
+</div>
+<p>Busca su lado en <code>notify-service</code>, en VictoriaTraces:</p>
+<pre><code>_time:5m &quot;resource_attr:service.name&quot;:=notify-service name:=&quot;POST /notify&quot;
+</code></pre>
+<p>Copia su <code>trace_id</code> y trae la traza entera:</p>
+<pre><code>trace_id:=&lt;pega aquí el valor&gt;
+</code></pre>
+<p>Deberías ver spans de <strong>los dos</strong> servicios en una misma traza. Nadie escribió código de
+propagación — la instrumentación del cliente HTTP inyectó <code>traceparent</code> a la salida, y la
+instrumentación del servidor HTTP de <code>notify-service</code> lo extrajo a la entrada.</p>
+<p><strong>Paso 2 — Rómpelo, a propósito.</strong></p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>Imagina que la librería de cliente HTTP que usa tu API no tuviera instrumentación — algo
+bastante habitual en librerías menos populares. Apaga su instrumentación: añade una línea
+al <code>.env</code> de tu API y recrea el contenedor.</p>
+<p><code>notify.js</code> llama a <code>notify-service</code> con <code>fetch</code>, que cubre la instrumentación <code>undici</code>:</p>
+<pre><code class="language-bash"># track-js/todo-api/.env
+OTEL_NODE_DISABLED_INSTRUMENTATIONS=undici
+</code></pre>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-js
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>Imagina que la librería de cliente HTTP que usa tu API no tuviera instrumentación — algo
+bastante habitual en librerías menos populares. Apaga su instrumentación: añade una línea
+al <code>.env</code> de tu API y recrea el contenedor.</p>
+<p><code>notify.py</code> llama a <code>notify-service</code> con <code>requests</code>, que funciona sobre <code>urllib3</code>; las dos
+están instrumentadas:</p>
+<pre><code class="language-bash"># track-py/todo-api/.env
+OTEL_PYTHON_DISABLED_INSTRUMENTATIONS=requests,urllib3
+</code></pre>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-py
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>En Go, la traza viaja dentro del <code>context.Context</code> que pasas de función en función, y la
+instrumentación del cliente HTTP la lee del contexto de la petición para inyectar
+<code>traceparent</code>. Pierde el contexto y pierdes la traza — la forma más habitual de que pase en
+Go. En <code>notify.go</code>, haz que <code>post</code> construya su petición con <code>context.Background()</code> en vez
+de con el <code>ctx</code> que recibe:</p>
+<pre><code class="language-go">req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, notifyURL+path, bytes.NewReader(payload))
+</code></pre>
+<p>Guarda el fichero.</p>
+</div>
+<p>Crea otro todo urgente y repite el paso 1. Ahora tienes <strong>dos trazas huérfanas</strong> en vez de
+una: la de tu servicio, que termina en el trabajo de base de datos, y otra que empieza sin
+ella y contiene el span de <code>notify-service</code>.</p>
+<blockquote>
+<p>🧠 Párate un momento aquí. <strong>Este estado &ldquo;antes&rdquo; es lo que parecen la mayoría de los sistemas distribuidos reales</strong> — todos los servicios instrumentados, ninguna traza que cruce más de uno. Parece que funciona hasta justo el momento en que lo necesitas.</p>
+</blockquote>
+<p><strong>Paso 3 — Arréglalo a mano.</strong></p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>Inyecta tú el contexto en las cabeceras de la petición, con la API de propagación.</p>
+<p>En <code>src/notify.js</code>:</p>
+<pre><code class="language-js">const { context, propagation } = require('@opentelemetry/api');
+
+async function post(path, body) {
+  const controller = new AbortController();
+  const timer = setTimeout(() =&gt; controller.abort(), TIMEOUT_MS);
+  try {
+    const headers = { 'content-type': 'application/json' };
+    propagation.inject(context.active(), headers);   // añade traceparent
+    const res = await fetch(`${NOTIFY_URL}${path}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+</code></pre>
+<p>Guarda el fichero, crea un todo urgente y confirma que la traza vuelve a estar entera. Hay
+una diferencia: no hay span <code>POST</code> de cliente entre los spans de tu API y el de
+<code>notify-service</code>, porque ya nada instrumenta el cliente. La cabecera <code>traceparent</code> por sí
+sola basta para unir los dos servicios.</p>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>Inyecta tú el contexto en las cabeceras de la petición, con la API de propagación.</p>
+<p>En <code>todo_api/notify.py</code>:</p>
+<pre><code class="language-python">from opentelemetry.propagate import inject
+
+
+def _post(path: str, body: dict) -&gt; dict:
+    headers = {&quot;content-type&quot;: &quot;application/json&quot;}
+    inject(headers)                                  # añade traceparent
+    response = requests.post(
+        f&quot;{NOTIFY_URL}{path}&quot;,
+        json=body,
+        headers=headers,
+        timeout=TIMEOUT_S,
+    )
+    return response.json()
+</code></pre>
+<p>Guarda el fichero, crea un todo urgente y confirma que la traza vuelve a estar entera. Hay
+una diferencia: no hay span <code>POST</code> de cliente entre los spans de tu API y el de
+<code>notify-service</code>, porque ya nada instrumenta el cliente. La cabecera <code>traceparent</code> por sí
+sola basta para unir los dos servicios.</p>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>Devuélvele su contexto a la petición — <code>ctx</code> en vez de <code>context.Background()</code>:</p>
+<pre><code class="language-go">req, err := http.NewRequestWithContext(ctx, http.MethodPost, notifyURL+path, bytes.NewReader(payload))
+</code></pre>
+<p>Guarda el fichero, crea un todo urgente y confirma que la traza vuelve a estar entera. No
+has inyectado nada tú: eso lo hace la instrumentación, siempre que le llegue el contexto.
+En Go, propagar la traza <em>entre</em> servicios empieza por pasar <code>ctx</code> <em>dentro</em> del tuyo.</p>
+</div>
+<p><strong>Paso 4 — Déjalo como estaba.</strong></p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>Quita la línea que añadiste al <code>.env</code>, recrea el contenedor y deshaz el cambio del
+<code>inject</code> en el cliente de notify. Con la instrumentación otra vez activa, inyectar también
+a mano envía la cabecera dos veces — y en el track de JS eso vuelve a romper la traza.</p>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>Quita la línea que añadiste al <code>.env</code>, recrea el contenedor y deshaz el cambio del
+<code>inject</code> en el cliente de notify. Con la instrumentación otra vez activa, inyectar también
+a mano envía la cabecera dos veces, y eso no lo quieres.</p>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>No hay nada que deshacer: el paso 3 dejó <code>notify.go</code> como estaba.</p>
+</div>
+<h3>Comprueba en la UI de Victoria</h3>
+<p>Abre VictoriaTraces en <a href="http://localhost:10428/select/vmui" target="_blank" rel="noopener"><code>http://localhost:10428/select/vmui</code></a>.</p>
+<p>Coge la traza de la llamada más reciente a <code>notify-service</code>:</p>
+<pre><code>_time:5m &quot;resource_attr:service.name&quot;:=notify-service name:=&quot;POST /notify&quot; | fields _time, trace_id
+</code></pre>
+<pre><code>trace_id:=&lt;pega aquí el valor&gt;
+</code></pre>
+<p>Deberías ver: mientras está roto, ningún <code>POST /todos</code> en esa traza — empieza sin tu
+petición. Después del arreglo, las mismas dos consultas muestran <code>POST /todos</code> y todo lo
+que cuelga de él, el span de <code>notify-service</code> incluido, en una sola traza.</p>
+<h3>Comprueba en Grafana</h3>
+<p>Abre Grafana en <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Explore → VictoriaTraces (Jaeger), busca el servicio <code>todo-api</code>, operación <code>POST /todos</code>. Antes del arreglo, la cascada de una creación urgente termina en tu servicio. Después, la cascada continúa dentro de <code>notify-service</code>, y puedes ver exactamente cuánto de la petición se lleva.</p>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="07-manual-logs.html" class="nav-button">← Anterior</a>
+            
+            
+            <a href="09-production-realities.html" class="nav-button">Siguiente: Módulo 9 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumentando tu aplicación con OpenTelemetry</p>
+            <p>Creado por <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

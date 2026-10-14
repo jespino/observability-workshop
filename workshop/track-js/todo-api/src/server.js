@@ -10,8 +10,7 @@ const port = Number(process.env.PORT ?? 8081);
 app.use(express.json());
 
 // The frontend is served from a different origin, so allow any origin, method
-// and header — including `traceparent`, for the browser-instrumentation bonus in
-// Module 7.4.
+// and header.
 app.use((req, res, next) => {
   res.set('access-control-allow-origin', '*');
   res.set('access-control-allow-headers', '*');

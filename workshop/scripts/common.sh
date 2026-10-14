@@ -1,7 +1,7 @@
 # Shared helpers. Sourced by the other scripts; not meant to be run directly.
 #
 # Nothing here starts the workshop: that is docker-compose.yml, started by
-# hand in Module 0. This file only holds the handful of constants the helper
+# hand in Module 2. This file only holds the handful of constants the helper
 # scripts need to agree on.
 
 set -euo pipefail
@@ -16,6 +16,7 @@ fi
 
 JS_API=http://localhost:8081
 PY_API=http://localhost:8082
+GO_API=http://localhost:8085
 
 # Container names, as docker-compose.yml sets them.
 PG_CONTAINER=workshop-postgres

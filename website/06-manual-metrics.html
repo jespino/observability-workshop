@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 6: Manual Metrics - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/06-manual-metrics.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Module 6: Manual Metrics</h1>
+<p>Auto-instrumentation gave you HTTP request rates. Nobody has ever been paged about an HTTP request rate. This module is about emitting the numbers your business actually asks about — and about the one mistake that will cost you real money if you make it at scale. 📊</p>
+<h2>Learning Objectives</h2>
+<p>By the end of this module, you will:</p>
+<ul>
+<li>Emit counters, up-down counters, histograms and observable gauges from your handlers</li>
+<li>Explain cardinality to a colleague, having watched it blow up in front of you</li>
+<li>Read your own business metrics on a Grafana dashboard</li>
+</ul>
+<h2>Exercise 6.1 — Your first business metrics</h2>
+<p><strong>You should be able to answer this by the end:</strong> <em>how many todos were created in the last five minutes, in the <code>work</code> list?</em></p>
+<h3>Do</h3>
+<ol>
+<li>Create a meter and three instruments, then record from the handlers.</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>In <code>src/routes/todos.js</code>, add <code>overdueCount</code> to the functions it already imports from <code>../repo.js</code> (you&rsquo;ll need it in step 3), and put this near the top of the file, after the imports:</p>
+<pre><code class="language-js">const { metrics } = require('@opentelemetry/api');
+
+const meter = metrics.getMeter('todo-api');
+
+const todosCreated = meter.createCounter('todos.created', {
+  description: 'Number of todos created',
+  unit: '{todo}',
+});
+
+const todosOpen = meter.createUpDownCounter('todos.open', {
+  description: 'Todos currently not completed',
+  unit: '{todo}',
+});
+
+const completionAge = meter.createHistogram('todo.completion.age', {
+  description: 'Wall-clock time between a todo being created and completed',
+  unit: 's',
+  // Seconds, minutes, hours, a day: the defaults are tuned for HTTP latency.
+  advice: { explicitBucketBoundaries: [1, 5, 15, 60, 300, 3600, 86400] },
+});
+</code></pre>
+<p>In the <code>POST /todos</code> handler, after <code>invalidate(todo.list)</code>:</p>
+<pre><code class="language-js">todosCreated.add(1, {
+  list: todo.list,
+  source: req.get('x-client') ?? 'unknown',
+});
+todosOpen.add(1, { list: todo.list });
+</code></pre>
+<p>In the <code>PATCH /todos/:id/complete</code> handler, after <code>invalidate(todo.list)</code>:</p>
+<pre><code class="language-js">const ageSeconds = (Date.now() - new Date(todo.created_at).getTime()) / 1000;
+completionAge.record(ageSeconds, { list: todo.list, priority: String(todo.priority) });
+todosOpen.add(-1, { list: todo.list });
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>In <code>todo_api/routes.py</code>, add <code>overdue_count</code> to the functions it already imports from <code>todo_api.repo</code> (you&rsquo;ll need it in step 3), and put this near the top of the file, after the imports:</p>
+<pre><code class="language-python">from opentelemetry import metrics
+
+meter = metrics.get_meter(&quot;todo-api&quot;)
+
+todos_created = meter.create_counter(
+    &quot;todos.created&quot;,
+    description=&quot;Number of todos created&quot;,
+    unit=&quot;{todo}&quot;,
+)
+
+todos_open = meter.create_up_down_counter(
+    &quot;todos.open&quot;,
+    description=&quot;Todos currently not completed&quot;,
+    unit=&quot;{todo}&quot;,
+)
+
+completion_age = meter.create_histogram(
+    &quot;todo.completion.age&quot;,
+    description=&quot;Wall-clock time between a todo being created and completed&quot;,
+    unit=&quot;s&quot;,
+    # Seconds, minutes, hours, a day: the defaults are tuned for HTTP latency.
+    explicit_bucket_boundaries_advisory=[1, 5, 15, 60, 300, 3600, 86400],
+)
+</code></pre>
+<p>In the <code>POST /todos</code> handler, after <code>invalidate(todo.list)</code>:</p>
+<pre><code class="language-python">todos_created.add(1, {
+    &quot;list&quot;: todo.list,
+    &quot;source&quot;: request.headers.get(&quot;x-client&quot;, &quot;unknown&quot;),
+})
+todos_open.add(1, {&quot;list&quot;: todo.list})
+</code></pre>
+<p>In the <code>PATCH /todos/&lt;todo_id&gt;/complete</code> handler, after <code>invalidate(todo.list)</code>:</p>
+<pre><code class="language-python">from datetime import datetime, timezone   # at the top of the file
+
+age_seconds = (datetime.now(timezone.utc) - todo.created_at).total_seconds()
+completion_age.record(age_seconds, {&quot;list&quot;: todo.list, &quot;priority&quot;: str(todo.priority)})
+todos_open.add(-1, {&quot;list&quot;: todo.list})
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>In <code>routes.go</code>, add these packages to its imports — <code>go mod tidy</code> runs on every build, so
+they are downloaded by themselves:</p>
+<pre><code class="language-go">import (
+	// ...the imports already there, plus:
+	&quot;strconv&quot;
+	&quot;time&quot;
+
+	&quot;go.opentelemetry.io/otel&quot;
+	&quot;go.opentelemetry.io/otel/attribute&quot;
+	&quot;go.opentelemetry.io/otel/metric&quot;
+)
+</code></pre>
+<p>and put this after the imports:</p>
+<pre><code class="language-go">var meter = otel.Meter(&quot;todo-api&quot;)
+
+var todosCreated, _ = meter.Int64Counter(&quot;todos.created&quot;,
+	metric.WithDescription(&quot;Number of todos created&quot;),
+	metric.WithUnit(&quot;{todo}&quot;),
+)
+
+var todosOpen, _ = meter.Int64UpDownCounter(&quot;todos.open&quot;,
+	metric.WithDescription(&quot;Todos currently not completed&quot;),
+	metric.WithUnit(&quot;{todo}&quot;),
+)
+
+var completionAge, _ = meter.Float64Histogram(&quot;todo.completion.age&quot;,
+	metric.WithDescription(&quot;Wall-clock time between a todo being created and completed&quot;),
+	metric.WithUnit(&quot;s&quot;),
+	// Seconds, minutes, hours, a day: the defaults are tuned for HTTP latency.
+	metric.WithExplicitBucketBoundaries(1, 5, 15, 60, 300, 3600, 86400),
+)
+</code></pre>
+<p>In <code>postTodo</code>, after <code>invalidate(todo.List)</code>:</p>
+<pre><code class="language-go">source := r.Header.Get(&quot;x-client&quot;)
+if source == &quot;&quot; {
+	source = &quot;unknown&quot;
+}
+todosCreated.Add(ctx, 1, metric.WithAttributes(
+	attribute.String(&quot;list&quot;, todo.List),
+	attribute.String(&quot;source&quot;, source),
+))
+todosOpen.Add(ctx, 1, metric.WithAttributes(attribute.String(&quot;list&quot;, todo.List)))
+</code></pre>
+<p>In <code>patchComplete</code>, after <code>invalidate(todo.List)</code>:</p>
+<pre><code class="language-go">ctx := r.Context()
+completionAge.Record(ctx, time.Since(todo.CreatedAt).Seconds(), metric.WithAttributes(
+	attribute.String(&quot;list&quot;, todo.List),
+	attribute.String(&quot;priority&quot;, strconv.Itoa(todo.Priority)),
+))
+todosOpen.Add(ctx, -1, metric.WithAttributes(attribute.String(&quot;list&quot;, todo.List)))
+</code></pre>
+</div>
+<blockquote>
+<p>ℹ️ <code>todos.open</code> is an <strong>up-down counter</strong>: it adds the changes your code reports. It
+starts at zero every time the process starts — the todos already in the database don&rsquo;t
+count, and it resets whenever you save a file. The gauge in step 3 is the other way to
+get a number like this: it asks the database for the real value each time.</p>
+</blockquote>
+<ol start="2">
+<li>
+<p>Note what <code>todo.completion.age</code> is <strong>not</strong>: it is not HTTP latency. Auto-instrumentation already gave you that. This is a <em>business</em> duration — how long a todo sat there before someone did it. No library could ever have produced it, because no library knows what a todo is. That contrast is the whole point of the exercise.</p>
+</li>
+<li>
+<p>Now add an <strong>observable gauge</strong> for overdue todos, backed by a periodic query. Observable instruments are pulled by the SDK at export time rather than pushed by your code. Put it right after the three instruments:</p>
+</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-js">meter.createObservableGauge('todos.overdue', {
+  description: 'Todos past their due date and not completed',
+  unit: '{todo}',
+}).addCallback(async (result) =&gt; {
+  for (const row of await overdueCount()) {     // repo.js
+    result.observe(row.count, { list: row.list });
+  }
+});
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-python">def observe_overdue(options):
+    for row in overdue_count():                  # repo.py
+        yield metrics.Observation(row[&quot;count&quot;], {&quot;list&quot;: row[&quot;list&quot;]})
+
+meter.create_observable_gauge(
+    &quot;todos.overdue&quot;,
+    callbacks=[observe_overdue],
+    description=&quot;Todos past their due date and not completed&quot;,
+    unit=&quot;{todo}&quot;,
+)
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>An observable instrument is registered once, so it goes in an <code>init</code> function:</p>
+<pre><code class="language-go">func init() {
+	meter.Int64ObservableGauge(&quot;todos.overdue&quot;,
+		metric.WithDescription(&quot;Todos past their due date and not completed&quot;),
+		metric.WithUnit(&quot;{todo}&quot;),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			rows, err := overdueCount(ctx)          // repo.go
+			if err != nil {
+				return err
+			}
+			for _, row := range rows {
+				o.Observe(row.Count, metric.WithAttributes(attribute.String(&quot;list&quot;, row.List)))
+			}
+			return nil
+		}),
+	)
+}
+</code></pre>
+</div>
+<ol start="4">
+<li>
+<p>Save the file and generate load. The API restarts by itself as soon as you save —
+watch it happen in its log terminal. Then, in another terminal:</p>
+<pre><code class="language-bash">./loadgen.sh 3m
+</code></pre>
+<p>The loadgen creates todos and completes some of the ones it created, so every
+instrument gets data.</p>
+</li>
+</ol>
+<h3>Verify in the Victoria UI</h3>
+<p>VictoriaMetrics vmui (<a href="http://localhost:8428/vmui" target="_blank" rel="noopener"><code>http://localhost:8428/vmui</code></a>):</p>
+<pre><code>sum(rate(todos_created_total[5m])) by (list)
+</code></pre>
+<p>You should see: one line per list, responding to the load generator.</p>
+<pre><code>todos_open
+</code></pre>
+<pre><code>histogram_quantile(0.95, sum(rate(todo_completion_age_seconds_bucket[5m])) by (le, list))
+</code></pre>
+<pre><code>max(todos_overdue) by (list)
+</code></pre>
+<p><code>max</code>, not <code>sum</code>: every process of your API reports the same value, read from the same
+database. Adding them up would count each overdue todo more than once.</p>
+<blockquote>
+<p>🧩 <strong>Name mapping, and it catches everyone.</strong> You wrote <code>todos.created</code>. You queried <code>todos_created_total</code>. OpenTelemetry&rsquo;s dotted names become underscored on the VictoriaMetrics side, and counters gain a <code>_total</code> suffix. Similarly <code>todo.completion.age</code> with <code>unit: s</code> becomes <code>todo_completion_age_seconds</code>, and a histogram brings <code>_bucket</code>, <code>_sum</code> and <code>_count</code> with it. If a metric &ldquo;isn&rsquo;t there&rdquo;, this is the first thing to check.</p>
+</blockquote>
+<h3>Verify in Grafana</h3>
+<p>Open Grafana at <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Open <strong>Dashboards → Workshop → Manual Instrumentation</strong>. The four panels in the <strong>Business metrics</strong> row — todos created, open todos, completion age p95 and overdue todos — fill in as the loadgen runs. Switch the <code>list</code> variable between values and confirm the panels follow it.</p>
+<h2>Exercise 6.2 — The cardinality lab</h2>
+<p><strong>You should be able to answer this by the end:</strong> <em>what rule tells you whether a value is safe to use as a metric attribute?</em></p>
+<h3>Do</h3>
+<p>We&rsquo;re going to do the wrong thing on purpose, watch it hurt, and then fix it.</p>
+<ol>
+<li>Add <code>todo_id</code> as an attribute on the created counter — one more line in the <code>add()</code> call you already have:</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-js">todosCreated.add(1, {
+  list: todo.list,
+  todo_id: todo.id,        // ⚠️ deliberately wrong
+  source: req.get('x-client') ?? 'unknown',
+});
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-python">todos_created.add(1, {
+    &quot;list&quot;: todo.list,
+    &quot;todo_id&quot;: str(todo.id),   # ⚠️ deliberately wrong
+    &quot;source&quot;: request.headers.get(&quot;x-client&quot;, &quot;unknown&quot;),
+})
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code class="language-go">todosCreated.Add(ctx, 1, metric.WithAttributes(
+	attribute.String(&quot;list&quot;, todo.List),
+	attribute.String(&quot;todo_id&quot;, todo.ID),     // ⚠️ deliberately wrong
+	attribute.String(&quot;source&quot;, source),
+))
+</code></pre>
+</div>
+<ol start="2">
+<li>
+<p>Save the file and run the load generator hard:</p>
+<pre><code class="language-bash">./loadgen.sh 2m --rps 50
+</code></pre>
+</li>
+<li>
+<p>Now go and watch the damage.</p>
+</li>
+</ol>
+<h3>Verify in the Victoria UI</h3>
+<p><strong>vmui → the Explore Cardinality tab</strong> (<a href="http://localhost:8428/vmui" target="_blank" rel="noopener"><code>http://localhost:8428/vmui</code></a>, top navigation). Look at &ldquo;Metrics with the highest number of series&rdquo;. Watch <code>todos_created_total</code> climb to the top of the list within a minute.</p>
+<p>Then the raw numbers:</p>
+<pre><code class="language-bash">curl -s 'http://localhost:8428/api/v1/status/tsdb' | head -c 2000
+</code></pre>
+<p>And VictoriaMetrics&rsquo; own cost, in its own metrics:</p>
+<pre><code>vm_cache_entries{type=&quot;storage/tsid&quot;}
+</code></pre>
+<pre><code>process_resident_memory_bytes{job=&quot;victoria-metrics&quot;}
+</code></pre>
+<p>You should see: series count and memory both rising steadily, and continuing to rise for as long as the loadgen runs. Every single todo you create is now permanently a time series.</p>
+<h3>Verify in Grafana</h3>
+<p>Open Grafana at <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Put <code>vm_cache_entries{type=&quot;storage/tsid&quot;}</code> on a graph next to <code>rate(todos_created_total[1m])</code> — Explore → VictoriaMetrics, one query each. The shapes are very different, and that difference <em>is</em> the lesson: a modest request rate produced an unbounded series count.</p>
+<h3>Clean up</h3>
+<ol>
+<li>
+<p><strong>Fix it.</strong> Remove <code>todo_id</code> from the <code>add()</code> call and save the file.</p>
+</li>
+<li>
+<p>Then clean up. The damage is real and it&rsquo;s in your local VictoriaMetrics:</p>
+<pre><code class="language-bash">./reset.sh
+</code></pre>
+<p>There is no delete-by-query API for logs, so wiping a backend means stopping it,
+deleting its storage and starting it again — which is all <code>reset.sh</code> does: it removes
+the three storage containers and their Docker volumes, starts them again empty, and
+restarts the Collector so its queues start clean. The <code>workshop_postgres</code> volume, with
+your todos, is not touched.</p>
+</li>
+</ol>
+<blockquote>
+<p>⭐ <strong>The rule:</strong> an attribute value must come from a bounded set that you could write
+down in advance. <code>list</code> passes — there are six of them. <code>priority</code> passes — there are
+three. <code>todo_id</code>, <code>user_id</code>, <code>request_id</code>, <code>session_id</code> and full URL paths all fail.
+When <code>todo_id</code> genuinely is what you need to know — and sometimes it is — it belongs on
+a <strong>span</strong> and on a <strong>log record</strong>, not on a metric. Same value, different signal,
+completely opposite verdict.</p>
+</blockquote>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="05-the-collector.html" class="nav-button">← Previous</a>
+            
+            
+            <a href="07-manual-logs.html" class="nav-button">Next: Module 7 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

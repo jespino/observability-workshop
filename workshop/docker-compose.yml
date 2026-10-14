@@ -1,7 +1,8 @@
-# The workshop stack. Module 0 walks through this file before you start it.
+# The workshop stack. Module 2 starts it with one command.
 #
-#   docker compose --profile js up -d     # JS track: todo-api (JS) + notify-service (Python)
-#   docker compose --profile py up -d     # Python track: todo-api (Python) + notify-service (JS)
+#   docker compose --profile js up -d     # JS track: todo-api (JS) + everything else
+#   docker compose --profile py up -d     # Python track: todo-api (Python) + everything else
+#   docker compose --profile go up -d     # Go track: todo-api (Go) + everything else
 #
 # Everything here is a stock image from Docker Hub — nothing is built.
 #
@@ -25,7 +26,7 @@ services:
       - -storageDataPath=/storage
       - -httpListenAddr=:8428
       - -retentionPeriod=1                  # one month, plenty for one day
-      - -selfScrapeInterval=10s             # VM scrapes itself; Modules 4.2 and 5.4 query it
+      - -selfScrapeInterval=10s             # VM scrapes itself; Module 6.2 queries it
       - -search.latencyOffset=1s            # default hides the last 30s; maddening in a classroom
       - -opentelemetry.usePrometheusNaming  # todos.created -> todos_created_total
     ports: ["8428:8428"]
@@ -56,8 +57,8 @@ services:
 
   # --- The OpenTelemetry Collector ----------------------------------------
   #
-  # You edit collector/config.yaml from Module 4. The whole directory is
-  # mounted, so after an edit:  docker compose restart otel-collector
+  # Module 5 explains collector/config.yaml; no exercise edits it. The whole
+  # directory is mounted, so after an edit:  docker compose restart otel-collector
   # No restart policy on purpose: a config it cannot parse should leave it
   # visibly stopped (`docker compose ps -a`), not looping.
 
@@ -89,21 +90,21 @@ services:
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     restart: unless-stopped
 
-  # notify-service — the downstream service your API calls. Pre-instrumented
-  # through its otel.env, and written in the OTHER language from your track so
-  # that Module 7.4's cross-language propagation works either way. Its source
-  # is mounted read-only; dependencies install inside the container on first
-  # start, so give it a minute.
+  # notify-service — the downstream service your API calls, on both tracks.
+  # Written in Python and pre-instrumented through its otel.env, so a trace
+  # from your API has somewhere to go. Its source is mounted read-only;
+  # dependencies install inside the container on first start, so give it a
+  # minute.
 
-  notify-py:          # called by the JS track
-    profiles: [js]
+  notify-service:
     image: python:3.12-slim
-    container_name: workshop-notify-py
-    env_file: ./services/notify-service-py/otel.env
+    container_name: workshop-notify-service
+    env_file: ./services/notify-service/otel.env
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
-    volumes: ["./services/notify-service-py:/app:ro"]
+      PIP_ROOT_USER_ACTION: ignore
+    volumes: ["./services/notify-service:/app:ro"]
     working_dir: /app
     command:
       - sh
@@ -116,31 +117,13 @@ services:
     depends_on: [otel-collector]
     restart: unless-stopped
 
-  notify-js:          # called by the Python track
-    profiles: [py]
-    image: node:22-slim
-    container_name: workshop-notify-js
-    env_file: ./services/notify-service-js/otel.env
-    volumes: ["./services/notify-service-js:/src:ro"]
-    working_dir: /app
-    command:
-      - sh
-      - -c
-      - >-
-        cp -R /src/. /app
-        && npm install --silent --no-fund --no-audit
-        && exec node --require @opentelemetry/auto-instrumentations-node/register server.js
-    ports: ["8084:8084"]
-    depends_on: [otel-collector]
-    restart: unless-stopped
-
   # --- todo-api — the service you instrument -----------------------------
   #
   # Your source directory is mounted at /app and the server runs in watch
   # mode, so saving a file restarts it inside the container. Dependencies are
   # installed on every start into a Docker volume, not into your working tree.
   #
-  # Anything that is not a source file — .env (from Module 3.1), package.json,
+  # Anything that is not a source file — .env (from Module 4.1), package.json,
   # requirements.txt, or the command below — needs the container recreated:
   #   docker compose up -d --force-recreate todo-api-js   (or todo-api-py)
 
@@ -150,17 +133,17 @@ services:
     container_name: workshop-todo-api-js
     working_dir: /app
     env_file:
-      - path: ./track-js/todo-api/.env   # created in Module 3.1
+      - path: ./track-js/todo-api/.env   # created in Module 4.1
         required: false
     environment:
       DATABASE_URL: postgres://todo:todo@postgres:5432/todo
-      NOTIFY_URL: http://notify-py:8083
+      NOTIFY_URL: http://notify-service:8083
       PORT: "8081"
     volumes:
       - ./track-js/todo-api:/app
       - todo-api-js-modules:/app/node_modules
     # npm runs with NODE_OPTIONS emptied: it would otherwise try to preload the
-    # OpenTelemetry SDK that Module 3.1 puts in NODE_OPTIONS.
+    # OpenTelemetry SDK that Module 4.1 puts in NODE_OPTIONS.
     entrypoint:
       - sh
       - -c
@@ -168,7 +151,7 @@ services:
       - --
     command: node --watch src/server.js
     ports: ["8081:8081"]
-    depends_on: [postgres, notify-py, otel-collector]
+    depends_on: [postgres, notify-service, otel-collector]
 
   todo-api-py:
     profiles: [py]
@@ -176,11 +159,11 @@ services:
     container_name: workshop-todo-api-py
     working_dir: /app
     env_file:
-      - path: ./track-py/todo-api/.env   # created in Module 3.1
+      - path: ./track-py/todo-api/.env   # created in Module 4.1
         required: false
     environment:
       DATABASE_URL: postgres://todo:todo@postgres:5432/todo
-      NOTIFY_URL: http://notify-js:8084
+      NOTIFY_URL: http://notify-service:8083
       PYTHONUSERBASE: /deps
       PATH: /deps/bin:/usr/local/bin:/usr/bin:/bin
       PYTHONDONTWRITEBYTECODE: "1"
@@ -188,7 +171,7 @@ services:
     volumes:
       - ./track-py/todo-api:/app
       - todo-api-py-deps:/deps
-    # Once requirements.txt has opentelemetry-distro (Module 3.1),
+    # Once requirements.txt has opentelemetry-distro (Module 4.1),
     # opentelemetry-bootstrap installs the instrumentation for every library
     # it recognises. Before that it does not exist, and is skipped.
     # watchmedo restarts the whole command when a .py file changes. (Not
@@ -205,7 +188,39 @@ services:
       - --
     command: gunicorn -w 2 -b 0.0.0.0:8082 app:app
     ports: ["8082:8082"]
-    depends_on: [postgres, notify-js, otel-collector]
+    depends_on: [postgres, notify-service, otel-collector]
+
+  todo-api-go:
+    profiles: [go]
+    image: golang:1.26-bookworm
+    container_name: workshop-todo-api-go
+    working_dir: /app
+    env_file:
+      - path: ./track-go/todo-api/.env   # created in Module 4.1
+        required: false
+    environment:
+      DATABASE_URL: postgres://todo:todo@postgres:5432/todo
+      NOTIFY_URL: http://notify-service:8083
+      PORT: "8085"
+      GOCACHE: /go/cache
+      OTELC_WORK_DIR: /tmp/otelc
+    volumes:
+      - ./track-go/todo-api:/app
+      - todo-api-go-cache:/go
+    # The Go modules, the build cache, air (which rebuilds and restarts the
+    # server when a .go file changes) and otelc all live in a Docker volume.
+    # `go mod tidy` runs on every build, so a new import is downloaded by itself.
+    entrypoint:
+      - sh
+      - -c
+      - >-
+        { [ -x /go/bin/air ] || go install github.com/air-verse/air@v1.67.4; }
+        && { [ -x /go/bin/otelc ] || go install go.opentelemetry.io/otelc/tool/cmd/otelc@v1.2.0; }
+        && exec "$$@"
+      - --
+    command: air --tmp_dir /tmp/air --build.exclude_file "otel.instrumentation.go,otelc.runtime.go" --build.entrypoint /tmp/todo-api --build.cmd "go mod tidy && go build -o /tmp/todo-api ."
+    ports: ["8085:8085"]
+    depends_on: [postgres, notify-service, otel-collector]
 
   # --- The UI you use as a user -------------------------------------------
 
@@ -216,12 +231,9 @@ services:
     volumes: ["./frontend:/usr/share/nginx/html:ro"]
     restart: unless-stopped
 
-  # --- Grafana — not started until Module 3.2 -----------------------------
-  #
-  #   docker compose up -d grafana
+  # --- Grafana — http://localhost:3000, admin / admin ------------------------
 
   grafana:
-    profiles: [grafana]
     image: grafana/grafana:12.3.1
     container_name: workshop-grafana
     environment:
@@ -246,3 +258,4 @@ volumes:
   grafana:
   todo-api-js-modules:
   todo-api-py-deps:
+  todo-api-go-cache:

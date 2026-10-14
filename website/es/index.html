@@ -65,13 +65,13 @@
         <header class="hero">
             <h1>Instrumentando tu aplicación con OpenTelemetry</h1>
             <p class="lead">¡Bienvenido a un taller práctico donde instrumentarás desde cero una aplicación de varios servicios con OpenTelemetry, y enviarás métricas, logs y trazas al stack de VictoriaMetrics! Aproximadamente 25% charla, 75% teclado.</p>
-            <p class="hero-note"><strong>Dos tracks en paralelo: Node.js/Express y Python/Flask.</strong> El mismo sistema, el mismo backend y los mismos ejercicios — solo cambia la superficie del SDK.</p>
+            <p class="hero-note"><strong>Tres tracks en paralelo: Node.js/Express, Python/Flask y Go.</strong> El mismo sistema, el mismo backend y los mismos ejercicios — solo cambia la superficie del SDK.</p>
         </header>
 
         <section class="prerequisites">
             <h2>Prerrequisitos</h2>
             <ul>
-                <li>Soltura con APIs HTTP y con JavaScript o Python</li>
+                <li>Soltura con APIs HTTP y con JavaScript, Python o Go</li>
                 <li>Docker y Docker Compose instalados y funcionando</li>
                 <li>Git instalado en tu sistema</li>
                 <li><strong>No hace falta saber nada de OpenTelemetry, MetricsQL ni LogsQL</strong></li>
@@ -82,96 +82,80 @@
 
         <section class="overview">
             <h2>Descripción General del Taller</h2>
-            <p>Este taller consta de 11 módulos que te llevan desde un servicio que no emite absolutamente nada hasta uno que puedes depurar solo con telemetría. Instrumentarás un sistema de varios servicios, ejecutarás un OpenTelemetry Collector como único punto de entrada y consultarás los resultados en VictoriaMetrics, VictoriaLogs, VictoriaTraces y Grafana:</p>
-            <p class="track-hint"><i class="fas fa-code" aria-hidden="true"></i> Cada módulo está escrito una sola vez para los dos tracks. Usa el <strong>selector de track</strong> de la barra de navegación de cualquier módulo para cambiar los ejemplos de código entre Node.js y Python — tu elección se recuerda mientras avanzas por el taller.</p>
+            <p>Este taller consta de 9 módulos que te llevan desde un servicio que no emite absolutamente nada hasta uno que puedes depurar solo con telemetría. Instrumentarás un sistema de varios servicios, ejecutarás un OpenTelemetry Collector como único punto de entrada y consultarás los resultados en VictoriaMetrics, VictoriaLogs, VictoriaTraces y Grafana:</p>
+            <p class="track-hint"><i class="fas fa-code" aria-hidden="true"></i> Cada módulo está escrito una sola vez para los tres tracks. Usa el <strong>selector de track</strong> de la barra de navegación de cualquier módulo para cambiar los ejemplos de código entre Node.js, Python y Go — tu elección se recuerda mientras avanzas por el taller.</p>
 
             <div class="modules-grid">
                 
-                <a href="00-setup-and-sanity-check.html" class="module-card-link">
+                <a href="01-observability-and-opentelemetry.html" class="module-card-link">
                     <div class="module-card">
-                        <div class="module-number">Módulo 0</div>
+                        <div class="module-number">Módulo 1</div>
+                        <h3>Observabilidad y OpenTelemetry</h3>
+                        <p>Qué significa observabilidad, las tres señales en las que se apoya — métricas, logs y trazas — y qué es OpenTelemetry.</p>
+                    </div>
+                </a>
+                
+                <a href="02-setup-and-sanity-check.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Módulo 2</div>
                         <h3>Preparación y Comprobación del Entorno</h3>
                         <p>Arranca todo el stack, tu API incluida, con un solo comando de Docker Compose, y comprueba con el script doctor que todo está funcionando.</p>
                     </div>
                 </a>
                 
-                <a href="01-the-application.html" class="module-card-link">
-                    <div class="module-card">
-                        <div class="module-number">Módulo 1</div>
-                        <h3>La Aplicación que Vas a Instrumentar</h3>
-                        <p>Recorre la todo-api que vas a editar durante todo el día — sus endpoints, sus dependencias y el puñado de funciones que importan.</p>
-                    </div>
-                </a>
-                
-                <a href="02-what-observability-is.html" class="module-card-link">
-                    <div class="module-card">
-                        <div class="module-number">Módulo 2</div>
-                        <h3>Las Tres Señales — Métricas, Logs y Trazas</h3>
-                        <p>Qué son las métricas, los logs y las trazas, con un ejemplo de cada una sacado de la aplicación que vas a instrumentar.</p>
-                    </div>
-                </a>
-                
-                <a href="03-auto-instrumentation.html" class="module-card-link">
+                <a href="03-the-application.html" class="module-card-link">
                     <div class="module-card">
                         <div class="module-number">Módulo 3</div>
-                        <h3>El Camino Fácil: Auto-instrumentación Sin Código</h3>
-                        <p>Haz que fluyan las tres señales sin tocar el código de la aplicación, y descubre hasta dónde llega ese atajo.</p>
+                        <h3>La Aplicación que Vas a Instrumentar</h3>
+                        <p>Recorre la todo-api que vas a editar durante todo el día — sus endpoints, sus dependencias y su código.</p>
                     </div>
                 </a>
                 
-                <a href="04-the-collector.html" class="module-card-link">
+                <a href="04-auto-instrumentation.html" class="module-card-link">
                     <div class="module-card">
                         <div class="module-number">Módulo 4</div>
-                        <h3>El Collector, y Dónde Acaban los Datos</h3>
-                        <p>Lee y modifica la configuración del OpenTelemetry Collector que reparte un único endpoint OTLP entre tres backends.</p>
+                        <h3>El Camino Fácil: Auto-instrumentación Sin Código</h3>
+                        <p>Haz que fluyan las tres señales sin tocar el código de la aplicación.</p>
                     </div>
                 </a>
                 
-                <a href="05-manual-metrics.html" class="module-card-link">
+                <a href="05-the-collector.html" class="module-card-link">
                     <div class="module-card">
                         <div class="module-number">Módulo 5</div>
-                        <h3>Métricas Manuales</h3>
-                        <p>Elige el instrumento correcto, emite métricas de negocio, moldéalas con views y enfréntate a la cardinalidad antes de que te muerda.</p>
+                        <h3>El OpenTelemetry Collector</h3>
+                        <p>Qué es el OpenTelemetry Collector, qué puede hacer y qué hace el Collector de este taller con tus métricas, logs y trazas.</p>
                     </div>
                 </a>
                 
-                <a href="06-manual-logs.html" class="module-card-link">
+                <a href="06-manual-metrics.html" class="module-card-link">
                     <div class="module-card">
                         <div class="module-number">Módulo 6</div>
+                        <h3>Métricas Manuales</h3>
+                        <p>Elige el instrumento correcto, emite métricas de negocio y enfréntate a la cardinalidad antes de que te muerda.</p>
+                    </div>
+                </a>
+                
+                <a href="07-manual-logs.html" class="module-card-link">
+                    <div class="module-card">
+                        <div class="module-number">Módulo 7</div>
                         <h3>Logs Manuales</h3>
                         <p>Emite logs estructurados que arrastren el contexto de traza, y consúltalos con LogsQL.</p>
                     </div>
                 </a>
                 
-                <a href="07-manual-traces.html" class="module-card-link">
+                <a href="08-manual-traces.html" class="module-card-link">
                     <div class="module-card">
-                        <div class="module-number">Módulo 7</div>
+                        <div class="module-number">Módulo 8</div>
                         <h3>Trazas Manuales</h3>
                         <p>Crea spans propios, registra errores como toca y propaga el contexto entre servicios y lenguajes.</p>
                     </div>
                 </a>
                 
-                <a href="08-correlation.html" class="module-card-link">
-                    <div class="module-card">
-                        <div class="module-number">Módulo 8</div>
-                        <h3>Correlación: Convertir las Tres Señales en Una</h3>
-                        <p>Deriva métricas a partir de spans y conecta los saltos entre métricas, logs y trazas en Grafana.</p>
-                    </div>
-                </a>
-                
-                <a href="09-capstone-debugging-challenge.html" class="module-card-link">
+                <a href="09-production-realities.html" class="module-card-link">
                     <div class="module-card">
                         <div class="module-number">Módulo 9</div>
-                        <h3>Proyecto Final: El Reto de Depuración</h3>
-                        <p>Diagnostica un fallo desconocido, de los de producción, usando solo la telemetría que has construido.</p>
-                    </div>
-                </a>
-                
-                <a href="10-production-realities.html" class="module-card-link">
-                    <div class="module-card">
-                        <div class="module-number">Módulo 10</div>
                         <h3>Realidades de Producción y Cierre</h3>
-                        <p>Coste, sampling, retención, PII y estrategia de despliegue: qué cambia cuando esto sale de tu portátil.</p>
+                        <p>Coste, sampling, PII y estrategia de despliegue: qué cambia cuando esto sale de tu portátil.</p>
                     </div>
                 </a>
                 
@@ -181,9 +165,9 @@
         <section class="getting-started">
             <h2>Cómo Empezar</h2>
             <ol>
-                <li>Comienza con el <a href="00-setup-and-sanity-check.html">Módulo 0</a> para dejar tu entorno preparado</li>
+                <li>Comienza con el <a href="01-observability-and-opentelemetry.html">Módulo 1</a>, una introducción a la observabilidad y a OpenTelemetry; el Módulo 2 deja tu entorno preparado</li>
                 <li>Haz los módulos en orden — cada uno se apoya en el anterior</li>
-                <li>Elige el track en el que quieras escribir, JavaScript o Python. Los dos acaban mirando exactamente los mismos datos.</li>
+                <li>Elige el track en el que quieras escribir: JavaScript, Python o Go. Los tres construyen el mismo sistema contra el mismo backend.</li>
                 
             </ol>
         </section>
@@ -222,8 +206,6 @@
                 <li><strong>Elegido los instrumentos correctos</strong> y razonado sobre cardinalidad antes de que doliera</li>
                 <li><strong>Emitido logs estructurados</strong> que arrastran el contexto de traza, y consultado con LogsQL</li>
                 <li><strong>Escrito spans propios</strong> y propagado el contexto entre servicios y lenguajes</li>
-                <li><strong>Correlacionado las tres señales</strong> en Grafana y en las UIs de Victoria</li>
-                <li><strong>Depurado un fallo desconocido</strong> usando solo telemetría</li>
                 
             </ul>
 
@@ -242,7 +224,7 @@
         </section>
 
         <div class="cta">
-            <a href="00-setup-and-sanity-check.html" class="cta-button">Comenzar con el Módulo 0 →</a>
+            <a href="01-observability-and-opentelemetry.html" class="cta-button">Comenzar con el Módulo 1 →</a>
         </div>
     </div>
 

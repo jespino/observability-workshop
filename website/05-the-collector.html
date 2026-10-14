@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 5: The OpenTelemetry Collector - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/05-the-collector.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Module 5: The OpenTelemetry Collector</h1>
+<p>In Module 4 your application started sending all three signals to a single address,
+<code>otel-collector:4318</code>, and they ended up in three different backends. This module is about
+what sits at that address: what the OpenTelemetry Collector is, what it can do, and what
+the one in this workshop is already doing to your telemetry. 📦</p>
+<h2>Learning Objectives</h2>
+<p>By the end of this module, you will:</p>
+<ul>
+<li>Know what the OpenTelemetry Collector is and where it sits between your application and
+your backends</li>
+<li>Know its building blocks — receivers, processors, exporters, connectors and pipelines</li>
+<li>Know the kinds of problems it solves</li>
+<li>Be able to say what this workshop&rsquo;s Collector does to your metrics, logs and traces</li>
+</ul>
+<h2>5.1 — What the Collector is</h2>
+<p>The <strong>OpenTelemetry Collector</strong> is a standalone program, part of the OpenTelemetry
+project, that receives telemetry, processes it and sends it on. It is vendor-neutral: it
+speaks OTLP, the OpenTelemetry protocol, and dozens of other formats, in and out.</p>
+<p>Your application doesn&rsquo;t need it — an SDK can export straight to a backend. But putting a
+Collector in the middle changes who has to know what:</p>
+<p><img src="images/collector-overview.png" alt="todo-api and notify-service, your services, send their telemetry over OTLP to the OTel Collector, which sends the metrics to VictoriaMetrics, the logs to VictoriaLogs and the traces to VictoriaTraces"></p>
+<ul>
+<li><strong>Your application knows one endpoint.</strong> It sends everything over OTLP to the Collector
+and is done. It doesn&rsquo;t know which backends exist, where they are, or what each one
+expects.</li>
+<li><strong>The Collector knows everything else.</strong> Which backend gets which signal, at what URL,
+with which headers, and what to change on the way. Change a backend, add a second one,
+or start dropping something noisy, and no application has to be redeployed.</li>
+</ul>
+<h2>5.2 — The building blocks</h2>
+<p>A Collector is configured from a handful of component types:</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>What it does</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Receivers</strong></td>
+<td>Get telemetry in — by listening for it or by fetching it</td>
+<td>OTLP, Prometheus scraping, log files, Kafka</td>
+</tr>
+<tr>
+<td><strong>Processors</strong></td>
+<td>Change telemetry on the way through</td>
+<td>batch, filter, add or remove attributes, sampling, redaction</td>
+</tr>
+<tr>
+<td><strong>Exporters</strong></td>
+<td>Send telemetry out</td>
+<td>OTLP to any compatible backend, Prometheus remote write, Kafka, files</td>
+</tr>
+<tr>
+<td><strong>Connectors</strong></td>
+<td>Join two pipelines: an exporter on one and a receiver on the other</td>
+<td>turn spans into metrics, route by attribute</td>
+</tr>
+<tr>
+<td><strong>Extensions</strong></td>
+<td>Things that aren&rsquo;t about the data itself</td>
+<td>health checks, authentication</td>
+</tr>
+</tbody>
+</table>
+<p>Components are wired together into <strong>pipelines</strong>, one per signal. A pipeline says: take
+the metrics (or logs, or traces) from these receivers, run them through these processors
+in this order, and hand them to these exporters. A component that is declared but not used
+in any pipeline does nothing.</p>
+<h2>5.3 — What it can do</h2>
+<p>Most of what makes a Collector worth running falls into a few groups:</p>
+<ul>
+<li><strong>Routing.</strong> Send each signal to the backend that stores it, or the same signal to two
+backends at once — useful during a migration.</li>
+<li><strong>Enrichment.</strong> Add attributes the application doesn&rsquo;t know about: the environment, the
+cluster, the region.</li>
+<li><strong>Normalisation.</strong> Make telemetry from different SDKs, languages and versions look the
+same before it is stored, so queries and dashboards only deal with one shape.</li>
+<li><strong>Reduction.</strong> Drop what you don&rsquo;t need — health-check spans, debug logs, an attribute
+nobody queries — before you pay to store it. Sample traces, keeping the interesting ones.</li>
+<li><strong>Protection.</strong> Remove sensitive data, such as emails or tokens, in one place instead of
+in every application.</li>
+<li><strong>Derivation.</strong> Produce new telemetry from existing telemetry, such as request rate,
+errors and duration computed from spans.</li>
+<li><strong>Reliability.</strong> Batch telemetry for efficiency, retry when a backend is down, queue
+while it recovers, and refuse work rather than run out of memory.</li>
+<li><strong>Translation.</strong> Accept telemetry in one format and send it in another — scrape
+Prometheus endpoints, read log files, receive Jaeger or Zipkin.</li>
+</ul>
+<p>It is commonly deployed in two ways, often both at once: as an <strong>agent</strong> next to each
+application, on the same host or in the same pod, and as a <strong>gateway</strong>, a central pool
+that agents and applications send to.</p>
+<h2>5.4 — What this workshop&rsquo;s Collector does</h2>
+<p>The Collector you have been sending to since Module 4 is configured in
+<code>collector/config.yaml</code>. You don&rsquo;t need to read or change it; this is what it does.</p>
+<p><img src="images/collector-pipelines.png" alt="Inside this workshop&rsquo;s Collector: your app sends OTLP to the otlp receiver, which splits it into three pipelines. Metrics go through memory_limiter, resource and batch; logs through memory_limiter, resource, transform/severity and batch; traces through memory_limiter, resource and batch. Each pipeline ends in its own exporter, to VictoriaMetrics, VictoriaLogs and VictoriaTraces. The health_check extension sits apart, not on the data path"></p>
+<p><strong>Receivers</strong></p>
+<ul>
+<li><strong>OTLP</strong>, on port 4318 (HTTP) and 4317 (gRPC). This is where <code>todo-api</code> and
+<code>notify-service</code> send their metrics, logs and traces.</li>
+<li><strong>Its own metrics.</strong> The Collector reports on itself — what it received, what it sent,
+how full its queues are — and scrapes those numbers into its own metrics pipeline, so
+they land in VictoriaMetrics like any other metric. The <strong>Telemetry pipeline</strong> row of
+the Auto-Instrumentation dashboard in Grafana is built from them.</li>
+</ul>
+<p><strong>Processors</strong>, applied in this order:</p>
+<ul>
+<li><strong><code>memory_limiter</code></strong> — makes the Collector refuse data when it is close to its memory
+limit, instead of crashing and losing everything.</li>
+<li><strong><code>resource</code></strong> — adds <code>deployment.environment=workshop</code> to all telemetry, so every
+metric, log and span says which environment it came from, even if an application forgot
+to set it.</li>
+<li><strong><code>transform/severity</code></strong> — logs only. The JavaScript SDK reports levels in lower case
+(<code>info</code>) and the Python SDK in upper case (<code>INFO</code>). This processor converts them all to
+upper case, so a query for <code>ERROR</code> finds errors from both languages.</li>
+<li><strong><code>batch</code></strong> — groups telemetry into larger requests before sending it, which is far
+cheaper for both the Collector and the backends.</li>
+</ul>
+<p><strong>Exporters</strong>, one per backend:</p>
+<ul>
+<li><strong>VictoriaMetrics</strong> receives the metrics.</li>
+<li><strong>VictoriaLogs</strong> receives the logs, with a <code>VL-Stream-Fields</code> header that tells
+VictoriaLogs how to group them into streams: by <code>service.name</code> and
+<code>deployment.environment</code>.</li>
+<li><strong>VictoriaTraces</strong> receives the traces.</li>
+</ul>
+<p><strong>Extensions</strong></p>
+<ul>
+<li><strong><code>health_check</code></strong>, on port 13133. It answers whether the Collector is up; <code>doctor.sh</code>
+uses it.</li>
+</ul>
+<p>And the pipelines that connect them:</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Receivers</th>
+<th>Processors</th>
+<th>Exporter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Metrics</td>
+<td>OTLP, its own metrics</td>
+<td><code>memory_limiter</code>, <code>resource</code>, <code>batch</code></td>
+<td>VictoriaMetrics</td>
+</tr>
+<tr>
+<td>Logs</td>
+<td>OTLP</td>
+<td><code>memory_limiter</code>, <code>resource</code>, <code>transform/severity</code>, <code>batch</code></td>
+<td>VictoriaLogs</td>
+</tr>
+<tr>
+<td>Traces</td>
+<td>OTLP</td>
+<td><code>memory_limiter</code>, <code>resource</code>, <code>batch</code></td>
+<td>VictoriaTraces</td>
+</tr>
+</tbody>
+</table>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="04-auto-instrumentation.html" class="nav-button">← Previous</a>
+            
+            
+            <a href="06-manual-metrics.html" class="nav-button">Next: Module 6 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

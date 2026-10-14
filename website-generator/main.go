@@ -141,6 +141,7 @@ const (
 var tracks = []Track{
 	{ID: "js", Name: "Node.js / Express"},
 	{ID: "python", Name: "Python / Flask"},
+	{ID: "go", Name: "Go / net/http"},
 }
 
 func trackByID(id string) (Track, bool) {
@@ -158,17 +159,15 @@ var englishConfig = LangConfig{
 	OutputPrefix: "",
 	DisplayName:  "English",
 	Metadata: []moduleMeta{
-		{"00-setup-and-sanity-check", "Setup and Sanity Check", "Start the whole stack, your API included, with one Docker Compose command, and check with the doctor script that everything is up and running."},
-		{"01-the-application", "The Application You'll Instrument", "Tour the todo-api you'll be editing all day — its endpoints, its dependencies and its code."},
-		{"02-what-observability-is", "The Three Signals — Metrics, Logs and Traces", "What metrics, logs and traces are, with an example of each taken from the application you'll instrument."},
-		{"03-auto-instrumentation", "The Easy Path: Zero-Code Auto-Instrumentation", "Get all three signals flowing without touching application code, then find the ceiling of what that buys you."},
-		{"04-the-collector", "The Collector, and Where the Data Actually Goes", "Read and edit the OpenTelemetry Collector config that fans a single OTLP endpoint out to three backends."},
-		{"05-manual-metrics", "Manual Metrics", "Pick the right instrument, emit business metrics, shape them with views, and meet cardinality before it bites."},
-		{"06-manual-logs", "Manual Logs", "Emit structured logs that carry trace context, and query them with LogsQL."},
-		{"07-manual-traces", "Manual Traces", "Create custom spans, record errors properly, and propagate context across services and languages."},
-		{"08-correlation", "Correlation: Making the Three Signals One Thing", "Derive metrics from spans and wire up the jumps between metrics, logs and traces in Grafana."},
-		{"09-capstone-debugging-challenge", "Capstone: The Debugging Challenge", "Diagnose an unfamiliar, production-ish failure using only the telemetry you built."},
-		{"10-production-realities", "Production Realities and Wrap-Up", "Cost, sampling, retention, PII and rollout strategy — what changes when this leaves your laptop."},
+		{"01-observability-and-opentelemetry", "Observability and OpenTelemetry", "What observability means, the three signals it relies on — metrics, logs and traces — and what OpenTelemetry is."},
+		{"02-setup-and-sanity-check", "Setup and Sanity Check", "Start the whole stack, your API included, with one Docker Compose command, and check with the doctor script that everything is up and running."},
+		{"03-the-application", "The Application You'll Instrument", "Tour the todo-api you'll be editing all day — its endpoints, its dependencies and its code."},
+		{"04-auto-instrumentation", "The Easy Path: Zero-Code Auto-Instrumentation", "Get all three signals flowing without touching application code."},
+		{"05-the-collector", "The OpenTelemetry Collector", "What the OpenTelemetry Collector is, what it can do, and what this workshop's Collector does to your metrics, logs and traces."},
+		{"06-manual-metrics", "Manual Metrics", "Pick the right instrument, emit business metrics, and meet cardinality before it bites."},
+		{"07-manual-logs", "Manual Logs", "Emit structured logs that carry trace context, and query them with LogsQL."},
+		{"08-manual-traces", "Manual Traces", "Create custom spans, record errors properly, and propagate context across services and languages."},
+		{"09-production-realities", "Production Realities and Wrap-Up", "Cost, sampling, PII and rollout strategy — what changes when this leaves your laptop."},
 	},
 	UIStrings: UIStrings{
 		Home:      "Home",
@@ -176,14 +175,14 @@ var englishConfig = LangConfig{
 		Next:      "Next",
 		Module:    "Module",
 		Track:     "Track",
-		TrackHint: `Every module is written once for both tracks. Use the <strong>track switcher</strong> in the navigation bar of any module page to flip the code examples between Node.js and Python — your choice is remembered as you move through the workshop.`,
+		TrackHint: `Every module is written once for all three tracks. Use the <strong>track switcher</strong> in the navigation bar of any module page to flip the code examples between Node.js, Python and Go — your choice is remembered as you move through the workshop.`,
 		HeroTitle: siteName,
 		HeroLead:  "Welcome to a hands-on workshop where you'll instrument a multi-service application from scratch with OpenTelemetry, and ship metrics, logs and traces into the VictoriaMetrics stack. Roughly 25% talk, 75% keyboard.",
-		HeroNote:  "<strong>Two parallel tracks: Node.js/Express and Python/Flask.</strong> Same system, same backend, same exercises — only the SDK surface differs.",
+		HeroNote:  "<strong>Three parallel tracks: Node.js/Express, Python/Flask and Go.</strong> Same system, same backend, same exercises — only the SDK surface differs.",
 
 		Prerequisites: "Prerequisites",
 		PrereqItems: []string{
-			"Comfortable with HTTP APIs and either JavaScript or Python",
+			"Comfortable with HTTP APIs and with JavaScript, Python or Go",
 			"Docker and Docker Compose installed and working",
 			"Git installed on your system",
 			"<strong>No prior OpenTelemetry, MetricsQL or LogsQL knowledge needed</strong>",
@@ -193,9 +192,9 @@ var englishConfig = LangConfig{
 		OverviewText:   "This workshop consists of %d modules that take you from a service emitting nothing at all to one you can debug from telemetry alone. You'll instrument a multi-service system, run an OpenTelemetry Collector as the single ingress point, and query the results in VictoriaMetrics, VictoriaLogs, VictoriaTraces and Grafana:",
 		GettingStarted: "Getting Started",
 		GettingStartedItems: []string{
-			`Start with <a href="%s00-setup-and-sanity-check.html">Module 0</a> to get your environment ready`,
+			`Start with <a href="%s01-observability-and-opentelemetry.html">Module 1</a>, an introduction to observability and OpenTelemetry; Module 2 gets your environment ready`,
 			"Work through the modules in order — each one builds on the last",
-			"Pick the track you want to type in, JavaScript or Python. Both end up looking at identical data.",
+			"Pick the track you want to type in: JavaScript, Python or Go. All three build the same system against the same backend.",
 		},
 		Tips: "Tips for Success",
 		TipItems: []string{
@@ -223,8 +222,6 @@ var englishConfig = LangConfig{
 			"<strong>Chosen the right instruments</strong> and reasoned about cardinality before it hurt",
 			"<strong>Emitted structured logs</strong> that carry trace context, and queried them with LogsQL",
 			"<strong>Written custom spans</strong> and propagated context across service and language boundaries",
-			"<strong>Correlated all three signals</strong> in Grafana and in the Victoria UIs",
-			"<strong>Debugged an unfamiliar failure</strong> using only telemetry",
 		},
 		CompletionCongrats: "<strong>Congratulations!</strong> You'll have gained the confidence to instrument your own services deliberately rather than by accident. This knowledge enables you to:",
 		CompletionEnables: []string{
@@ -234,7 +231,7 @@ var englishConfig = LangConfig{
 		},
 		Contributing:     "Contributing",
 		ContributingText: `Found an issue, have an improvement idea or want to add more modules? Please <a href="` + repoURL + `/issues">open an issue</a> or submit a pull request!`,
-		CTAButton:        "Start with Module 0 →",
+		CTAButton:        "Start with Module 1 →",
 		FooterTitle:      siteName,
 		FooterCreatedBy:  "Created by <strong>Jesús Espino</strong>",
 	},
@@ -246,17 +243,15 @@ var spanishConfig = LangConfig{
 	OutputPrefix: "es",
 	DisplayName:  "Español",
 	Metadata: []moduleMeta{
-		{"00-setup-and-sanity-check", "Preparación y Comprobación del Entorno", "Arranca todo el stack, tu API incluida, con un solo comando de Docker Compose, y comprueba con el script doctor que todo está funcionando."},
-		{"01-the-application", "La Aplicación que Vas a Instrumentar", "Recorre la todo-api que vas a editar durante todo el día — sus endpoints, sus dependencias y su código."},
-		{"02-what-observability-is", "Las Tres Señales — Métricas, Logs y Trazas", "Qué son las métricas, los logs y las trazas, con un ejemplo de cada una sacado de la aplicación que vas a instrumentar."},
-		{"03-auto-instrumentation", "El Camino Fácil: Auto-instrumentación Sin Código", "Haz que fluyan las tres señales sin tocar el código de la aplicación, y descubre hasta dónde llega ese atajo."},
-		{"04-the-collector", "El Collector, y Dónde Acaban los Datos", "Lee y modifica la configuración del OpenTelemetry Collector que reparte un único endpoint OTLP entre tres backends."},
-		{"05-manual-metrics", "Métricas Manuales", "Elige el instrumento correcto, emite métricas de negocio, moldéalas con views y enfréntate a la cardinalidad antes de que te muerda."},
-		{"06-manual-logs", "Logs Manuales", "Emite logs estructurados que arrastren el contexto de traza, y consúltalos con LogsQL."},
-		{"07-manual-traces", "Trazas Manuales", "Crea spans propios, registra errores como toca y propaga el contexto entre servicios y lenguajes."},
-		{"08-correlation", "Correlación: Convertir las Tres Señales en Una", "Deriva métricas a partir de spans y conecta los saltos entre métricas, logs y trazas en Grafana."},
-		{"09-capstone-debugging-challenge", "Proyecto Final: El Reto de Depuración", "Diagnostica un fallo desconocido, de los de producción, usando solo la telemetría que has construido."},
-		{"10-production-realities", "Realidades de Producción y Cierre", "Coste, sampling, retención, PII y estrategia de despliegue: qué cambia cuando esto sale de tu portátil."},
+		{"01-observability-and-opentelemetry", "Observabilidad y OpenTelemetry", "Qué significa observabilidad, las tres señales en las que se apoya — métricas, logs y trazas — y qué es OpenTelemetry."},
+		{"02-setup-and-sanity-check", "Preparación y Comprobación del Entorno", "Arranca todo el stack, tu API incluida, con un solo comando de Docker Compose, y comprueba con el script doctor que todo está funcionando."},
+		{"03-the-application", "La Aplicación que Vas a Instrumentar", "Recorre la todo-api que vas a editar durante todo el día — sus endpoints, sus dependencias y su código."},
+		{"04-auto-instrumentation", "El Camino Fácil: Auto-instrumentación Sin Código", "Haz que fluyan las tres señales sin tocar el código de la aplicación."},
+		{"05-the-collector", "El OpenTelemetry Collector", "Qué es el OpenTelemetry Collector, qué puede hacer y qué hace el Collector de este taller con tus métricas, logs y trazas."},
+		{"06-manual-metrics", "Métricas Manuales", "Elige el instrumento correcto, emite métricas de negocio y enfréntate a la cardinalidad antes de que te muerda."},
+		{"07-manual-logs", "Logs Manuales", "Emite logs estructurados que arrastren el contexto de traza, y consúltalos con LogsQL."},
+		{"08-manual-traces", "Trazas Manuales", "Crea spans propios, registra errores como toca y propaga el contexto entre servicios y lenguajes."},
+		{"09-production-realities", "Realidades de Producción y Cierre", "Coste, sampling, PII y estrategia de despliegue: qué cambia cuando esto sale de tu portátil."},
 	},
 	UIStrings: UIStrings{
 		Home:      "Inicio",
@@ -264,14 +259,14 @@ var spanishConfig = LangConfig{
 		Next:      "Siguiente",
 		Module:    "Módulo",
 		Track:     "Track",
-		TrackHint: `Cada módulo está escrito una sola vez para los dos tracks. Usa el <strong>selector de track</strong> de la barra de navegación de cualquier módulo para cambiar los ejemplos de código entre Node.js y Python — tu elección se recuerda mientras avanzas por el taller.`,
+		TrackHint: `Cada módulo está escrito una sola vez para los tres tracks. Usa el <strong>selector de track</strong> de la barra de navegación de cualquier módulo para cambiar los ejemplos de código entre Node.js, Python y Go — tu elección se recuerda mientras avanzas por el taller.`,
 		HeroTitle: "Instrumentando tu aplicación con OpenTelemetry",
 		HeroLead:  "¡Bienvenido a un taller práctico donde instrumentarás desde cero una aplicación de varios servicios con OpenTelemetry, y enviarás métricas, logs y trazas al stack de VictoriaMetrics! Aproximadamente 25% charla, 75% teclado.",
-		HeroNote:  "<strong>Dos tracks en paralelo: Node.js/Express y Python/Flask.</strong> El mismo sistema, el mismo backend y los mismos ejercicios — solo cambia la superficie del SDK.",
+		HeroNote:  "<strong>Tres tracks en paralelo: Node.js/Express, Python/Flask y Go.</strong> El mismo sistema, el mismo backend y los mismos ejercicios — solo cambia la superficie del SDK.",
 
 		Prerequisites: "Prerrequisitos",
 		PrereqItems: []string{
-			"Soltura con APIs HTTP y con JavaScript o Python",
+			"Soltura con APIs HTTP y con JavaScript, Python o Go",
 			"Docker y Docker Compose instalados y funcionando",
 			"Git instalado en tu sistema",
 			"<strong>No hace falta saber nada de OpenTelemetry, MetricsQL ni LogsQL</strong>",
@@ -281,9 +276,9 @@ var spanishConfig = LangConfig{
 		OverviewText:   "Este taller consta de %d módulos que te llevan desde un servicio que no emite absolutamente nada hasta uno que puedes depurar solo con telemetría. Instrumentarás un sistema de varios servicios, ejecutarás un OpenTelemetry Collector como único punto de entrada y consultarás los resultados en VictoriaMetrics, VictoriaLogs, VictoriaTraces y Grafana:",
 		GettingStarted: "Cómo Empezar",
 		GettingStartedItems: []string{
-			`Comienza con el <a href="%s00-setup-and-sanity-check.html">Módulo 0</a> para dejar tu entorno preparado`,
+			`Comienza con el <a href="%s01-observability-and-opentelemetry.html">Módulo 1</a>, una introducción a la observabilidad y a OpenTelemetry; el Módulo 2 deja tu entorno preparado`,
 			"Haz los módulos en orden — cada uno se apoya en el anterior",
-			"Elige el track en el que quieras escribir, JavaScript o Python. Los dos acaban mirando exactamente los mismos datos.",
+			"Elige el track en el que quieras escribir: JavaScript, Python o Go. Los tres construyen el mismo sistema contra el mismo backend.",
 		},
 		Tips: "Consejos para el Éxito",
 		TipItems: []string{
@@ -311,8 +306,6 @@ var spanishConfig = LangConfig{
 			"<strong>Elegido los instrumentos correctos</strong> y razonado sobre cardinalidad antes de que doliera",
 			"<strong>Emitido logs estructurados</strong> que arrastran el contexto de traza, y consultado con LogsQL",
 			"<strong>Escrito spans propios</strong> y propagado el contexto entre servicios y lenguajes",
-			"<strong>Correlacionado las tres señales</strong> en Grafana y en las UIs de Victoria",
-			"<strong>Depurado un fallo desconocido</strong> usando solo telemetría",
 		},
 		CompletionCongrats: "<strong>¡Felicidades!</strong> Habrás ganado la confianza para instrumentar tus propios servicios de forma deliberada y no por accidente. Este conocimiento te permite:",
 		CompletionEnables: []string{
@@ -322,7 +315,7 @@ var spanishConfig = LangConfig{
 		},
 		Contributing:     "Contribuir",
 		ContributingText: `¿Encontraste un problema, tienes una idea de mejora o quieres añadir más módulos? ¡Por favor <a href="` + repoURL + `/issues">abre un issue</a> o envía un pull request!`,
-		CTAButton:        "Comenzar con el Módulo 0 →",
+		CTAButton:        "Comenzar con el Módulo 1 →",
 		FooterTitle:      "Instrumentando tu aplicación con OpenTelemetry",
 		FooterCreatedBy:  "Creado por <strong>Jesús Espino</strong>",
 	},
@@ -331,7 +324,7 @@ var spanishConfig = LangConfig{
 var languages = []LangConfig{englishConfig, spanishConfig}
 
 // computeLangURL builds a relative URL from fromLang's page directory to toLang's page.
-// page is the HTML filename (e.g. "index.html" or "00-setup-and-sanity-check.html").
+// page is the HTML filename (e.g. "index.html" or "01-observability-and-opentelemetry.html").
 func computeLangURL(fromLang, toLang LangConfig, page string) string {
 	fromSub := fromLang.OutputPrefix != ""
 	toSub := toLang.OutputPrefix != ""
@@ -492,7 +485,7 @@ func generateModulePage(modulesDir, outputDir string, lang LangConfig, meta modu
 	}
 
 	module := Module{
-		Number:      index,
+		Number:      index + 1,
 		Title:       meta.Title,
 		Description: meta.Description,
 		Filename:    htmlFilename,
@@ -655,6 +648,7 @@ func markdownToHTML(markdown []byte) (string, error) {
 	// Post-process to fix relative links
 	htmlStr := buf.String()
 	htmlStr = fixRelativeLinks(htmlStr)
+	htmlStr = linkLocalServices(htmlStr)
 
 	// Turn the track markers into switchable blocks
 	htmlStr, err := applyTrackBlocks(htmlStr)
@@ -752,6 +746,28 @@ func fixRelativeLinks(html string) string {
 	html = re.ReplaceAllString(html, `href="$1.html"`)
 
 	return html
+}
+
+// A URL of the participant's own stack, written as inline code in a handout.
+// The optional group catches a code span that is already inside a link or is a
+// code block, both of which are left alone.
+var localURLCode = regexp.MustCompile(`(<pre>|<a [^>]*>)?<code>(https?://localhost[^<\s]*)</code>`)
+
+// A link that points at the participant's own stack.
+var localURLLink = regexp.MustCompile(`<a href="(https?://localhost[^"]*)">`)
+
+// linkLocalServices makes every URL of the local stack — the frontend, the
+// Victoria UIs, Grafana — a link that opens in a new tab, so following one
+// doesn't take the participant away from the handout.
+func linkLocalServices(html string) string {
+	html = localURLCode.ReplaceAllStringFunc(html, func(m string) string {
+		sub := localURLCode.FindStringSubmatch(m)
+		if sub[1] != "" {
+			return m
+		}
+		return `<a href="` + sub[2] + `"><code>` + sub[2] + `</code></a>`
+	})
+	return localURLLink.ReplaceAllString(html, `<a href="$1" target="_blank" rel="noopener">`)
 }
 
 const moduleTemplate = `<!DOCTYPE html>
@@ -1056,7 +1072,7 @@ const indexTemplate = `<!DOCTYPE html>
         </section>
 
         <div class="cta">
-            <a href="00-setup-and-sanity-check.html" class="cta-button">{{.UI.CTAButton}}</a>
+            <a href="01-observability-and-opentelemetry.html" class="cta-button">{{.UI.CTAButton}}</a>
         </div>
     </div>
 

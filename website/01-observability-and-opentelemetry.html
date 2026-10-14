@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 1: Observability and OpenTelemetry - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/01-observability-and-opentelemetry.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Module 1: Observability and OpenTelemetry</h1>
+<p>Before touching any code, this module sets out what observability means, the three kinds
+of data it relies on — metrics, logs and traces — and what OpenTelemetry is, so that the
+rest of the workshop builds on a shared vocabulary. 🧠</p>
+<h2>Learning Objectives</h2>
+<p>By the end of this module, you will:</p>
+<ul>
+<li>Know what observability is, what telemetry is, and how observability differs from monitoring</li>
+<li>Know what a metric, a log record and a trace are</li>
+<li>Know what OpenTelemetry is, what it provides and what it doesn&rsquo;t</li>
+<li>Know where each signal is stored in this workshop</li>
+</ul>
+<h2>1.1 — What observability is</h2>
+<p><strong>Observability</strong> is being able to understand what a system is doing, and why, from the
+data it emits — without having to change its code or deploy a new version every time you
+have a new question.</p>
+<p>That data is called <strong>telemetry</strong>: measurements and records that an application produces
+about its own behaviour while it runs. How many requests it is serving, how long they take,
+which ones fail, what happened inside each one.</p>
+<p>A system is observable when its telemetry lets you answer questions like these:</p>
+<ul>
+<li>Is it working right now? Are users getting errors, or waiting longer than usual?</li>
+<li>When something goes wrong, where? In which service, on which endpoint, for which users?</li>
+<li>Why? What was different about the requests that failed?</li>
+</ul>
+<p>In practice it looks like this: the application emits telemetry, a backend stores it, and a
+tool like Grafana lets you query it and see it.</p>
+<h3>Monitoring and observability</h3>
+<p>The two words often appear together, and they are related, but they don&rsquo;t mean the same
+thing.</p>
+<p><strong>Monitoring</strong> is watching for problems you already know about. You decide in advance what
+matters — the error rate, the latency, the disk filling up — build a dashboard for it, like
+the one below, and set an alert that fires when a value crosses a threshold. It answers
+the question <em>is something wrong?</em>, for the failures you were able to predict.</p>
+<p><img src="images/grafana-dashboard.png" alt="A Grafana dashboard monitoring a VictoriaLogs cluster: totals and resource usage at the top, then ingestion rate, request rate, error rate and p99 request duration over the last three hours"></p>
+<p><strong>Observability</strong> is being able to investigate problems you didn&rsquo;t predict. When an alert
+fires, or a user reports something no dashboard shows, you need to ask new questions —
+<em>which requests are slow? what do they have in common? where does the time go?</em> — and get
+the answers from the telemetry you already have, without shipping new code first.</p>
+<p>For that, what counts is all the raw telemetry the system emits, not a selection of it
+already drawn on a dashboard. This, for example, is a fragment of the metrics a single Go
+program exposes: hundreds of series about its memory and its garbage collector. Nobody
+puts all of them on a dashboard, but they&rsquo;re there for the day a question needs them.</p>
+<pre><code># HELP go_gc_cycles_total_gc_cycles_total Count of all completed GC cycles.
+# TYPE go_gc_cycles_total_gc_cycles_total counter
+go_gc_cycles_total_gc_cycles_total 4178
+# HELP go_gc_duration_seconds A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile=&quot;0&quot;} 4.264e-05
+go_gc_duration_seconds{quantile=&quot;0.25&quot;} 5.74e-05
+go_gc_duration_seconds{quantile=&quot;0.5&quot;} 7.328e-05
+go_gc_duration_seconds{quantile=&quot;0.75&quot;} 9.705e-05
+go_gc_duration_seconds{quantile=&quot;1&quot;} 0.00033989
+go_gc_duration_seconds_sum 0.58628048
+go_gc_duration_seconds_count 4178
+# HELP go_gc_gogc_percent Heap size target percentage configured by the user, otherwise 100.
+# TYPE go_gc_gogc_percent gauge
+go_gc_gogc_percent 100
+# HELP go_gc_heap_allocs_by_size_bytes Distribution of heap allocations by approximate size.
+# TYPE go_gc_heap_allocs_by_size_bytes histogram
+go_gc_heap_allocs_by_size_bytes_bucket{le=&quot;8.999999999999998&quot;} 1.504735e+07
+go_gc_heap_allocs_by_size_bytes_bucket{le=&quot;24.999999999999996&quot;} 5.11605082e+08
+go_gc_heap_allocs_by_size_bytes_bucket{le=&quot;64.99999999999999&quot;} 6.88034454e+08
+go_gc_heap_allocs_by_size_bytes_bucket{le=&quot;144.99999999999997&quot;} 7.36567619e+08
+go_gc_heap_allocs_by_size_bytes_bucket{le=&quot;320.99999999999994&quot;} 8.13562355e+08
+go_gc_heap_allocs_by_size_bytes_bucket{le=&quot;+Inf&quot;} 8.37473303e+08
+go_gc_heap_allocs_by_size_bytes_sum 1.82533046496e+11
+go_gc_heap_allocs_by_size_bytes_count 8.37473303e+08
+...
+</code></pre>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Monitoring</th>
+<th>Observability</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Questions</td>
+<td>Known in advance</td>
+<td>Come up during an investigation</td>
+</tr>
+<tr>
+<td>Answers</td>
+<td><em>Is something wrong?</em></td>
+<td><em>Where, and why?</em></td>
+</tr>
+<tr>
+<td>Typical tools</td>
+<td>Dashboards and alerts</td>
+<td>Queries that filter, group and follow a single request</td>
+</tr>
+</tbody>
+</table>
+<p>Monitoring is built on top of the same telemetry. A system that is observable can be
+monitored, and the alert is usually where an investigation starts.</p>
+<p>Telemetry comes in three kinds, called <strong>signals</strong>: metrics, logs and traces. The next
+three sections explain each one.</p>
+<h2>1.2 — Metrics</h2>
+<p>A <strong>metric</strong> is a number measured over time. Instead of recording every event, the
+application keeps aggregated values — a count, a sum, a distribution — and exports them
+periodically, by default every 60 seconds (every 10 in this workshop).</p>
+<p>Here is one metric, a counter of the todos created, broken into its parts:</p>
+<p><img src="images/metric.png" alt="A metric split into its parts: the metric name todos_created_total, what is being measured; the labels service_name=&ldquo;todo-api&rdquo; and list=&ldquo;work&rdquo; between braces, which series this value belongs to, with list=&ldquo;work&rdquo; broken down into its key, list, and its value, work; and the value 1287, the number, aggregated, not one event"></p>
+<p>Each combination of metric name and label values is a separate <strong>time series</strong>: the same
+counter with <code>list=&quot;home&quot;</code> instead of <code>list=&quot;work&quot;</code> is a different series, with its own
+value. The number of distinct time series is what we call <strong>cardinality</strong>, and for now it&rsquo;s
+enough to know that it&rsquo;s important to keep it low.</p>
+<h3>Types of metric</h3>
+<p>The metric above is a <strong>counter</strong>. There are a few types of metric, and the three you&rsquo;ll use
+most are:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>What it records</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Counter</strong></td>
+<td>A total that only goes up</td>
+<td>todos created</td>
+</tr>
+<tr>
+<td><strong>Gauge</strong></td>
+<td>A value at a point in time, which goes up and down</td>
+<td>todos currently open</td>
+</tr>
+<tr>
+<td><strong>Histogram</strong></td>
+<td>The distribution of measured values</td>
+<td>request duration</td>
+</tr>
+</tbody>
+</table>
+<p><img src="images/metric-types.png" alt="The three types of metric over time: a counter that only goes up, a gauge that goes up and down, and a histogram that sorts each measured value into a bucket and counts how many fell into each one"></p>
+<p>A histogram doesn&rsquo;t keep each value it measures. It counts how many fell into each range,
+called a <strong>bucket</strong>: how many requests took under 10 ms, how many between 10 and 25 ms, and
+so on. That&rsquo;s enough to answer questions like <em>how long did the slowest 5% of requests
+take?</em> without storing every request.</p>
+<h2>1.3 — Logs</h2>
+<p>A <strong>log record</strong> describes one event that happened at a specific moment: a request failed,
+a todo was created, a connection was retried. Unlike a metric, every event produces its
+own record. A log record has a body (the message), a severity, a timestamp
+and attributes, and if it was emitted while handling a request, the identifiers of that
+request&rsquo;s trace.</p>
+<p><img src="images/log-line.png" alt="A log line split into its parts: the timestamp, when it happened and how entries get ordered; the level, how much you care; the message, the one part written for a human to read; and the context, a set of key=value pairs such as service=checkout, user_id=4171 and duration_ms=812"></p>
+<p>The context is what makes a log line useful beyond reading it: each <code>key=value</code> pair is a
+field you can filter and group by.</p>
+<h2>1.4 — Traces</h2>
+<p>A <strong>trace</strong> follows one request through the system. It is made of <strong>spans</strong>: each span is
+one operation with a start time, a duration and attributes — handling an HTTP request,
+running a database query, calling another service. Spans have parents, so together they
+form a tree showing what happened, in what order, and how long each step took. When a
+request goes from one service to another, the trace id travels with it in an HTTP header
+(<code>traceparent</code>), so the spans of both services end up in the same trace.</p>
+<p><img src="images/trace.png" alt="A trace of one request drawn as a waterfall over time: the root span POST /todos in todo-api spans the whole request; inside it, INSERT INTO todos and then POST /notify, todo-api&rsquo;s call to notify-service; inside that call, notify-service&rsquo;s own POST /notify span; and inside that, send notification, a child of a child"></p>
+<h2>1.5 — What OpenTelemetry is</h2>
+<p><strong>OpenTelemetry</strong> (OTel for short) is an open-source project, part of the Cloud Native
+Computing Foundation, that standardises how applications produce telemetry and how it is
+sent somewhere. It provides:</p>
+<ul>
+<li><strong>An API and an SDK for each language</strong> — JavaScript, Python, Java, Go, .NET and many
+more — to create telemetry from your code.</li>
+<li><strong>Instrumentation libraries</strong> that produce telemetry for common frameworks and libraries
+(HTTP servers, database drivers, HTTP clients) without you writing that code.</li>
+<li><strong>Semantic conventions</strong>: agreed names for common things — <code>service.name</code>,
+<code>http.route</code>, <code>http.response.status_code</code> — so telemetry from different languages and
+libraries looks the same.</li>
+<li><strong>OTLP</strong>, the OpenTelemetry protocol, to send telemetry from one component to another.</li>
+<li><strong>The Collector</strong>, a program that receives telemetry, processes it and sends it on.</li>
+</ul>
+<p>OpenTelemetry does <strong>not</strong> store or display telemetry. That is the job of a backend — in
+this workshop VictoriaMetrics, VictoriaLogs and VictoriaTraces — and of a tool like
+Grafana. Because the format and the protocol are standard, you instrument your application
+once and can send its telemetry to any compatible backend without changing the code.</p>
+<p>It covers all three signals — metrics, logs and traces — with the same API, the same
+protocol and the same Collector.</p>
+<h2>1.6 — Where each signal goes in this workshop</h2>
+<p>Your application sends all three signals to the OpenTelemetry Collector, which forwards
+each one to its own storage:</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Stored in</th>
+<th>Queried with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Metrics</td>
+<td>VictoriaMetrics</td>
+<td>MetricsQL (PromQL-compatible)</td>
+</tr>
+<tr>
+<td>Logs</td>
+<td>VictoriaLogs</td>
+<td>LogsQL</td>
+</tr>
+<tr>
+<td>Traces</td>
+<td>VictoriaTraces</td>
+<td>LogsQL</td>
+</tr>
+</tbody>
+</table>
+<p>Logs and traces share the same query language.</p>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="index.html" class="nav-button">← Home</a>
+            
+            
+            <a href="02-setup-and-sanity-check.html" class="nav-button">Next: Module 2 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

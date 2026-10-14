@@ -2,7 +2,7 @@ import os
 
 import requests
 
-NOTIFY_URL = os.environ.get("NOTIFY_URL", "http://notify-js:8084")
+NOTIFY_URL = os.environ.get("NOTIFY_URL", "http://notify-service:8083")
 TIMEOUT_S = int(os.environ.get("NOTIFY_TIMEOUT_MS", "2000")) / 1000
 
 

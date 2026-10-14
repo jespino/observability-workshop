@@ -13,8 +13,7 @@ def create_app() -> Flask:
         return jsonify(ok=True)
 
     # The frontend is served from a different origin, so allow any origin,
-    # method and header — including `traceparent`, for the browser-
-    # instrumentation bonus in Module 7.4.
+    # method and header.
     @app.after_request
     def cors(response):
         response.headers["access-control-allow-origin"] = "*"

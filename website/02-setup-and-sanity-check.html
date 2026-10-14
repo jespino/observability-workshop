@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 2: Setup and Sanity Check - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/02-setup-and-sanity-check.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Module 2: Setup and Sanity Check</h1>
+<p>The goal of this module is boring on purpose: start everything with one command, and check
+that it&rsquo;s all up and running before you start instrumenting. 🟢</p>
+<h2>What you need</h2>
+<ul>
+<li><strong>Docker</strong> with the Compose plugin: <code>docker compose version</code> must answer</li>
+<li><code>git</code> and a Unix shell. On Windows, use WSL2.</li>
+<li>About 4GB of free RAM and 4GB of free disk</li>
+<li><strong>You do not need Node.js or Python installed</strong> — everything runs in containers</li>
+</ul>
+<blockquote>
+<p>📦 <strong>Pre-work, if you have the chance.</strong> The stack is about 3 GB of images, and venue wifi
+is not your friend. Clone the repo (step 1 below) and pull them before you arrive:</p>
+</blockquote>
+<pre><code class="language-bash">cd observability-workshop/workshop
+docker compose --profile js --profile py --profile go pull
+</code></pre>
+<h2>Setup</h2>
+<ol>
+<li>
+<p>Clone the repo and go into the workshop directory. <strong>Stay in <code>workshop/</code> for the rest of
+the day</strong> — every command in every module assumes you are there.</p>
+<pre><code class="language-bash">git clone https://github.com/jespino/observability-workshop
+cd observability-workshop/workshop
+</code></pre>
+</li>
+<li>
+<p>Pick your track — the language you&rsquo;re <em>comfortable</em> in, so the friction today is
+OpenTelemetry and not syntax:</p>
+<table>
+<thead>
+<tr>
+<th>Track</th>
+<th>Your API&rsquo;s port</th>
+<th>Directory you&rsquo;ll edit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Node.js / Express</td>
+<td>8081</td>
+<td><code>track-js/todo-api/</code></td>
+</tr>
+<tr>
+<td>Python / Flask</td>
+<td>8082</td>
+<td><code>track-py/todo-api/</code></td>
+</tr>
+<tr>
+<td>Go / net/http</td>
+<td>8085</td>
+<td><code>track-go/todo-api/</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>💡 <strong>Use the track switcher in the navigation bar at the top of this page.</strong> It flips
+every code example to your language and remembers the choice.</p>
+</blockquote>
+</li>
+<li>
+<p>Start the stack for your track:</p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-bash">docker compose --profile js up -d
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-bash">docker compose --profile py up -d
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code class="language-bash">docker compose --profile go up -d
+</code></pre>
+</div>
+<p>This starts one container per piece: <strong>your API</strong>, its Postgres database,
+<code>notify-service</code> (the downstream service your API calls), the frontend, the
+OpenTelemetry Collector, VictoriaMetrics, VictoriaLogs and VictoriaTraces to store
+metrics, logs and traces, and Grafana to look at all three. Their data lives in <strong>Docker volumes</strong>, outside the repository:
+it survives restarts and <code>docker compose down</code>, and <code>docker compose down -v</code> deletes it.</p>
+<p><img src="images/docker-compose-stack.png" alt="Everything docker compose starts: your browser reaches the frontend on localhost; the frontend calls todo-api, which uses Postgres and calls notify-service; both send OTLP to the OpenTelemetry Collector, which routes metrics, logs and traces to VictoriaMetrics, VictoriaLogs and VictoriaTraces, each with its own volume; Grafana reads from all three."></p>
+<p>Your API&rsquo;s source code is mounted into its container, so <strong>saving a file restarts it</strong> —
+that&rsquo;s the whole deploy cycle for today.</p>
+</li>
+<li>
+<p>Check that everything is up and running:</p>
+<pre><code class="language-bash">./doctor.sh
+</code></pre>
+<p>It waits for the stack to come up — the first start takes a minute while your API
+installs its dependencies — and then checks every piece. <strong>Every row must be ✅.</strong> At
+the end it prints the UIs you&rsquo;ll use all day: bookmark them.</p>
+</li>
+</ol>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="01-observability-and-opentelemetry.html" class="nav-button">← Previous</a>
+            
+            
+            <a href="03-the-application.html" class="nav-button">Next: Module 3 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

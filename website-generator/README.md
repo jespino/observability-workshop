@@ -101,7 +101,7 @@ website-generator/
 The generator creates:
 
 - `index.html` - Homepage with the module overview
-- `00-setup-and-sanity-check.html` through `09-production-realities.html` - Module pages
+- `01-observability-and-opentelemetry.html` through `09-production-realities.html` - Module pages
 - `es/` - The same set of pages in Spanish
 - `style.css` - Shared stylesheet
 

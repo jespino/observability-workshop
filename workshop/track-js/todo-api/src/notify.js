@@ -1,4 +1,4 @@
-const NOTIFY_URL = process.env.NOTIFY_URL ?? 'http://notify-py:8083';
+const NOTIFY_URL = process.env.NOTIFY_URL ?? 'http://notify-service:8083';
 const TIMEOUT_MS = Number(process.env.NOTIFY_TIMEOUT_MS ?? 2000);
 
 async function post(path, body) {

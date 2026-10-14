@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 7: Manual Logs - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/07-manual-logs.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Module 7: Manual Logs</h1>
+<p>Right now your logs are text. Text is what you grep at 3am while wishing you had something better. This module turns them into records you can filter, aggregate and — the important part — join to a trace. 🪵</p>
+<h2>Learning Objectives</h2>
+<p>By the end of this module, you will:</p>
+<ul>
+<li>Explain what an OpenTelemetry log record contains, and what belongs in the body versus the attributes</li>
+<li>Emit structured logs that carry <code>trace_id</code> and <code>span_id</code> automatically</li>
+<li>Log an error path in a way that someone else could act on</li>
+<li>Query logs with LogsQL, including aggregations</li>
+<li>Know when to use the SDK and when to use stdout plus a Collector receiver instead</li>
+</ul>
+<h2>Exercise 7.1 — Structured logging with trace context</h2>
+<p><strong>You should be able to answer this by the end:</strong> <em>given an error log line, how do you get to the trace of the request that produced it?</em></p>
+<h3>Do</h3>
+<ol>
+<li>Set up the structured logger.</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>The app already uses pino, in <code>src/log.js</code>:</p>
+<pre><code class="language-js">const pino = require('pino');
+
+const log = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+
+module.exports = { log };
+</code></pre>
+<p>There is nothing to install: <code>@opentelemetry/instrumentation-pino</code> is part of the
+auto-instrumentations bundle you added in Module 4, which is why those log lines have
+been reaching VictoriaLogs since then. What&rsquo;s missing is <em>structure</em>.</p>
+<p>Today the handlers call it like this — a message with the data melted into it:</p>
+<pre><code class="language-js">log.info('todo created ' + todo.id);
+</code></pre>
+<p>Change them to pass an attribute object first and a <strong>constant</strong> message second:</p>
+<pre><code class="language-js">log.info({ list: todo.list, todo_id: todo.id }, 'todo created');
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>The app already has a logger, in <code>todo_api/log.py</code>:</p>
+<pre><code class="language-python">import logging
+import os
+
+LEVEL = os.environ.get(&quot;LOG_LEVEL&quot;, &quot;INFO&quot;).upper()
+
+logging.basicConfig(level=LEVEL)
+
+# Set the level on our own logger rather than relying on the root logger's.
+# Under `opentelemetry-instrument` the root logger is configured before the
+# application imports anything, which makes a later basicConfig() a no-op.
+log = logging.getLogger(&quot;todo-api&quot;)
+log.setLevel(LEVEL)
+</code></pre>
+<p>There is nothing to install: with <code>OTEL_PYTHON_LOG_AUTO_INSTRUMENTATION=true</code> from Module 4,
+the logging instrumentation attached its handler to the root logger, which is why those
+log lines have been reaching VictoriaLogs since then. What&rsquo;s missing is <em>structure</em>.</p>
+<blockquote>
+<p>📌 That comment about the root logger is not decoration. If you configure logging
+yourself before reading it, your <code>INFO</code> records vanish silently. It is the single most
+common way a Python service ends up with no logs in the backend and no error anywhere.</p>
+</blockquote>
+<p>Today the handlers call it like this — a message with the data melted into it:</p>
+<pre><code class="language-python">log.info(&quot;todo created %s&quot;, todo.id)
+</code></pre>
+<p>Change them to put the variable data in <code>extra</code> and keep the message <strong>constant</strong>:</p>
+<pre><code class="language-python">log.info(&quot;todo created&quot;, extra={&quot;list&quot;: todo.list, &quot;todo_id&quot;: str(todo.id)})
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>The app logs with <code>slog</code>, in <code>log.go</code>:</p>
+<pre><code class="language-go">var log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+</code></pre>
+<p>That handler only writes JSON lines to the container&rsquo;s output, which is why nothing from
+your API has reached VictoriaLogs yet: <code>otelc</code> adds the trace ID to each record, but it
+doesn&rsquo;t send logs anywhere. Send the same records to OpenTelemetry too, with the
+<code>otelslog</code> bridge — one handler for the terminal, one for OpenTelemetry:</p>
+<pre><code class="language-go">import (
+	&quot;log/slog&quot;
+	&quot;os&quot;
+
+	&quot;go.opentelemetry.io/contrib/bridges/otelslog&quot;
+)
+
+var log = slog.New(slog.NewMultiHandler(
+	slog.NewJSONHandler(os.Stdout, nil),
+	otelslog.NewHandler(&quot;todo-api&quot;),
+))
+</code></pre>
+<p>The bridge hands every record to the logger provider that <code>otelc</code> set up in Module 4.
+What&rsquo;s missing now is <em>structure</em>.</p>
+<p>Today the handlers call it like this — a message with the data melted into it:</p>
+<pre><code class="language-go">log.Info(&quot;todo created &quot; + todo.ID)
+</code></pre>
+<p>Change them to pass the request&rsquo;s context, a <strong>constant</strong> message, and the data as
+key-value pairs:</p>
+<pre><code class="language-go">log.InfoContext(ctx, &quot;todo created&quot;, &quot;list&quot;, todo.List, &quot;todo_id&quot;, todo.ID)
+</code></pre>
+<p>The <code>Context</code> variant is not optional: the bridge takes the trace ID from the span in
+<code>ctx</code>. Log without it and the record arrives with no trace ID at all.</p>
+</div>
+<ol start="2">
+<li>
+<p><strong>Convert three existing log statements</strong> to structured form. Good candidates:</p>
+<ul>
+<li>the create path (<code>todo created</code>)</li>
+<li>the complete path (<code>todo completed</code>)</li>
+<li>the cache lookup in the <code>GET /todos</code> handler — log the key it looked up and whether it
+hit. They&rsquo;re in what <code>readSummary</code> / <code>read_summary</code> returns (on Python, rename its <code>_key</code>
+to <code>key</code> to use it; on Go, the <code>_</code> in <code>hit, _, value</code>)</li>
+</ul>
+</li>
+<li>
+<p><strong>Log the error path properly.</strong> Wrap the whole body of the <code>POST /todos</code> handler, so that when anything in it fails, it logs something actionable:</p>
+</li>
+</ol>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code class="language-js">todosRouter.post('/todos', async (req, res) =&gt; {
+  try {
+    const todo = await createTodo(req.body);
+    // ... the rest of the handler, unchanged, inside the try
+  } catch (err) {
+    log.error({
+      err,                                  // pino serialises type, message, stack
+      list: req.body?.list,
+      title_length: req.body?.title?.length ?? 0,
+    }, 'create todo failed');
+    res.status(500).json({ error: 'internal' });
+  }
+});
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code class="language-python">@bp.post(&quot;/todos&quot;)
+def post_todo():
+    payload = request.get_json(silent=True) or {}
+    try:
+        todo = create_todo(payload)
+        # ... the rest of the handler, unchanged, inside the try
+    except Exception:
+        log.exception(&quot;create todo failed&quot;, extra={       # exception() captures the stack
+            &quot;list&quot;: payload.get(&quot;list&quot;),
+            &quot;title_length&quot;: len(payload.get(&quot;title&quot;) or &quot;&quot;),
+        })
+        return jsonify(error=&quot;internal&quot;), 500
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>Give the handler one place to report a failure from, and use it on every error path:</p>
+<pre><code class="language-go">func postTodo(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	body, _ := io.ReadAll(r.Body)
+
+	var in struct {
+		Title string `json:&quot;title&quot;`
+		List  string `json:&quot;list&quot;`
+	}
+	_ = json.Unmarshal(body, &amp;in)
+	fail := func(err error) error {
+		log.ErrorContext(ctx, &quot;create todo failed&quot;,
+			&quot;err&quot;, err,
+			&quot;list&quot;, in.List,
+			&quot;title_length&quot;, len(in.Title),
+		)
+		return err                                    // still answered with a 500
+	}
+
+	todo, err := createTodo(ctx, body)
+	if err != nil {
+		return fail(err)
+	}
+	// ... the rest of the handler, with every `return err` turned into `return fail(err)`
+}
+</code></pre>
+</div>
+<p>Note what&rsquo;s in there: severity, the exception, and <strong>the attributes a colleague would need to reproduce it</strong>. <code>title_length</code> rather than <code>title</code>, because the title might contain something you shouldn&rsquo;t be storing — a habit worth forming.</p>
+<ol start="4">
+<li>
+<p>Save the file, then create a failing todo to generate one of these:</p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<p>Once the API has restarted (watch its log terminal), in another terminal:</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8081/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;}'
+./loadgen.sh 2m
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<p>Once the API has restarted (watch its log terminal), in another terminal:</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8082/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;}'
+./loadgen.sh 2m
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>Once the API has rebuilt (watch its log terminal), in another terminal:</p>
+<pre><code class="language-bash">curl -s -X POST localhost:8085/todos -H 'content-type: application/json' -d '{&quot;title&quot;:&quot;&quot;,&quot;list&quot;:&quot;work&quot;}'
+./loadgen.sh 2m
+</code></pre>
+</div>
+</li>
+</ol>
+<h3>Verify in the Victoria UI</h3>
+<p>VictoriaLogs vmui (<a href="http://localhost:9428/select/vmui" target="_blank" rel="noopener"><code>http://localhost:9428/select/vmui</code></a>):</p>
+<pre><code>service.name:todo-api AND severity_text:ERROR
+</code></pre>
+<p>You should see: your <code>create todo failed</code> record. Open it and confirm all of these are present:</p>
+<ul>
+<li><code>list</code>, <code>title_length</code> as real fields, not text in the message</li>
+<li>a stack trace or exception type</li>
+<li><strong><code>trace_id</code> and <code>span_id</code></strong></li>
+</ul>
+<p>Then check that correlation holds on the happy path too:</p>
+<pre><code>service.name:todo-api AND _msg:&quot;todo created&quot; | fields _time, trace_id, list, todo_id
+</code></pre>
+<p>Every row must have a <code>trace_id</code>. <strong>If any row has an empty <code>trace_id</code>, that&rsquo;s the real exercise</strong> — go find out why.</p>
+<blockquote>
+<p>🔎 The two usual causes: on the JS side, logging from outside an active span context (a callback, a timer, a <code>setImmediate</code>). On the Python side, logging outside a request — at import time, or from a background thread — where there is no active span to take the IDs from. On the Go side, calling <code>log.Info</code> instead of <code>log.InfoContext</code>, so the bridge never sees the span.</p>
+</blockquote>
+<p>And because <code>list</code> is now a real field, you can aggregate on it:</p>
+<pre><code>service.name:todo-api AND _time:5m AND list:* | stats by (list) count()
+</code></pre>
+<p>You should see: one row per list, with its count.</p>
+<p>Finally, copy a <code>trace_id</code> from any log line and paste it into VictoriaTraces vmui (<a href="http://localhost:10428/select/vmui" target="_blank" rel="noopener"><code>http://localhost:10428/select/vmui</code></a>):</p>
+<pre><code>trace_id:=&lt;paste it here&gt;
+</code></pre>
+<p>You should land on the exact request that produced that log line.</p>
+<h3>Verify in Grafana</h3>
+<p>Open Grafana at <a href="http://localhost:3000" target="_blank" rel="noopener"><code>http://localhost:3000</code></a>.</p>
+<p>Open <strong>Dashboards → Workshop → Manual Instrumentation</strong>. The <strong>Structured logs</strong> row shows your records. Set the <code>list</code> variable to <code>work</code>, then to <code>home</code>, and confirm the panel changes: it filters on the <code>list</code> field you just added.</p>
+<blockquote>
+<p>ℹ️ <strong>The other way in.</strong> Instead of the logs SDK, an application can write JSON lines to
+stdout and let the Collector read them with a <code>filelog</code> receiver. Then <em>you</em> are
+responsible for putting <code>trace_id</code> and <code>span_id</code> into that JSON, and for telling the
+Collector where to find them. It&rsquo;s the right choice for third-party services you can&rsquo;t add
+an SDK to, for languages whose logs SDK isn&rsquo;t ready, and wherever good JSON logging
+already exists.</p>
+</blockquote>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="06-manual-metrics.html" class="nav-button">← Previous</a>
+            
+            
+            <a href="08-manual-traces.html" class="nav-button">Next: Module 8 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

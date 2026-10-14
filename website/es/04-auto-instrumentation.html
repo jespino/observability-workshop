@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Módulo 4: El Camino Fácil: Auto-instrumentación Sin Código - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumentando tu aplicación con OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Inicio</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="../04-auto-instrumentation.html">English</option><option value="" selected>Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Módulo 4: El Camino Fácil — Auto-instrumentación Sin Código</h1>
+<p>En este módulo la aplicación empieza a emitir métricas, logs y trazas. No vas a cambiar ni una línea de código de aplicación para conseguirlo. ⚡</p>
+<h2>Objetivos de Aprendizaje</h2>
+<p>Al terminar este módulo, serás capaz de:</p>
+<ul>
+<li>Tener telemetría llegando desde <code>todo-api</code> a los backends de Victoria sin cambiar una línea del código de la aplicación</li>
+<li>Leer una traza distribuida e identificar los atributos de convención semántica de un span</li>
+<li>Moverte con soltura por las tres UIs de Victoria y por el dashboard Auto-Instrumentation de Grafana</li>
+</ul>
+<h2>Ejercicio 4.1 — Enciéndelo</h2>
+<p><strong>Deberías poder responder esto al terminar:</strong> <em>¿qué ficheros has tenido que tocar para tener telemetría, y qué fichero de la aplicación no?</em></p>
+<h3>Hazlo</h3>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<ol>
+<li>
+<p>Añade los dos paquetes a las <code>dependencies</code> de <code>track-js/todo-api/package.json</code>:</p>
+<pre><code class="language-json">&quot;dependencies&quot;: {
+  &quot;@opentelemetry/api&quot;: &quot;latest&quot;,
+  &quot;@opentelemetry/auto-instrumentations-node&quot;: &quot;latest&quot;,
+  &quot;express&quot;: &quot;^4.21.2&quot;,
+  ...
+}
+</code></pre>
+<p>El contenedor de tu API ejecuta <code>npm install</code> cada vez que arranca, así que no hay nada
+que instalar a mano. No se mete nada en ninguna imagen, y no se reconstruye ninguna
+imagen.</p>
+</li>
+<li>
+<p>Crea <code>track-js/todo-api/.env</code>. <strong>Es el único fichero que creas, y la aplicación no lo
+lee nunca</strong> — <code>docker-compose.yml</code> ya se lo pasa al contenedor como entorno
+(<code>env_file:</code>), exactamente igual que una plataforma de despliegue le entregaría el
+entorno a un proceso:</p>
+<pre><code class="language-bash">OTEL_SERVICE_NAME=todo-api
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_TRACES_EXPORTER=otlp
+OTEL_METRICS_EXPORTER=otlp
+OTEL_LOGS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=10000
+OTEL_METRIC_EXPORT_TIMEOUT=5000
+NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register
+</code></pre>
+<p>Esa última línea es la que de verdad enciende el SDK. Es la forma canónica:</p>
+<pre><code>node --require @opentelemetry/auto-instrumentations-node/register src/server.js
+</code></pre>
+<blockquote>
+<p>🚨 <strong>El endpoint es <code>otel-collector</code>, no <code>localhost</code>.</strong> Es el nombre de servicio del
+Collector en <code>docker-compose.yml</code>. Dentro del contenedor de tu API, <code>localhost</code> es el
+contenedor, y el SDK se pasaría todo el día fallando al exportar a la nada.</p>
+</blockquote>
+<blockquote>
+<p>⚠️ El <code>--require</code> tiene que cargarse <strong>antes</strong> que el código de tu aplicación, o la
+instrumentación no tendrá nada a lo que engancharse. Además solo parchea llamadas
+<code>require()</code> de CommonJS, y por eso esta aplicación es CommonJS y no ESM. Con ESM
+tendrías spans de HTTP y perderías en silencio la instrumentación de Express, de base
+de datos y de logging — un modo de fallo especialmente feo, porque parece que funciona.</p>
+</blockquote>
+</li>
+<li>
+<p>Recrea el contenedor de tu API, para que coja el entorno nuevo e instale las
+dependencias nuevas. Esta vez no basta con guardar un fichero — lo que ha cambiado es la
+configuración del contenedor, no tu código:</p>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-js
+</code></pre>
+<p>Después abre una segunda terminal y sigue en ella el log de tu API. Déjala abierta el
+resto del día — los guiones la llaman la <em>terminal del log</em>:</p>
+<pre><code class="language-bash">docker compose logs -f todo-api-js
+</code></pre>
+<p>Espera a la línea <code>todo-api listening on 8081</code>. La imagen es la misma, el comando es el
+mismo, tu código es el mismo. Lo único nuevo es el entorno.</p>
+<p>Puede que también veas un <code>MetadataLookupWarning</code>. Es el SDK comprobando si corre en un
+proveedor de nube, para describir dónde se ejecuta. Fuera de una nube la comprobación
+falla; es inofensivo.</p>
+</li>
+<li>
+<p>Genera tráfico en otra terminal:</p>
+<pre><code class="language-bash">./loadgen.sh 2m
+</code></pre>
+</li>
+</ol>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<ol>
+<li>
+<p>Añade los paquetes a <code>track-py/todo-api/requirements.txt</code>:</p>
+<pre><code>opentelemetry-distro&gt;=0.66b1
+opentelemetry-exporter-otlp
+</code></pre>
+<p>El contenedor de tu API ejecuta <code>pip install</code> cada vez que arranca, así que no hay nada
+que instalar a mano.</p>
+</li>
+<li>
+<p>Crea <code>track-py/todo-api/.env</code>. <strong>Es el único fichero que creas, y la aplicación no lo lee
+nunca</strong> — <code>docker-compose.yml</code> ya se lo pasa al contenedor como entorno (<code>env_file:</code>),
+exactamente igual que una plataforma de despliegue le entregaría el entorno a un proceso:</p>
+<pre><code class="language-bash">OTEL_SERVICE_NAME=todo-api
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_TRACES_EXPORTER=otlp
+OTEL_METRICS_EXPORTER=otlp
+OTEL_LOGS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=10000
+OTEL_METRIC_EXPORT_TIMEOUT=5000
+OTEL_PYTHON_LOG_AUTO_INSTRUMENTATION=true
+OTEL_PYTHON_LOG_CORRELATION=true
+</code></pre>
+<p>A diferencia del track de JavaScript, ninguna variable de entorno puede encender el SDK
+de Python. Lo que cambias es el <strong>comando</strong>. En <code>docker-compose.yml</code>, busca el servicio
+<code>todo-api-py</code> y pon <code>opentelemetry-instrument</code> delante de <code>gunicorn</code>:</p>
+<pre><code class="language-yaml">    command: opentelemetry-instrument gunicorn -w 2 -b 0.0.0.0:8082 app:app
+</code></pre>
+<p>Esa es la forma canónica. No añadas el <code>--reload</code> de gunicorn: el contenedor ya reinicia
+todo el comando cuando cambia un fichero, y bajo <code>opentelemetry-instrument</code> el recargador
+propio de gunicorn hace que los logs dejen de exportarse sin decir nada.</p>
+</li>
+<li>
+<p>Recrea el contenedor de tu API, para que coja el entorno nuevo e instale las
+dependencias nuevas. Esta vez no basta con guardar un fichero — lo que ha cambiado es la
+configuración del contenedor, no tu código:</p>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-py
+</code></pre>
+<p>Después abre una segunda terminal y sigue en ella el log de tu API. Déjala abierta el
+resto del día — los guiones la llaman la <em>terminal del log</em>:</p>
+<pre><code class="language-bash">docker compose logs -f todo-api-py
+</code></pre>
+<p>Se queda en silencio un minuto mientras pip instala los paquetes nuevos, y luego
+gunicorn escribe <code>Listening at: http://0.0.0.0:8082</code>. La imagen es la misma y tu código no
+ha cambiado. Lo nuevo es el entorno y una
+palabra delante del comando.</p>
+</li>
+<li>
+<p>Genera tráfico en otra terminal:</p>
+<pre><code class="language-bash">./loadgen.sh 2m
+</code></pre>
+</li>
+</ol>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<ol>
+<li>
+<p>No hay nada que añadir a <code>go.mod</code>. En este track la instrumentación no se carga cuando
+arranca el programa — Go no tiene un mecanismo para eso. Se <strong>compila dentro del
+binario</strong>, con una herramienta llamada <code>otelc</code> que envuelve a <code>go build</code>: encuentra las
+librerías que usa tu código (<code>net/http</code>, <code>database/sql</code>, …) y les añade OpenTelemetry al
+compilar. Ya está instalada en el contenedor de tu API.</p>
+</li>
+<li>
+<p>Crea <code>track-go/todo-api/.env</code>. <strong>Es el único fichero que creas, y la aplicación nunca lo
+lee</strong> — <code>docker-compose.yml</code> ya se lo pasa al contenedor como entorno (<code>env_file:</code>),
+exactamente igual que una plataforma de despliegue le pasaría el entorno a un proceso:</p>
+<pre><code class="language-bash">OTEL_SERVICE_NAME=todo-api
+OTEL_RESOURCE_ATTRIBUTES=service.version=1.0.0,deployment.environment=workshop
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_TRACES_EXPORTER=otlp
+OTEL_METRICS_EXPORTER=otlp
+OTEL_LOGS_EXPORTER=otlp
+OTEL_METRIC_EXPORT_INTERVAL=10000
+OTEL_METRIC_EXPORT_TIMEOUT=5000
+</code></pre>
+<p>Ahora cambia cómo se <strong>compila</strong> el binario. En <code>docker-compose.yml</code>, busca el servicio
+<code>todo-api-go</code>. Su comando ejecuta <code>air</code>, que recompila y reinicia el servidor cada vez
+que guardas un fichero <code>.go</code>. El <code>--build.cmd</code> del final de la línea es cómo compila:</p>
+<pre><code class="language-yaml">    command: air --tmp_dir /tmp/air --build.exclude_file &quot;otel.instrumentation.go,otelc.runtime.go&quot; --build.entrypoint /tmp/todo-api --build.cmd &quot;go mod tidy &amp;&amp; go build -o /tmp/todo-api .&quot;
+</code></pre>
+<p>Pon <code>otelc</code> delante de <code>go build</code>:</p>
+<pre><code class="language-yaml">    command: air --tmp_dir /tmp/air --build.exclude_file &quot;otel.instrumentation.go,otelc.runtime.go&quot; --build.entrypoint /tmp/todo-api --build.cmd &quot;go mod tidy &amp;&amp; otelc go build -o /tmp/todo-api .&quot;
+</code></pre>
+<p>Esa es la forma canónica: <code>otelc go build</code> en vez de <code>go build</code>, y nada más cambia.</p>
+</li>
+<li>
+<p>Recrea el contenedor de tu API, para que coja el entorno nuevo y el nuevo comando de
+compilación. Esta vez no basta con guardar un fichero de código — ha cambiado la
+configuración del contenedor, no tu código:</p>
+<pre><code class="language-bash">docker compose up -d --force-recreate todo-api-go
+</code></pre>
+<p>Después abre una segunda terminal y sigue en ella el log de tu API. Déjala abierta el
+resto del día — los guiones la llaman tu <em>terminal de logs</em>:</p>
+<pre><code class="language-bash">docker compose logs -f todo-api-go
+</code></pre>
+<p>La primera compilación tarda un minuto mientras <code>otelc</code> descarga la instrumentación;
+las siguientes tardan un par de segundos. Después verás <code>OpenTelemetry initialized</code> y
+<code>todo-api listening on 8085</code>. La imagen es la misma y tu código no ha cambiado. Lo
+nuevo es el entorno y una palabra delante de <code>go build</code>.</p>
+</li>
+<li>
+<p>Genera tráfico en otra terminal:</p>
+<pre><code class="language-bash">./loadgen.sh 2m
+</code></pre>
+</li>
+</ol>
+</div>
+<p>Tres ajustes merecen explicación en vez de copiar y pegar — dos de ese bloque y uno de <code>docker-compose.yml</code>:</p>
+<ul>
+<li><strong><code>OTEL_METRIC_EXPORT_INTERVAL=10000</code>.</strong> El valor por defecto es 60 segundos. Sesenta segundos sin nada después de un cambio se leen como &ldquo;está roto&rdquo;; con diez segundos ves el resultado casi al momento. En producción lo dejarías por defecto — cada exportación se paga.</li>
+<li><strong><code>OTEL_METRIC_EXPORT_TIMEOUT=5000</code>.</strong> No puede ser mayor que el intervalo, y su valor por defecto es 30 segundos. Baja el intervalo sin bajar esto y el SDK tiene que resolver el conflicto por ti: los SDKs de JavaScript antiguos se negaban a arrancar, y los actuales acortan el timeout sin decir nada. Fijar los dos explícitamente evita ambas cosas.</li>
+<li><strong><code>-search.latencyOffset=1s</code> en VictoriaMetrics</strong> — puesto en <code>docker-compose.yml</code>. Por defecto VM oculta los últimos 30 segundos de datos, para que un intervalo escrito a medias nunca produzca una gráfica engañosa. Es el comportamiento correcto y es el equivocado para un aula. Fíjate en que <em>corrección</em> y <em>frescura</em> están aquí en tensión real.</li>
+</ul>
+<h2>Ejercicio 4.2 — Explora lo que ha llegado</h2>
+<p><strong>Deberías poder responder esto al terminar:</strong> <em>¿qué ha aprendido el SDK sobre tu aplicación sin que nadie se lo cuente?</em></p>
+<h3>Hazlo</h3>
+<ol>
+<li>Asegúrate de que hay tráfico: <code>./loadgen.sh 2m</code>.</li>
+<li>Recorre cada una de las cuatro UIs de abajo. No las mires por encima — vas a vivir en ellas el resto del día.</li>
+</ol>
+<h3>Comprueba en la UI de Victoria</h3>
+<p><strong>VictoriaMetrics</strong> (<a href="http://localhost:8428/vmui" target="_blank" rel="noopener"><code>http://localhost:8428/vmui</code></a>) — mira qué ha aparecido:</p>
+<pre><code>{__name__=~&quot;http.*&quot;}
+</code></pre>
+<p>y luego</p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code>rate(http_server_request_duration_seconds_count{service_name=&quot;todo-api&quot;}[1m])
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code>rate(http_server_duration_milliseconds_count{service_name=&quot;todo-api&quot;}[1m])
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code>go_goroutine_count{service_name=&quot;todo-api&quot;}
+</code></pre>
+<p><code>otelc</code> todavía no registra métricas HTTP: su instrumentación de HTTP produce spans, no
+métricas. Lo que sí tienes son las métricas del propio runtime de Go — goroutines,
+memoria, recolección de basura — todas empiezan por <code>go_</code>. En este track los paneles HTTP
+de los dashboards se quedan vacíos, y eso también es información.</p>
+</div>
+<p><strong>VictoriaLogs</strong> (<a href="http://localhost:9428/select/vmui" target="_blank" rel="noopener"><code>http://localhost:9428/select/vmui</code></a>):</p>
+<pre><code>service.name:todo-api
+</code></pre>
+<p>Fíjate en la forma de lo que ha llegado. El mensaje es un bloque de texto en <code>_msg</code>. No
+hay campo <code>list</code>, no hay campo <code>todo_id</code>, no hay nada por lo que filtrar o agregar.</p>
+<p>La app solo escribe logs cuando se <strong>crea</strong> o se <strong>completa</strong> un todo, así que verás líneas como <code>todo created …</code>. El loadgen crea todos, así que habrá alguna.</p>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<p>En el track de Go aquí todavía no llega nada. <code>otelc</code> añade el trace ID a cada registro de
+<code>slog</code>, pero no los envía a ninguna parte: tus logs siguen yendo solo a la salida del
+contenedor, que es lo que muestra tu terminal de logs.</p>
+</div>
+<blockquote>
+<p>🔑 <strong>Nombres de campo en VictoriaLogs.</strong> El mensaje es <code>_msg</code>, el nivel es
+<code>severity_text</code>, y los atributos de resource son campos normales —
+<code>service.name:todo-api</code>, sin prefijo y sin comillas.</p>
+</blockquote>
+<p><strong>VictoriaTraces</strong> (<a href="http://localhost:10428/select/vmui" target="_blank" rel="noopener"><code>http://localhost:10428/select/vmui</code></a>) — busca la traza de una
+creación urgente. Solo los todos con la etiqueta <code>urgent</code> llaman a <code>notify-service</code>, así
+que empieza por su lado:</p>
+<pre><code>_time:15m &quot;resource_attr:service.name&quot;:=notify-service name:=&quot;POST /notify&quot;
+</code></pre>
+<p>Copia el <code>trace_id</code> de cualquier fila y trae la traza entera:</p>
+<pre><code>trace_id:=&lt;pega aquí el valor&gt;
+</code></pre>
+<p>Ordena sus spans por sus padres, y este es el árbol que has conseguido gratis:</p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<pre><code>POST /todos                          ← span de servidor HTTP, nombrado por la ruta
+├── middleware - jsonParser          ← las capas del propio framework web
+├── middleware - query
+└── request handler - /todos
+    ├── pg-pool.connect              ← instrumentación de postgres
+    ├── pg.query:INSERT todo
+    ├── pg.query:UPDATE todo
+    └── POST                         ← HTTP saliente a notify-service
+        └── POST /notify             ← y el span del *otro servicio*, misma traza
+</code></pre>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<pre><code>POST /todos                          ← span de servidor HTTP, nombrado por la ruta
+├── INSERT                           ← instrumentación de postgres
+├── UPDATE
+└── POST                             ← HTTP saliente a notify-service
+    └── POST /notify                 ← y el span del *otro servicio*, misma traza
+</code></pre>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<pre><code>POST /todos                          ← span de servidor HTTP, nombrado por la ruta
+├── INSERT                           ← instrumentación de database/sql
+├── UPDATE
+└── POST                             ← HTTP saliente a notify-service
+    └── POST /notify                 ← y el span del *otro servicio*, misma traza
+</code></pre>
+</div>
+<p>Nadie ha escrito nada de eso. Fíjate sobre todo en las dos últimas líneas: la traza ya
+cruza una frontera de servicio, porque la instrumentación del cliente HTTP inyectó una
+cabecera <code>traceparent</code> a la salida y la del servidor HTTP del otro servicio la leyó a la
+entrada. En los tracks de JS y de Go cruza además una frontera de lenguaje:
+<code>notify-service</code> está escrito en Python. Las creaciones sin etiqueta terminan en el trabajo de base de datos.</p>
+<blockquote>
+<p>🔑 <strong>Nombres de campo en VictoriaTraces</strong>, para contrastar con el recuadro de logs de
+arriba. Los atributos de resource se guardan con el prefijo <code>resource_attr:</code> y los de
+span con <code>span_attr:</code>, así que el nombre del campo lleva dos puntos y hay que
+entrecomillarlo:
+<code>&quot;resource_attr:service.name&quot;:=todo-api</code>, <code>&quot;span_attr:http.route&quot;:=/todos</code>.
+<code>:=</code> es coincidencia exacta. Los campos sin prefijo son <code>name</code>, <code>kind</code>, <code>duration</code>,
+<code>status_code</code>, <code>trace_id</code>, <code>span_id</code> y <code>parent_span_id</code>. El mismo lenguaje de
+consulta, dos esquemas distintos. Mejor darse cuenta ahora que en mitad de un incidente.</p>
+</blockquote>
+<p>Lee los atributos del span raíz, <code>POST /todos</code>, y después los de un span de base de
+datos. Busca estos tres, que son <strong>convenciones semánticas</strong> — nombres estándar que usa
+cualquier servicio instrumentado con OTel del mundo para el método, la ruta y la base de
+datos:</p>
+<div class="track-block" data-track="js"><p class="track-label">Node.js / Express</p>
+<ul>
+<li><code>span_attr:http.request.method</code></li>
+<li><code>span_attr:url.path</code></li>
+<li><code>span_attr:db.system.name</code></li>
+</ul>
+</div>
+<div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
+<ul>
+<li><code>span_attr:http.method</code></li>
+<li><code>span_attr:http.target</code></li>
+<li><code>span_attr:db.system</code></li>
+</ul>
+</div>
+<div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
+<ul>
+<li><code>span_attr:http.request.method</code></li>
+<li><code>span_attr:url.path</code></li>
+<li><code>span_attr:db.system.name</code></li>
+</ul>
+</div>
+<p>Los tracks no usan todos los mismos nombres para las mismas tres cosas. Las convenciones
+cambiaron hace unas cuantas versiones: las librerías de instrumentación de JavaScript y de
+Go ya usan los nombres nuevos, y las de Python siguen con los antiguos. La misma petición, nombres distintos:
+conviene saberlo antes de escribir una consulta o un dashboard contra ellos.</p>
+<h3>Comprueba en Grafana</h3>
+<p>Grafana lleva en marcha desde el Módulo 2. Abre <a href="http://localhost:3000" target="_blank" rel="noopener">http://localhost:3000</a> y entra con
+<code>admin</code> / <code>admin</code>.</p>
+<p><strong>Connections → Data sources.</strong> Hay tres pre-provisionados desde <code>grafana/provisioning</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Nombre</th>
+<th>Tipo</th>
+<th>Apunta a</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VictoriaMetrics</td>
+<td><code>victoriametrics-metrics-datasource</code></td>
+<td><code>victoriametrics:8428</code></td>
+</tr>
+<tr>
+<td>VictoriaLogs</td>
+<td><code>victoriametrics-logs-datasource</code></td>
+<td><code>victorialogs:9428</code></td>
+</tr>
+<tr>
+<td>VictoriaTraces (Jaeger)</td>
+<td><code>jaeger</code> (core, sin plugin)</td>
+<td><code>victoriatraces:10428/select/jaeger</code></td>
+</tr>
+</tbody>
+</table>
+<p>Entra en cada uno y pulsa <strong>Save &amp; test</strong>. Los tres tienen que ponerse verdes.</p>
+<p>Fíjate en el host de esa última columna, y fíjate en que <em>no</em> es lo que escribes tú en tu
+propio navegador. Grafana está en el mismo proyecto de Compose que los tres backends, así
+que llega a ellos por nombre de servicio, igual que el Collector, e igual que tu API llega
+a <code>otel-collector</code>. Tú llegas a esos mismísimos contenedores en <code>localhost</code>, a través de
+los puertos que Compose publicó en tu portátil, porque tú no estás en un contenedor.</p>
+<p>Después abre <strong>Dashboards → Workshop → Auto-Instrumentation</strong> — todo lo anterior en una sola pantalla: peticiones, errores y duración a partir de las métricas HTTP, llamadas a <code>notify-service</code>, los logs, las trazas recientes y la salud del propio Collector. Todo sale solo de la auto-instrumentación.</p>
+<h2>La conclusión</h2>
+<blockquote>
+<p><strong>La auto-instrumentación te da la fontanería, no el significado.</strong></p>
+</blockquote>
+<p>Sabe de HTTP, de tu framework web y de Postgres, porque son estándar, populares y alguien escribió una librería de instrumentación para ellos. No sabe nada de todos, listas, urgencias ni usuarios — y absolutamente nada de esa caché en proceso, porque ahí no intervino ninguna librería. Nadie ha visto nunca tu dominio.</p>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="03-the-application.html" class="nav-button">← Anterior</a>
+            
+            
+            <a href="05-the-collector.html" class="nav-button">Siguiente: Módulo 5 →</a>
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumentando tu aplicación con OpenTelemetry</p>
+            <p>Creado por <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

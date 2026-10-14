@@ -5,7 +5,7 @@
 #   ./loadgen.sh 2m --rps 50
 #   ./loadgen.sh 3m --errors
 #
-# It finds your track from the API container that is running. Set TRACK=js|py
+# It finds your track from the API container that is running. Set TRACK=js|py|go
 # (or API_URL=...) to drive a specific API instead.
 
 source "$(dirname "$0")/scripts/common.sh"
@@ -14,13 +14,15 @@ if [ -z "${TRACK:-}" ] && [ -z "${API_URL:-}" ]; then
   running=$(compose ps --services --status running 2>/dev/null || true)
   if   echo "$running" | grep -qx todo-api-js; then TRACK=js
   elif echo "$running" | grep -qx todo-api-py; then TRACK=py
+  elif echo "$running" | grep -qx todo-api-go; then TRACK=go
   fi
 fi
 
 case "${TRACK:-js}" in
   js|node) DEFAULT_API="$JS_API" ;;
   py|python) DEFAULT_API="$PY_API" ;;
-  *) echo "TRACK must be js or py" >&2; exit 2 ;;
+  go) DEFAULT_API="$GO_API" ;;
+  *) echo "TRACK must be js, py or go" >&2; exit 2 ;;
 esac
 
 export API_URL="${API_URL:-$DEFAULT_API}"

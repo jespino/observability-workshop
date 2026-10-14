@@ -1,5 +1,5 @@
 // Shared frontend. Identical for both tracks — it just points at a different
-// port. Module 7.4's bonus exercise adds browser instrumentation here.
+// port.
 
 const $ = (id) => document.getElementById(id);
 

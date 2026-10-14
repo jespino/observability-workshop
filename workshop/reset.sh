@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wipes all telemetry, leaving the application database alone.
-# You will want this after the cardinality lab in Module 5.4.
+# You will want this after the cardinality lab in Module 6.2.
 #
 # There is no delete-by-query API for logs, so the only way to wipe a backend
 # is to stop it, delete its storage and start it again. Each backend keeps its

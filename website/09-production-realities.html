@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 9: Production Realities and Wrap-Up - Observability Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Ubuntu+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            hljs.highlightAll();
+
+            
+            document.querySelectorAll('pre').forEach(function(pre) {
+                const button = document.createElement('button');
+                button.className = 'copy-button';
+                button.innerHTML = '<i class="far fa-copy"></i>';
+                button.title = 'Copy to clipboard';
+
+                button.addEventListener('click', function() {
+                    const code = pre.querySelector('code');
+                    const text = code.textContent;
+
+                    navigator.clipboard.writeText(text).then(function() {
+                        button.innerHTML = '<i class="fas fa-check"></i>';
+                        button.classList.add('copied');
+                        setTimeout(function() {
+                            button.innerHTML = '<i class="far fa-copy"></i>';
+                            button.classList.remove('copied');
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                    });
+                });
+
+                pre.appendChild(button);
+            });
+        });
+
+        
+        
+        
+        (function() {
+            var KEY = 'workshop-track';
+            var TRACKS = ['js', 'python', 'go'];
+
+            function stored() {
+                try {
+                    var value = window.localStorage.getItem(KEY);
+                    return TRACKS.indexOf(value) >= 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function remember(track) {
+                try { window.localStorage.setItem(KEY, track); } catch (e) {   }
+            }
+
+            
+            
+            
+            var style = document.createElement('style');
+            document.head.appendChild(style);
+
+            function apply(track) {
+                document.documentElement.setAttribute('data-track', track);
+                style.textContent =
+                    '.track-block{display:none}' +
+                    '.track-block[data-track="' + track + '"]{display:block}';
+            }
+
+            var current = stored() || TRACKS[0];
+            apply(current);
+
+            document.addEventListener('DOMContentLoaded', function() {
+                var select = document.getElementById('track-select');
+                if (!select) return;
+                select.value = current;
+                select.addEventListener('change', function() {
+                    current = select.value;
+                    remember(current);
+                    apply(current);
+                });
+            });
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html" class="nav-home">Instrumenting your application with OpenTelemetry</a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <label class="track-switch">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <select id="track-select" aria-label="Track">
+                        <option value="js">Node.js / Express</option><option value="python">Python / Flask</option><option value="go">Go / net/http</option>
+                    </select>
+                </label>
+                <label class="lang-switch">
+                    <i class="fas fa-globe" aria-hidden="true"></i>
+                    <select onchange="if (this.value) location.href = this.value" aria-label="Language">
+                        <option value="" selected>English</option><option value="es/09-production-realities.html">Español</option>
+                    </select>
+                </label>
+                <a href="https://github.com/jespino/observability-workshop" target="_blank"><i class="fab fa-github"></i> Repository</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <article class="module-content">
+            <h1>Module 9: Production Realities and Wrap-Up</h1>
+<p>Everything you built today ran on one laptop, with two services and a load generator. Here&rsquo;s what changes when it doesn&rsquo;t. 🚀</p>
+<h2>Learning Objectives</h2>
+<p>By the end of this module, you will:</p>
+<ul>
+<li>Know where the money goes in each signal, and roughly how to reason about it</li>
+<li>Know what to redact and where to redact it</li>
+<li>Know the difference between head and tail sampling, and what each one costs you</li>
+<li>Have a concrete, ordered plan for rolling this out on a real team</li>
+</ul>
+<h2>9.1 — Cost</h2>
+<p>Each signal has its own cost driver, and they fail differently.</p>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>What costs money</th>
+<th>What blows up</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Metrics</strong></td>
+<td>Cardinality — active time series</td>
+<td>One unbounded attribute. You watched this happen in Module 6.2. Growth is <em>permanent</em> until retention expires</td>
+</tr>
+<tr>
+<td><strong>Logs</strong></td>
+<td>Volume — bytes ingested and stored</td>
+<td>A debug log left on in a hot loop. Growth is proportional to traffic, so it&rsquo;s at least predictable</td>
+</tr>
+<tr>
+<td><strong>Traces</strong></td>
+<td>Sampling rate × span count per trace</td>
+<td>An N+1 in a hot path. One request can produce a thousand spans</td>
+</tr>
+</tbody>
+</table>
+<p>Useful intuitions:</p>
+<ul>
+<li>Metrics cost is driven by <em>distinct label combinations</em>, not by request rate. Ten million requests over ten series is cheap. Ten thousand requests over ten million series is not.</li>
+<li>Log cost scales with traffic, which means you can forecast it. Metric cardinality cost scales with <em>carelessness</em>, which means you can&rsquo;t.</li>
+<li>A trace is worth roughly a thousand log lines during an incident and nothing at all the rest of the time. That asymmetry is why sampling exists.</li>
+</ul>
+<h2>9.2 — Sampling</h2>
+<p>In production you rarely keep every trace. There are two places to decide which ones to
+keep, and they make very different mistakes.</p>
+<p><strong>Head sampling</strong> decides when the trace starts, in the SDK. It&rsquo;s two environment variables:</p>
+<pre><code class="language-bash">OTEL_TRACES_SAMPLER=parentbased_traceidratio
+OTEL_TRACES_SAMPLER_ARG=0.1
+</code></pre>
+<p>Cheap, simple, and it works at any scale: one process decides, and every downstream service
+respects the decision through <code>traceparent</code>. The catch is that the decision is made before
+anything has happened, so <strong>it drops 90% of your errors along with 90% of your successes</strong>.
+The traces you most want are exactly as likely to be discarded as the boring ones.</p>
+<p><strong>Tail sampling</strong> decides in the Collector, after the whole trace has arrived, so it can look
+at what happened:</p>
+<pre><code class="language-yaml">processors:
+  tail_sampling:
+    decision_wait: 10s
+    policies:
+      - name: keep-errors
+        type: status_code
+        status_code: { status_codes: [ERROR] }
+      - name: keep-slow
+        type: latency
+        latency: { threshold_ms: 500 }
+      - name: sample-the-rest
+        type: probabilistic
+        probabilistic: { sampling_percentage: 10 }
+</code></pre>
+<p>Every error and every slow request survives; the successful ones are thinned out. The price
+is that the Collector has to hold every trace in memory until it&rsquo;s complete, and all the
+spans of a trace have to reach the same Collector.</p>
+<p>Either way, <strong>sampling changes your traces, not your metrics</strong>. Request rates and error rates
+still come from metrics that count every request — one of the good reasons to have both.</p>
+<h2>9.3 — PII and compliance</h2>
+<p>Telemetry leaks personal data in three places, and log bodies are only the most obvious one:</p>
+<ol>
+<li><strong>Log bodies</strong> — someone logs the whole request object. Once.</li>
+<li><strong>Span attributes</strong> — a full URL with an email address in the query string, <code>db.query.text</code> with literal values in it.</li>
+<li><strong>Metric attributes</strong> — rarer, but a <code>user_email</code> label is both a privacy incident and a cardinality incident.</li>
+</ol>
+<p>This is one of the strongest arguments for the Collector architecture. You can enforce it <strong>centrally</strong>, once, rather than reviewing it in every service:</p>
+<pre><code class="language-yaml">processors:
+  redaction:
+    allow_all_keys: true
+    blocked_values:
+      - '[0-9]{16}'                                  # card numbers
+      - '\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b'        # emails
+    summary: debug
+
+  transform:
+    log_statements:
+      - context: log
+        statements:
+          - delete_key(attributes, &quot;authorization&quot;)
+</code></pre>
+<p>A service team that forgets is caught by the platform. That&rsquo;s a genuinely different security posture from &ldquo;we wrote it in the coding standards&rdquo;.</p>
+<p>Note the habit we started in Module 7.1: logging <code>title_length</code> rather than <code>title</code>. Redaction at the Collector is the safety net; not collecting it in the first place is the actual fix.</p>
+<h2>9.4 — Rollout strategy for a real team</h2>
+<p>The order matters more than people expect. This one is battle-tested:</p>
+<ol>
+<li><strong>Auto-instrument everything.</strong> Every service, config only, no code changes. You&rsquo;ll be astonished how far this gets you, and it costs almost nothing to try.</li>
+<li><strong>Deploy a Collector</strong> and route everything through it. Do this early, before you have twenty services with hard-coded backend endpoints.</li>
+<li><strong>Add domain spans to your two most painful endpoints.</strong> Not all of them. Two. The ones you already dread being paged about.</li>
+<li><strong>Add business metrics</strong> for the three or four numbers your team actually discusses in standup.</li>
+<li><strong>Wire up correlation</strong> — the jumps from a metric to its logs to its trace. This is where it starts feeling like a system rather than three tools.</li>
+<li><strong>Then, and only then</strong>, think about taxonomy, naming standards and governance.</li>
+</ol>
+<blockquote>
+<p>❌ <strong>Do not start by designing a metrics taxonomy.</strong> It&rsquo;s the most common failure mode: six weeks of meetings, a beautiful document, zero telemetry in production, and the enthusiasm gone. Ship step 1 this week instead.</p>
+</blockquote>
+<p>Two more pieces of advice that cost nothing:</p>
+<ul>
+<li><strong>Pick <code>service.name</code> values deliberately and never change them.</strong> They&rsquo;re the join key for everything.</li>
+<li><strong>Put your SDK setup in a shared internal package</strong> from day one. When you need to add a View, change a sampler or fix a resource attribute across the fleet, you&rsquo;ll be glad it&rsquo;s one dependency bump and not forty pull requests.</li>
+</ul>
+<h2>9.5 — What to read next</h2>
+<ul>
+<li><a href="https://opentelemetry.io/docs/specs/semconv/">OpenTelemetry Semantic Conventions registry</a> — skim the sections for the technologies you actually use</li>
+<li><a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor">Collector processor list</a> — you&rsquo;ll find something useful you didn&rsquo;t know existed</li>
+<li><a href="https://docs.victoriametrics.com/metricsql/">MetricsQL</a> — the functions PromQL doesn&rsquo;t have</li>
+<li><a href="https://docs.victoriametrics.com/victorialogs/logsql/">LogsQL</a> — the pipe operators, especially <code>stats</code> and <code>top</code></li>
+<li><a href="https://opentelemetry.io/docs/collector/">OpenTelemetry Collector documentation</a></li>
+</ul>
+<h2>Wrap-up</h2>
+<p>Look back at what you did today:</p>
+<ul>
+<li>Started with an application that emitted <strong>nothing</strong></li>
+<li>Got all three signals flowing without changing a line of it</li>
+<li>Understood the pipeline in the middle</li>
+<li>Added business metrics, and broke your metrics database on purpose to learn why cardinality matters</li>
+<li>Made logs into queryable records that carry trace context</li>
+<li>Wrote spans that describe your domain, and repaired a trace across a service boundary</li>
+</ul>
+<p><strong>Please fill in the feedback form now, while you&rsquo;re still in the room.</strong> 📝 Not later by email. Later never happens.</p>
+<p>Thank you for spending the day on this. Go instrument something. 👋</p>
+
+        </article>
+
+        <nav class="module-nav">
+            
+            <a href="08-manual-traces.html" class="nav-button">← Previous</a>
+            
+            
+        </nav>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Instrumenting your application with OpenTelemetry</p>
+            <p>Created by <strong>Jesús Espino</strong></p>
+            <div class="footer-links">
+                <a href="https://github.com/jespino" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                <a href="https://x.com/jespinog" target="_blank"><i class="fab fa-x-twitter"></i> @jespinog</a>
+                <a href="https://linkedin.com/in/jesus-espino" target="_blank"><i class="fab fa-linkedin"></i> LinkedIn</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
