@@ -125,6 +125,7 @@ compilación, así que se descargan solos:
 ```go
 import (
 	// ...los imports que ya hay, más:
+	"context"
 	"strconv"
 	"time"
 
@@ -350,7 +351,7 @@ todosCreated.Add(ctx, 1, metric.WithAttributes(
 
 ### Comprueba en la UI de Victoria
 
-**vmui → pestaña Explore Cardinality** (`http://localhost:8428/vmui`, navegación superior). Mira "Metrics with the highest number of series". Observa cómo `todos_created_total` sube al primer puesto en menos de un minuto.
+**vmui → pestaña Explore Cardinality** (`http://localhost:8428/vmui`, navegación superior). Mira "Metrics with the highest number of series". Observa cómo `todos_created_total` va subiendo en la lista mientras corre el loadgen.
 
 Luego los números en crudo:
 

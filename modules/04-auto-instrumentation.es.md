@@ -337,6 +337,7 @@ POST /todos                          ← span de servidor HTTP, nombrado por la 
 └── request handler - /todos
     ├── pg-pool.connect              ← instrumentación de postgres
     ├── pg.query:INSERT todo
+    ├── pg.query:INSERT todo         ← uno más por etiqueta
     ├── pg.query:UPDATE todo
     └── POST                         ← HTTP saliente a notify-service
         └── POST /notify             ← y el span del *otro servicio*, misma traza
@@ -349,6 +350,7 @@ POST /todos                          ← span de servidor HTTP, nombrado por la 
 ```
 POST /todos                          ← span de servidor HTTP, nombrado por la ruta
 ├── INSERT                           ← instrumentación de postgres
+├── INSERT                           ← uno más por etiqueta
 ├── UPDATE
 └── POST                             ← HTTP saliente a notify-service
     └── POST /notify                 ← y el span del *otro servicio*, misma traza
@@ -361,6 +363,7 @@ POST /todos                          ← span de servidor HTTP, nombrado por la 
 ```
 POST /todos                          ← span de servidor HTTP, nombrado por la ruta
 ├── INSERT                           ← instrumentación de database/sql
+├── INSERT                           ← uno más por etiqueta
 ├── UPDATE
 └── POST                             ← HTTP saliente a notify-service
     └── POST /notify                 ← y el span del *otro servicio*, misma traza

@@ -83,7 +83,7 @@ track-js/todo-api/
 
 Los cuatro ficheros marcados con ◀ son donde ocurre prácticamente todo tu trabajo.
 
-**`src/server.js`** — Express pelado, sin sorpresas, mostrado aquí sin los detalles de CORS y de manejo de errores. Fíjate en que no hay configuración de telemetría por ninguna parte. Ese es el punto de partida. La línea de `SIGTERM` está para que el servidor salga enseguida cuando guardas un fichero y `node --watch` lo reinicia:
+**`src/server.js`** — Express pelado, sin sorpresas, mostrado aquí sin los detalles de CORS y de manejo de errores. Fíjate en que no hay configuración de telemetría por ninguna parte. Ese es el punto de partida. La línea de `SIGTERM` está para que el servidor salga enseguida cuando guardas un fichero y se reinicia:
 
 ```js
 require('express-async-errors');

@@ -237,7 +237,7 @@ puedas seguirla.</li>
     └── db.js             # el pool de conexiones a Postgres
 </code></pre>
 <p>Los cuatro ficheros marcados con ◀ son donde ocurre prácticamente todo tu trabajo.</p>
-<p><strong><code>src/server.js</code></strong> — Express pelado, sin sorpresas, mostrado aquí sin los detalles de CORS y de manejo de errores. Fíjate en que no hay configuración de telemetría por ninguna parte. Ese es el punto de partida. La línea de <code>SIGTERM</code> está para que el servidor salga enseguida cuando guardas un fichero y <code>node --watch</code> lo reinicia:</p>
+<p><strong><code>src/server.js</code></strong> — Express pelado, sin sorpresas, mostrado aquí sin los detalles de CORS y de manejo de errores. Fíjate en que no hay configuración de telemetría por ninguna parte. Ese es el punto de partida. La línea de <code>SIGTERM</code> está para que el servidor salga enseguida cuando guardas un fichero y se reinicia:</p>
 <pre><code class="language-js">require('express-async-errors');
 const express = require('express');
 const { todosRouter } = require('./routes/todos.js');

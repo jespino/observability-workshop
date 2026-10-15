@@ -29,8 +29,7 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'internal' });
 });
 
-// Exit promptly when asked to stop — which `node --watch` does on every file
-// save. Once the OpenTelemetry SDK is loaded it registers a SIGTERM handler of
+// Exit promptly when asked to stop — which nodemon does on every file save. Once the OpenTelemetry SDK is loaded it registers a SIGTERM handler of
 // its own to flush telemetry, and that stops Node from exiting by itself; the
 // half second here is the SDK's window to flush.
 process.on('SIGTERM', () => setTimeout(() => process.exit(0), 500));

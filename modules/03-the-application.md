@@ -83,7 +83,7 @@ track-js/todo-api/
 
 The four files with a ◀ are where essentially all of your work happens.
 
-**`src/server.js`** — plain Express, no surprises, shown here without the CORS and error-handling details. Note that there is no telemetry setup anywhere in it. That's the starting condition. The `SIGTERM` line is there so the server exits promptly when you save a file and `node --watch` restarts it:
+**`src/server.js`** — plain Express, no surprises, shown here without the CORS and error-handling details. Note that there is no telemetry setup anywhere in it. That's the starting condition. The `SIGTERM` line is there so the server exits promptly when you save a file and it gets restarted:
 
 ```js
 require('express-async-errors');

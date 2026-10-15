@@ -104,7 +104,9 @@ while :; do
   fi
 
   n=$(( n + 1 ))
-  sleep_for=$(awk "BEGIN { printf \"%.2f\", 1 / $RPS }")
+  # LC_ALL=C: with a locale that writes decimals with a comma, awk would print
+  # 0,13 — which sleep rejects, silently falling back to a whole second.
+  sleep_for=$(LC_ALL=C awk "BEGIN { printf \"%.2f\", 1 / $RPS }")
   sleep "$sleep_for" 2>/dev/null || sleep 1
 done
 

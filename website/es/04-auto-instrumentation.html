@@ -377,6 +377,7 @@ que empieza por su lado:</p>
 └── request handler - /todos
     ├── pg-pool.connect              ← instrumentación de postgres
     ├── pg.query:INSERT todo
+    ├── pg.query:INSERT todo         ← uno más por etiqueta
     ├── pg.query:UPDATE todo
     └── POST                         ← HTTP saliente a notify-service
         └── POST /notify             ← y el span del *otro servicio*, misma traza
@@ -385,6 +386,7 @@ que empieza por su lado:</p>
 <div class="track-block" data-track="python"><p class="track-label">Python / Flask</p>
 <pre><code>POST /todos                          ← span de servidor HTTP, nombrado por la ruta
 ├── INSERT                           ← instrumentación de postgres
+├── INSERT                           ← uno más por etiqueta
 ├── UPDATE
 └── POST                             ← HTTP saliente a notify-service
     └── POST /notify                 ← y el span del *otro servicio*, misma traza
@@ -393,6 +395,7 @@ que empieza por su lado:</p>
 <div class="track-block" data-track="go"><p class="track-label">Go / net/http</p>
 <pre><code>POST /todos                          ← span de servidor HTTP, nombrado por la ruta
 ├── INSERT                           ← instrumentación de database/sql
+├── INSERT                           ← uno más por etiqueta
 ├── UPDATE
 └── POST                             ← HTTP saliente a notify-service
     └── POST /notify                 ← y el span del *otro servicio*, misma traza

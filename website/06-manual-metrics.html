@@ -214,6 +214,7 @@ todos_open.add(-1, {&quot;list&quot;: todo.list})
 they are downloaded by themselves:</p>
 <pre><code class="language-go">import (
 	// ...the imports already there, plus:
+	&quot;context&quot;
 	&quot;strconv&quot;
 	&quot;time&quot;
 
@@ -391,7 +392,7 @@ database. Adding them up would count each overdue todo more than once.</p>
 </li>
 </ol>
 <h3>Verify in the Victoria UI</h3>
-<p><strong>vmui → the Explore Cardinality tab</strong> (<a href="http://localhost:8428/vmui" target="_blank" rel="noopener"><code>http://localhost:8428/vmui</code></a>, top navigation). Look at &ldquo;Metrics with the highest number of series&rdquo;. Watch <code>todos_created_total</code> climb to the top of the list within a minute.</p>
+<p><strong>vmui → the Explore Cardinality tab</strong> (<a href="http://localhost:8428/vmui" target="_blank" rel="noopener"><code>http://localhost:8428/vmui</code></a>, top navigation). Look at &ldquo;Metrics with the highest number of series&rdquo;. Watch <code>todos_created_total</code> climb up the list for as long as the loadgen runs.</p>
 <p>Then the raw numbers:</p>
 <pre><code class="language-bash">curl -s 'http://localhost:8428/api/v1/status/tsdb' | head -c 2000
 </code></pre>

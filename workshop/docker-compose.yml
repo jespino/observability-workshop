@@ -142,14 +142,20 @@ services:
     volumes:
       - ./track-js/todo-api:/app
       - todo-api-js-modules:/app/node_modules
-    # npm runs with NODE_OPTIONS emptied: it would otherwise try to preload the
-    # OpenTelemetry SDK that Module 4.1 puts in NODE_OPTIONS.
+    # npm and nodemon run with NODE_OPTIONS emptied: the OpenTelemetry SDK that
+    # Module 4.1 puts in NODE_OPTIONS belongs to the API process only, so it is
+    # handed to that process alone, through APP_NODE_OPTIONS. nodemon restarts
+    # the API when a file in src/ changes; it polls, so editors that save by
+    # renaming the file are seen too.
     entrypoint:
       - sh
       - -c
-      - NODE_OPTIONS= npm install --no-package-lock --no-fund --no-audit --loglevel=error && exec "$$@"
+      - >-
+        NODE_OPTIONS= npm install --no-package-lock --no-fund --no-audit --loglevel=error
+        && export APP_NODE_OPTIONS="$$NODE_OPTIONS" NODE_OPTIONS=
+        && exec "$$@"
       - --
-    command: node --watch src/server.js
+    command: node_modules/.bin/nodemon --quiet --legacy-watch --watch src --signal SIGTERM --exec "exec node $$APP_NODE_OPTIONS" src/server.js
     ports: ["8081:8081"]
     depends_on: [postgres, notify-service, otel-collector]
 

@@ -335,6 +335,7 @@ POST /todos                          ← HTTP server span, named by route
 └── request handler - /todos
     ├── pg-pool.connect              ← postgres instrumentation
     ├── pg.query:INSERT todo
+    ├── pg.query:INSERT todo         ← one more per tag
     ├── pg.query:UPDATE todo
     └── POST                         ← outbound HTTP to notify-service
         └── POST /notify             ← and the *other service's* span, same trace
@@ -347,6 +348,7 @@ POST /todos                          ← HTTP server span, named by route
 ```
 POST /todos                          ← HTTP server span, named by route
 ├── INSERT                           ← postgres instrumentation
+├── INSERT                           ← one more per tag
 ├── UPDATE
 └── POST                             ← outbound HTTP to notify-service
     └── POST /notify                 ← and the *other service's* span, same trace
@@ -359,6 +361,7 @@ POST /todos                          ← HTTP server span, named by route
 ```
 POST /todos                          ← HTTP server span, named by route
 ├── INSERT                           ← database/sql instrumentation
+├── INSERT                           ← one more per tag
 ├── UPDATE
 └── POST                             ← outbound HTTP to notify-service
     └── POST /notify                 ← and the *other service's* span, same trace

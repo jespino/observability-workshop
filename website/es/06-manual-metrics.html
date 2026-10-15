@@ -214,6 +214,7 @@ todos_open.add(-1, {&quot;list&quot;: todo.list})
 compilación, así que se descargan solos:</p>
 <pre><code class="language-go">import (
 	// ...los imports que ya hay, más:
+	&quot;context&quot;
 	&quot;strconv&quot;
 	&quot;time&quot;
 
@@ -392,7 +393,7 @@ de datos. Sumarlos contaría cada todo vencido más de una vez.</p>
 </li>
 </ol>
 <h3>Comprueba en la UI de Victoria</h3>
-<p><strong>vmui → pestaña Explore Cardinality</strong> (<a href="http://localhost:8428/vmui" target="_blank" rel="noopener"><code>http://localhost:8428/vmui</code></a>, navegación superior). Mira &ldquo;Metrics with the highest number of series&rdquo;. Observa cómo <code>todos_created_total</code> sube al primer puesto en menos de un minuto.</p>
+<p><strong>vmui → pestaña Explore Cardinality</strong> (<a href="http://localhost:8428/vmui" target="_blank" rel="noopener"><code>http://localhost:8428/vmui</code></a>, navegación superior). Mira &ldquo;Metrics with the highest number of series&rdquo;. Observa cómo <code>todos_created_total</code> va subiendo en la lista mientras corre el loadgen.</p>
 <p>Luego los números en crudo:</p>
 <pre><code class="language-bash">curl -s 'http://localhost:8428/api/v1/status/tsdb' | head -c 2000
 </code></pre>

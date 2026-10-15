@@ -116,10 +116,15 @@ source file — `.env`, the dependency list, the `command:` — needs
 `docker compose up -d --force-recreate todo-api-js|py|go`. The handouts must never go back to
 "Ctrl-C and ↑ Enter".
 
-- **JS**: `node --watch src/server.js`. Once the SDK is loaded it registers its own SIGTERM
-  handler, which stops Node exiting on its own, so `--watch` would hang on
-  "Waiting for graceful termination". `src/server.js` therefore has
-  a `process.on('SIGTERM', …)` that exits after 500ms. Keep it in every solution in `solutions/`.
+- **JS**: `nodemon` (a devDependency) restarts `src/server.js` on save. Not `node --watch`:
+  it watches files by inode, so after one save by an editor that writes a new file and
+  renames it (vim, JetBrains' safe write) it silently stops reloading that file. `nodemon`
+  polls (`--legacy-watch`). It runs with `NODE_OPTIONS` emptied and starts the API with
+  `--exec "exec node $APP_NODE_OPTIONS"` — otherwise the SDK would load into `nodemon`
+  (and `npx`) too and they would report themselves as `todo-api`; the `exec` makes `node`,
+  not a shell, receive the SIGTERM. Once the SDK is loaded it registers its own SIGTERM
+  handler, which stops Node exiting on its own, so `src/server.js` has a
+  `process.on('SIGTERM', …)` that exits after 500ms. Keep it in every solution in `solutions/`.
 - **Python**: gunicorn runs under `watchmedo auto-restart` (watchdog, installed by the
   entrypoint). **Not** `gunicorn --reload`: under `opentelemetry-instrument` it silently
   stops OTel logs from being exported. Module 4.1 switches the SDK on by editing the
@@ -149,7 +154,7 @@ and need **none of Node.js, Python or Go installed**.
 
 | Component | How it runs | Port | Data |
 |---|---|---|---|
-| todo-api (JS) | Compose service `todo-api-js`, profile `js`, `node --watch` | 8081 | deps in volume `workshop_todo-api-js-modules` |
+| todo-api (JS) | Compose service `todo-api-js`, profile `js`, restarted by `nodemon` | 8081 | deps in volume `workshop_todo-api-js-modules` |
 | todo-api (Python) | Compose service `todo-api-py`, profile `py`, gunicorn under `watchmedo` | 8082 | deps in volume `workshop_todo-api-py-deps` |
 | todo-api (Go) | Compose service `todo-api-go`, profile `go`, rebuilt by `air` | 8085 | modules, build cache, `air`, `otelc` in volume `workshop_todo-api-go-cache` |
 | Postgres | Compose service `postgres` (container `workshop-postgres`) | 5432 | volume `workshop_postgres` |

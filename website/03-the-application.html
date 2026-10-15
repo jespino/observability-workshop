@@ -237,7 +237,7 @@ that you can follow it.</li>
     └── db.js             # the Postgres connection pool
 </code></pre>
 <p>The four files with a ◀ are where essentially all of your work happens.</p>
-<p><strong><code>src/server.js</code></strong> — plain Express, no surprises, shown here without the CORS and error-handling details. Note that there is no telemetry setup anywhere in it. That&rsquo;s the starting condition. The <code>SIGTERM</code> line is there so the server exits promptly when you save a file and <code>node --watch</code> restarts it:</p>
+<p><strong><code>src/server.js</code></strong> — plain Express, no surprises, shown here without the CORS and error-handling details. Note that there is no telemetry setup anywhere in it. That&rsquo;s the starting condition. The <code>SIGTERM</code> line is there so the server exits promptly when you save a file and it gets restarted:</p>
 <pre><code class="language-js">require('express-async-errors');
 const express = require('express');
 const { todosRouter } = require('./routes/todos.js');

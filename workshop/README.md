@@ -33,7 +33,7 @@ The handouts live one level up, in [`../modules/`](../modules/), and are publish
 | notify-service (Python, called by every track) | Compose service `notify-service` | 8083 | — |
 | frontend | Compose service `frontend` | 8080 | — |
 | Grafana | Compose service `grafana` | 3000 | volume `workshop_grafana` |
-| todo-api (JS) | Compose service `todo-api-js`, profile `js` — `node --watch` | 8081 | dependencies in volume `workshop_todo-api-js-modules` |
+| todo-api (JS) | Compose service `todo-api-js`, profile `js` — `nodemon` restarts it on save | 8081 | dependencies in volume `workshop_todo-api-js-modules` |
 | todo-api (Python) | Compose service `todo-api-py`, profile `py` — gunicorn under `watchmedo auto-restart` | 8082 | dependencies in volume `workshop_todo-api-py-deps` |
 | todo-api (Go) | Compose service `todo-api-go`, profile `go` — `air` rebuilds and restarts it on save | 8085 | modules, build cache, `air` and `otelc` in volume `workshop_todo-api-go-cache` |
 
