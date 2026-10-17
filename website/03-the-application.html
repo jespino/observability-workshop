@@ -126,6 +126,9 @@
 <li>Know every endpoint the API exposes, and what each one touches</li>
 <li>Know the four files in your track that you&rsquo;ll be editing all day, and what lives in each</li>
 </ul>
+<h2>The application in your browser</h2>
+<p>Open <a href="http://localhost:8080" target="_blank" rel="noopener">http://localhost:8080</a> to see the todo app running on your laptop. The track selector in the top-right corner chooses which API the frontend calls. You can switch lists, add a todo with tags and a priority, mark it done, or delete it.</p>
+<p><img src="images/application-screenshot.png" alt="The running todo app, with the track selector, list tabs, a form for adding todos, and tasks with tags, priorities, and completion buttons."></p>
 <h2>The system</h2>
 <p><img src="images/application.png" alt="The application: your browser loads the frontend on :8080, which calls todo-api (js :8081 / py :8082) over HTTP. todo-api — the code you edit, which restarts when you save a file — holds an in-process cache in front of the list read path, uses Postgres on :5432 as its only external dependency, and calls notify-service on :8083, which is already instrumented."></p>
 <p>Four things worth noticing:</p>

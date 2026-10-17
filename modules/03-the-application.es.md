@@ -10,6 +10,12 @@ Al terminar este módulo, serás capaz de:
 - Enumerar todos los endpoints que expone la API y qué toca cada uno
 - Conocer los cuatro ficheros de tu track que vas a editar todo el día, y qué vive en cada uno
 
+## La aplicación en tu navegador
+
+Abre [http://localhost:8080](http://localhost:8080) para ver la app de tareas funcionando en tu portátil. El selector de track de la esquina superior derecha elige a qué API llama el frontend. Puedes cambiar de lista, añadir una tarea con etiquetas y prioridad, marcarla como completada o borrarla.
+
+![La app de tareas en funcionamiento, con el selector de track, las pestañas de listas, un formulario para añadir tareas y tareas con etiquetas, prioridades y botones para completarlas.](images/application-screenshot.png)
+
 ## El sistema
 
 ![La aplicación: tu navegador carga el frontend en :8080, que llama a todo-api (js :8081 / py :8082) por HTTP. todo-api — el código que editas, que se reinicia al guardar un fichero — tiene una caché en proceso delante del camino de lectura de listas, usa Postgres en :5432 como su única dependencia externa, y llama a notify-service en :8083, que ya viene instrumentado.](images/application.png)
